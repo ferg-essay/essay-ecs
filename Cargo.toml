@@ -1,6 +1,6 @@
 [package]
-name = "essay-mind"
-version = "0.1.9"
+name = "essay-ecs"
+version = "0.1.0"
 edition = "2021"
 publish=false
 
@@ -14,25 +14,10 @@ path = "src/lib.rs"
 [dependencies]
 env_logger = { version = "0.10.0" }
 log = { version = "0.4.17" }
-ui-graphics = { path = "./crates/ui-graphics", version = "0.0.0" }
-ui-audio = { path = "./crates/ui-audio", version = "0.0.0" }
-audio = { path = "./crates/audio", version = "0.0.0" }
-mind = { path = "./crates/mind", version = "0.0.0" }
-#gram = { path = "./crates/gram", version = "0.0.0" }
-#fft = { path = "./crates/fft", version = "0.0.0" }
-# kira = { version="0.7" }
-# symphonia = { version="0.5" }
-cpal = { version="0.15" }
-fundsp = { version="0.12" }
-egui = { version="0.21" }
+essay-ecs-core = { path = "crates/essay-ecs-core" }
+essay-ecs-app = { path = "crates/essay-ecs-app" }
 
 [workspace]
 members = [
     "crates/*",
 ]
-
-[workspace.dependencies]
-#gram = { path = "./crates/gram", version = "0.0.0" }
-ticker = { path = "./crates/ticker", version = "0.0.0" }
-audio = { path = "./crates/audio", version = "0.0.0" }
-ui-graphics = { path = "./crates/ui-graphics", version = "0.0.0" }
