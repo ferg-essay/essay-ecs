@@ -41,7 +41,7 @@ where
     type Out = R;
 
     fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
-        self.state = Some(F::Params::init(world, meta));
+        self.state = Some(F::Params::init(meta, world));
     }
 
     unsafe fn run_unsafe(&mut self, world: &World) -> Self::Out {
@@ -227,12 +227,7 @@ mod tests {
             }
         }
 
-        fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
-            ()
-        }
-
-        fn flush(_world: &mut World, _state: &mut Self::State) {
-            ()
+        fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
         }
     }
  }

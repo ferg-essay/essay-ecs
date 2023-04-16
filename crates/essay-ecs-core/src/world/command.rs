@@ -32,7 +32,7 @@ impl Param for Commands<'_> {
     type Arg<'w, 's> = Commands<'s>;
     type State = CommandQueue;
 
-    fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
+    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
         CommandQueue::default()
     }
 

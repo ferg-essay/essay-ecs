@@ -10,7 +10,7 @@ pub trait Param {
     type Arg<'w, 's>;
     type State;
 
-    fn init(world: &mut World, meta: &mut SystemMeta) -> Self::State;
+    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;
 
     fn arg<'w,'s>(
         world: &'w World,
@@ -49,7 +49,7 @@ impl<'a, T:Default + 'static> Param for Local<'a, T> {
     type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 
-    fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
+    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
         // let exl = std::sync::Exclusive::new(T::default());
         T::default()
     }
@@ -59,9 +59,6 @@ impl<'a, T:Default + 'static> Param for Local<'a, T> {
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
         Local(state)
-    }
-
-    fn flush(_world: &mut World, _state: &mut Self::State) {
     }
 }
 
@@ -78,10 +75,10 @@ macro_rules! impl_param_tuple {
             type State = ($(<$param as Param>::State,)*);
 
             fn init(
+                meta: &mut SystemMeta,
                 world: &mut World, 
-                meta: &mut SystemMeta
             ) -> Self::State {
-                ($($param::init(world, meta),)*)
+                ($($param::init(meta, world),)*)
             }
 
             fn arg<'w, 's>(

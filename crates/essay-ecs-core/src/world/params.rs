@@ -22,18 +22,14 @@ impl<'a, T:'static> Param for Res<'_, T> {
 
     fn arg<'w, 's>(
         world: &'w World,
-        state: &'s mut Self::State,
+        _state: &'s mut Self::State,
     ) -> Res<'w, T> {
         Res {
             value: world.get_resource::<T>().unwrap(),
         }
     }
 
-    fn init(world: &mut World, meta: &mut SystemMeta) -> Self::State {
-        ()
-    }
-
-    fn flush(world: &mut World, state: &mut Self::State) {
+    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
     }
 }
 
@@ -79,8 +75,7 @@ impl<T:'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
     type State = ();
 
-    fn init(world: &mut World, _meta: &mut SystemMeta) -> Self::State {
-        ()
+    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
     }
 
     fn arg<'w, 's>(
@@ -90,27 +85,6 @@ impl<T:'static> Param for ResMut<'_, T> {
         ResMut {
             value: world.get_resource_mut().unwrap()
         }
-    }
-
-    fn flush(world: &mut World, state: &mut Self::State) {
-    }
-}
-
-impl Param for &World {
-    type Arg<'w, 's> = &'w World;
-    type State = ();
-
-    fn arg<'w, 's>(
-        world: &'w World,
-        state: &'s mut Self::State,
-    ) -> Self::Arg<'w, 's> {
-        world
-    }
-
-    fn init(world: &mut World, meta: &mut SystemMeta) -> Self::State {
-    }
-
-    fn flush(world: &mut World, state: &mut Self::State) {
     }
 }
 

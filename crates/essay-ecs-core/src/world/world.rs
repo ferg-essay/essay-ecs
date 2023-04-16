@@ -1,6 +1,6 @@
 use crate::{
     entity::{Store, ViewIterator, View, Insert, EntityId}, 
-    schedule::{System, IntoSystem, ScheduleLabel, Schedules, SystemMeta}
+    schedule::{System, IntoSystem, ScheduleLabel, Schedules, SystemMeta}, prelude::Param
 };
 
 use super::{resource::Resources, Ptr};
@@ -111,6 +111,21 @@ impl World {
         schedule.run(self);
 
         self.resource_mut::<Schedules>().insert(label, schedule);
+    }
+}
+
+impl Param for &World {
+    type Arg<'w, 's> = &'w World;
+    type State = ();
+
+    fn arg<'w, 's>(
+        world: &'w World,
+        _state: &'s mut Self::State,
+    ) -> Self::Arg<'w, 's> {
+        world
+    }
+
+    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
     }
 }
 
