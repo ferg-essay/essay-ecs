@@ -110,7 +110,7 @@ mod tests {
     use std::any::type_name;
     use std::marker::PhantomData;
 
-    use crate::{world::World, schedule::{IntoSystem, SystemMeta, Schedule, IntoSystemConfig}};
+    use crate::{world::World, schedule::{IntoSystem, SystemMeta, Schedule}};
 
     use super::Param;
 

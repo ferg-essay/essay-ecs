@@ -1,14 +1,10 @@
 
-//
-// Query
-//
-
 use std::marker::PhantomData;
 
 use super::{
     {Store, ViewId}, 
     meta::{TableType, ViewTableType, ColumnId}, 
-    store::{Row, Component}
+    store::{Component}, entity::Entity
 };
 
 pub trait View {
@@ -23,7 +19,7 @@ pub struct ViewCursor<'a, 't> {
     store: &'t Store,
     table: &'a TableType,
     view_table: &'a ViewTableType,
-    row: &'a Row,
+    row: &'a Entity,
     cols: &'a Vec<usize>,
     index: usize,
 }
@@ -44,7 +40,7 @@ impl ViewPlan {
         store: &'t Store,
         table: &'a TableType,
         view_row: &'a ViewTableType,
-        row: &'a Row
+        row: &'a Entity
     ) -> ViewCursor<'a, 't> {
         ViewCursor {
             store,

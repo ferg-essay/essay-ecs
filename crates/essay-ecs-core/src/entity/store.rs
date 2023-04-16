@@ -1,26 +1,17 @@
 use super::column::{Column, RowId};
+use super::entity::{Entity, EntityId};
 use super::insert::{InsertBuilder, Insert, InsertPlan};
 use super::ViewId;
 use super::view::{View, ViewIterator, ViewBuilder, ViewPlan};
 use super::meta::{StoreMeta, ColumnId, TableId, ViewType};
-
-#[derive(Debug,Clone,Copy,PartialEq,Hash,PartialOrd,Eq)]
-pub struct EntityId(usize);
 
 pub struct Store {
     meta: StoreMeta,
 
     columns: Vec<Column>,
 
-    rows: Vec<Row>,
+    rows: Vec<Entity>,
     rows_by_table: Vec<Vec<EntityId>>,
-}
-
-pub struct Row {
-    id: EntityId,
-    table: TableId,
-
-    columns: Vec<RowId>,
 }
 
 pub trait Component:'static {}
@@ -81,24 +72,24 @@ impl Store {
     pub fn get<T:'static>(&mut self, entity: EntityId) -> Option<&T> {
         let column_id = self.meta().get_column::<T>()?;
         let row = self.rows.get(entity.index())?;
-        let table = self.meta().table(row.table);
+        let table = self.meta().table(row.table());
 
         let index = table.position(column_id)?;
 
         unsafe {
-            self.get_by_id(column_id, row.columns[index])
+            self.get_by_id(column_id, row.column(index))
         }
     }
 
     pub fn get_mut<T:'static>(&mut self, entity: EntityId) -> Option<&mut T> {
         let column_id = self.meta().get_column::<T>()?;
         let row = self.rows.get(entity.index())?;
-        let table = self.meta().table(row.table);
+        let table = self.meta().table(row.table());
 
         let index = table.position(column_id)?;
 
         unsafe {
-            self.get_mut_by_id(column_id, row.columns[index])
+            self.get_mut_by_id(column_id, row.column(index))
         }
     }
 
@@ -144,19 +135,15 @@ impl Store {
         table_id: TableId, 
         columns: Vec<RowId>
     ) -> EntityId {
-        let entity_id = EntityId(self.rows.len());
+        let row = Entity::new(self.rows.len(), table_id, columns);
 
-        let row = Row {
-            id: entity_id,
-            table: table_id,
-            columns,
-        };
+        let id = row.id();
 
         self.rows.push(row);
         
-        self.rows_by_table[table_id.index()].push(entity_id);
+        self.rows_by_table[table_id.index()].push(id);
 
-        entity_id
+        id
     }
 
     //
@@ -212,23 +199,11 @@ impl Store {
         &self, 
         table_id: TableId, 
         row_index: usize
-    ) -> Option<&Row> {
+    ) -> Option<&Entity> {
         match self.rows_by_table[table_id.index()].get(row_index) {
             Some(row_id) => self.rows.get(row_id.index()),
             None => None,
         }
-    }
-}
-
-impl EntityId {
-    fn index(&self) -> usize {
-        self.0
-    }
-}
-
-impl Row {
-    pub(crate) fn column_row(&self, index: usize) -> RowId {
-        self.columns[index]
     }
 }
 

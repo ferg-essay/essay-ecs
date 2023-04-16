@@ -1,3 +1,5 @@
+use core::fmt;
+
 use fixedbitset::FixedBitSet;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -59,7 +61,7 @@ impl Preorder {
 
                 if ! node.is_incoming_pending(&pending) {
                     completed.insert(index);
-                    results.push(node.id);
+                    results.push(node.id());
                     //println!("   Item: {:?}", node.id());
                 }
             }
@@ -114,6 +116,15 @@ impl Node {
         }
 
         return false
+    }
+}
+
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Node")
+            .field("id", &self.id)
+            .field("weight", &self.weight)
+            .finish()
     }
 }
 
