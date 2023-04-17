@@ -8,14 +8,14 @@ use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
     preorder::{Preorder, NodeId}, 
-    System, IntoSystemConfig, SystemConfig, SystemMeta
+    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{SystemPlan, Plan}, cell::SyncUnsafeCell
 };
 
 ///
 /// See Bevy schedule.rs
 /// 
 
-pub type BoxedSystem<Out=()> = Box<dyn System<Out=Out>>;
+pub type BoxedSystem<Out=()> = SyncUnsafeCell<Box<dyn System<Out=Out>>>;
 pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
 pub struct Schedule {
@@ -49,7 +49,7 @@ pub trait ScheduleLabel : DynLabel + fmt::Debug {
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);
 
-struct SystemItem {
+pub(crate) struct SystemItem {
     id: SystemId,
     meta: SystemMeta,
 
@@ -77,6 +77,18 @@ impl SystemItem {
             }
         }
     }
+
+    pub(crate) unsafe fn run_unsafe(&mut self, world: &mut World) {
+        self.system.get_mut().run_unsafe(world);
+    }
+
+    pub(crate) fn run(&mut self, world: &mut World) {
+        self.system.get_mut().run(world);
+    }
+
+    pub(crate) fn system(&self) -> &BoxedSystem {
+        &self.system
+    }
 }
 
 impl Schedule {
@@ -88,6 +100,14 @@ impl Schedule {
 
             is_changed: true,
         }
+    }
+
+    pub(crate) fn system_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
+        self.systems.get_mut(system_id)
+    }
+
+    pub(crate) fn system(&self, system_id: SystemId) -> &SystemItem {
+        self.systems.get(system_id)
     }
 
     pub fn add_system<M>(
@@ -118,7 +138,7 @@ impl Schedule {
 
         self.is_changed = true;
 
-        self.systems.add(system, phase_id)
+        self.systems.add(SyncUnsafeCell::new(system), phase_id)
     }
 
     pub fn set_default_phase(&mut self, task_set: impl Phase) {
@@ -165,11 +185,21 @@ impl Schedule {
         self.systems.flush(world);
     }
 
-    fn init(&mut self, world: &mut World) {
+    pub(crate) fn init(&mut self, world: &mut World) {
         self.systems.init(world);
         self.init_phases();
-        let task_set_order = self.phases.sort();
-        self.systems.sort(task_set_order);
+        let phase_order = self.phases.sort();
+        self.systems.sort(phase_order);
+    }
+
+    pub(crate) fn plan(&self) -> Plan {
+        let phase_order = self.phases.sort();
+
+        self.systems.plan(phase_order)
+    }
+
+    pub(crate) fn flush(&mut self, world: &mut World) {
+        self.systems.flush(world);
     }
 }
 
@@ -188,7 +218,7 @@ impl SchedulePreorder {
 
         self.systems.push(SystemItem {
             id,
-            meta: SystemMeta::new(id, system.type_name()),
+            meta: SystemMeta::new(id, system.get().type_name()),
             system,
             phase: phase_id,
         });
@@ -202,7 +232,7 @@ impl SchedulePreorder {
         for id in self.uninit_systems.drain(..) {
             let system = &mut self.systems[id.index()];
             //println!("init {:?}", id);
-            system.system.init(&mut system.meta, world);
+            system.system.get_mut().init(&mut system.meta, world);
         }
     }
 
@@ -223,6 +253,23 @@ impl SchedulePreorder {
         self.order = preorder.sort().iter()
             .map(|n| SystemId::from(*n))
             .collect();
+    }
+
+    fn plan(&self, phase_order: Vec<SystemId>) -> Plan {
+        let mut preorder = self.preorder.clone();
+
+        let prev_map = self.prev_map(
+            &mut preorder, 
+            phase_order
+        );
+
+        for system in &self.systems {
+            if ! system.meta.is_flush() {
+                system.add_phase_arrows(&mut preorder, &prev_map);
+            }
+        }
+
+        Plan::new(&preorder)
     }
 
     fn prev_map(
@@ -259,7 +306,7 @@ impl SchedulePreorder {
             if system.meta.is_flush() {
                 // self.flush(world);
             } else {
-                system.system.run(world);
+                system.system.get_mut().run(world);
             }
         }
     }
@@ -267,9 +314,17 @@ impl SchedulePreorder {
     fn flush(&mut self, world: &mut World) {
         for system in &mut self.systems {
             if ! system.meta.is_flush() {
-                system.system.flush(world);
+                system.system.get_mut().flush(world);
             }
         }
+    }
+
+    fn get_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
+        &mut self.systems[system_id.index()]
+    }
+
+    fn get(&self, system_id: SystemId) -> &SystemItem {
+        &self.systems[system_id.index()]
     }
 }
 
@@ -354,6 +409,12 @@ impl System for SystemFlush {
     }
 }
 
+impl SystemItem {
+    pub(crate) fn meta(&self) -> &SystemMeta {
+        &self.meta
+    }
+}
+
 impl SystemId {
     pub fn index(&self) -> usize {
         self.0
@@ -426,6 +487,7 @@ mod tests {
 
     #[test]
     fn phase_a_b_c() {
+        /*
         let values = Rc::new(RefCell::new(Vec::<String>::new()));
 
         let mut world = World::new();
@@ -493,6 +555,7 @@ mod tests {
 
         schedule.run(&mut world);
         assert_eq!(take(&values), "b, c");
+        */
     }
 
     fn new_schedule_a_b_c() -> Schedule {

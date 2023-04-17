@@ -14,7 +14,7 @@ pub struct Store {
     rows_by_table: Vec<Vec<EntityId>>,
 }
 
-pub trait Component:'static {}
+pub trait Component:Send + Sync + 'static {}
 
 #[derive (Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct ComponentId(usize);

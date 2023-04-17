@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{world::{World}, schedule::SystemMeta};
+use crate::{world::{World, FromWorld}, schedule::SystemMeta};
 
 //
 // Param
@@ -8,7 +8,7 @@ use crate::{world::{World}, schedule::SystemMeta};
  
 pub trait Param {
     type Arg<'w, 's>;
-    type State;
+    type State : Send + Sync;
 
     fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;
 
@@ -27,9 +27,9 @@ pub type Arg<'w, 's, P> = <P as Param>::Arg<'w, 's>;
 // Local param
 //
 
-pub struct Local<'s, T:Default + 'static>(pub(crate) &'s mut T);
+pub struct Local<'s, T:FromWorld>(pub(crate) &'s mut T);
 
-impl<'s, T:Default+'static> Deref for Local<'s, T> {
+impl<'s, T:FromWorld> Deref for Local<'s, T> {
     type Target = T;
 
     #[inline]
@@ -38,20 +38,20 @@ impl<'s, T:Default+'static> Deref for Local<'s, T> {
     }
 }
 
-impl<'s, T:Default+'static> DerefMut for Local<'s, T> {
+impl<'s, T:FromWorld> DerefMut for Local<'s, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0
     }
 }
 
-impl<'a, T:Default + 'static> Param for Local<'a, T> {
+impl<'a, T:FromWorld> Param for Local<'a, T> {
     type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 
-    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+    fn init(_meta: &mut SystemMeta, world: &mut World) -> Self::State {
         // let exl = std::sync::Exclusive::new(T::default());
-        T::default()
+        T::init(world)
     }
 
     fn arg<'w, 's>(
@@ -59,6 +59,9 @@ impl<'a, T:Default + 'static> Param for Local<'a, T> {
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
         Local(state)
+    }
+
+    fn flush(_world: &mut World, _state: &mut Self::State) {
     }
 }
 

@@ -1,3 +1,7 @@
+mod cell;
+mod future;
+mod multithreaded;
+mod plan;
 mod thread_pool;
 mod phase;
 mod preorder;

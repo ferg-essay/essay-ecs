@@ -35,8 +35,9 @@ pub trait Fun<R, M> {
 
 impl<F, R:'static, M> System for FunctionSystem<F, R, M>
 where
-    M: 'static,
-    F: Fun<R, M> + 'static
+    M: Send + Sync + 'static,
+    R: Send + Sync,
+    F: Fun<R, M> + Send + Sync + 'static
 {
     type Out = R;
 
@@ -62,7 +63,9 @@ where
 impl<F, R:'static, M:'static> IntoSystem<R, fn(M,IsFun)> for F
 where
     //M: 'static,
-    F: Fun<R, M> + 'static
+    F: Fun<R, M> + Send + Sync + 'static,
+    M: Send + Sync,
+    R: Send + Sync,
 {
     type System = FunctionSystem<F, R, M>;
 

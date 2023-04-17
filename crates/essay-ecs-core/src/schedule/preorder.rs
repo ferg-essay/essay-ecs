@@ -25,6 +25,14 @@ impl Preorder {
         Self::default()
     }
 
+    pub(crate) fn incoming(&self, id: NodeId) -> &Vec<NodeId> {
+        &self.nodes[id.index()].incoming
+    }
+
+    pub(crate) fn outgoing(&self, id: NodeId) -> &Vec<NodeId> {
+        &self.nodes[id.index()].outgoing
+    }
+
     pub fn add_node(&mut self, weight: u64) -> NodeId {
         let id = NodeId(self.nodes.len());
 

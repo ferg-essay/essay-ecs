@@ -1,15 +1,19 @@
 use core::fmt;
 use std::{
     thread::{Thread, self, JoinHandle}, 
-    sync::{mpsc::{self, Receiver, Sender}, Arc}, 
-    time::Duration
+    sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex}, 
+    time::Duration, future::Future
 };
 
 use concurrent_queue::{ConcurrentQueue, PopError};
 
+use crate::{World, Schedule};
+
 use super::schedule::SystemId;
 
 pub struct ThreadPoolBuilder {
+    parent_task: Option<Box<dyn Fn(&TaskSender) + Send>>,
+    child_task_builder: Option<Box<dyn Fn() -> Box<dyn Fn(SystemId) + Send>>>,
     n_threads: Option<usize>,
 }
 
@@ -29,17 +33,19 @@ type MainClosure = Box<dyn FnOnce(&TaskSender) + Send>;
 type TaskClosure = Box<dyn FnOnce() -> SystemId + Send>;
 
 enum MainMessage {
-    Start(MainClosure),
+    Start,
     Complete,
     Exit,
 }
 
 enum TaskMessage {
-    Start(TaskClosure),
+    Start(SystemId),
     Exit,
 }
 
 pub struct ParentThread {
+    task: Box<dyn Fn(&TaskSender) + Send>,
+
     main_reader: Receiver<MainMessage>,
     main_sender: Sender<MainMessage>,
 
@@ -67,6 +73,7 @@ impl TaskInfo {
 }
 
 struct ChildThread {
+    task: Box<dyn Fn(SystemId) + Send>,
     registry: Arc<Registry>,
     sender: Sender<SystemId>,
     index: usize,
@@ -79,8 +86,28 @@ struct ChildThread {
 impl ThreadPoolBuilder {
     pub fn new() -> Self {
         Self {
+            parent_task: None,
+            child_task_builder: None,
             n_threads: None,
         }
+    }
+
+    pub fn parent<F>(mut self, task: F) -> Self
+    where
+        F: Fn(&TaskSender) + Send + 'static
+    {
+        self.parent_task = Some(Box::new(task));
+
+        self
+    }
+
+    pub fn child<F>(mut self, task: F) -> Self
+    where
+        F: Fn()->Box<dyn Fn(SystemId) + Send> + 'static
+    {
+        self.child_task_builder = Some(Box::new(task));
+
+        self
     }
 
     pub fn n_threads(mut self, n_threads: usize) -> Self {
@@ -92,8 +119,11 @@ impl ThreadPoolBuilder {
     }
 
     pub fn build(self) -> ThreadPool {
+        assert!(! self.parent_task.is_none());
+        assert!(! self.child_task_builder.is_none());
+
         let parallelism = thread::available_parallelism().unwrap();
-        println!("parallel {:?}", parallelism);
+        
 
         let (executive_sender, main_reader) = mpsc::channel();
         let (main_sender, executive_reader) = mpsc::channel();
@@ -115,10 +145,14 @@ impl ThreadPoolBuilder {
         }
 
         let registry = Arc::new(registry);
+
         let mut handles = Vec::<JoinHandle<()>>::new();
+
+        let builder = self.child_task_builder.unwrap();
 
         for i in 0..n_threads {
             let mut task_thread = ChildThread::new(
+                builder(),
                 Arc::clone(&registry), 
                 task_sender.clone(),
                 i
@@ -132,6 +166,8 @@ impl ThreadPoolBuilder {
         }
 
         let mut executive = ParentThread {
+            task: self.parent_task.unwrap(),
+
             main_reader,
             main_sender,
 
@@ -157,16 +193,17 @@ impl ThreadPoolBuilder {
 }
 
 impl ThreadPool {
-    pub fn start(&mut self, fun: impl FnOnce(&TaskSender) + Send + 'static) {
-        self.executive_sender.send(MainMessage::Start(Box::new(fun))).unwrap();
+    pub fn start(&self) {
+        self.executive_sender.send(MainMessage::Start).unwrap();
         
         loop {
             match self.executive_reader.recv() {
                 Ok(MainMessage::Exit) => {
-                    self.close();
                     panic!("unexpected exit");
                 }
                 Ok(MainMessage::Complete) => {
+                    println!("main complete");
+                    
                     return;
                 }
                 Ok(_) => {
@@ -202,8 +239,9 @@ impl ParentThread {
         let sender = TaskSender { thread: &self };
         loop {
             match self.main_reader.recv() {
-                Ok(MainMessage::Start(task)) => {
-                    task(&sender);
+                Ok(MainMessage::Start) => {
+                    (self.task)(&sender);
+                    println!("sender complete");
 
                     self.main_sender.send(MainMessage::Complete).unwrap();
                 }
@@ -230,11 +268,13 @@ impl ParentThread {
 
 impl ChildThread {
     pub fn new(
+        task: Box<dyn Fn(SystemId) + Send>,
         registry: Arc<Registry>, 
         sender: Sender<SystemId>,
         index: usize
     ) -> Self {
         Self {
+            task,
             registry,
             sender,
             index,
@@ -255,8 +295,9 @@ impl ChildThread {
             };
 
             match msg {
-                TaskMessage::Start(fun) => {
-                    let id = fun();
+                TaskMessage::Start(id) => {
+                    (self.task)(id);
+
                     self.sender.send(id).unwrap();
                 },
                 TaskMessage::Exit => {
@@ -268,8 +309,9 @@ impl ChildThread {
 }
 
 impl<'a> TaskSender<'a> {
-    pub fn send(&self, fun: impl FnOnce() -> SystemId + Send + 'static) {
-        self.thread.registry.queue.push(TaskMessage::Start(Box::new(fun))).unwrap();
+    pub fn send(&self, system_id: SystemId)
+    {
+        self.thread.registry.queue.push(TaskMessage::Start(system_id)).unwrap();
     }
 
     pub fn flush(&self) {
@@ -307,36 +349,35 @@ mod tests {
 
     #[test]
     fn two_tasks_two_threads() {
-        let mut pool = ThreadPoolBuilder::new().n_threads(2).build();
-
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        pool.start(move |sender| {
+        let ptr2 = values.clone();
+    
+        let mut pool = ThreadPoolBuilder::new().parent(
+            move |sender| {
             ptr.lock().unwrap().push(format!("[P"));
 
-            let ptr2 = ptr.clone();
-            sender.send(move || { 
-                ptr2.lock().unwrap().push(format!("[C"));
-                thread::sleep(Duration::from_millis(100));
-                ptr2.lock().unwrap().push(format!("C]"));
-                SystemId(0) 
-            });
-
-            let ptr2 = ptr.clone();
-            sender.send(move || { 
-                ptr2.lock().unwrap().push(format!("[C"));
-                thread::sleep(Duration::from_millis(100));
-                ptr2.lock().unwrap().push(format!("C]"));
-                SystemId(1) 
-            });
+            sender.send(SystemId(0));
+            sender.send(SystemId(1));
             sender.flush();
 
             sender.read();
             sender.read();
 
             ptr.lock().unwrap().push(format!("P]"));
-        });
+        }).child(move || {
+            let ptr3 = ptr2.clone();
+
+            Box::new(move |s| { 
+                ptr3.lock().unwrap().push(format!("[C"));
+                thread::sleep(Duration::from_millis(100));
+                ptr3.lock().unwrap().push(format!("C]"));
+            })
+        }).n_threads(2)
+        .build();
+
+        pool.start();
 
         let list: Vec<String> = values.lock().unwrap().drain(..).collect();
         assert_eq!(list.join(", "), "[P, [C, [C, C], C], P]");
@@ -346,36 +387,35 @@ mod tests {
 
     #[test]
     fn two_tasks_one_thread() {
-        let mut pool = ThreadPoolBuilder::new().n_threads(1).build();
-
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        pool.start(move |sender| {
+        let ptr2 = values.clone();
+
+        let mut pool = ThreadPoolBuilder::new().parent(
+        move |sender| {
             ptr.lock().unwrap().push(format!("[P"));
 
             let ptr2 = ptr.clone();
-            sender.send(move || { 
-                ptr2.lock().unwrap().push(format!("[C"));
-                thread::sleep(Duration::from_millis(100));
-                ptr2.lock().unwrap().push(format!("C]"));
-                SystemId(0) 
-            });
-
-            let ptr2 = ptr.clone();
-            sender.send(move || { 
-                ptr2.lock().unwrap().push(format!("[C"));
-                thread::sleep(Duration::from_millis(100));
-                ptr2.lock().unwrap().push(format!("C]"));
-                SystemId(1) 
-            });
+            sender.send(SystemId(0));
+            sender.send(SystemId(1));
             sender.flush();
 
             sender.read();
             sender.read();
 
             ptr.lock().unwrap().push(format!("P]"));
-        });
+        }).child(move || {
+            let ptr3 = ptr2.clone();
+
+            Box::new(move |s| { 
+                ptr3.lock().unwrap().push(format!("[C"));
+                thread::sleep(Duration::from_millis(100));
+                ptr3.lock().unwrap().push(format!("C]"));
+            })
+        }).n_threads(1).build();
+
+        pool.start();
 
         let list: Vec<String> = values.lock().unwrap().drain(..).collect();
         assert_eq!(list.join(", "), "[P, [C, C], [C, C], P]");

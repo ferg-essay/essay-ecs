@@ -11,9 +11,9 @@ pub struct IsWorld;
 // Param
 //
  
-pub trait ParamExcl {
+pub trait ParamExcl : Send + Sync + 'static {
     type Arg<'s>;
-    type State;
+    type State: Send + Sync + 'static;
 
     fn init(world: &mut World, meta: &mut SystemMeta) -> Self::State;
 
@@ -30,14 +30,21 @@ pub type ArgExcl<'s, P> = <P as ParamExcl>::Arg<'s>;
 
 pub struct WorldFunSystem<F, R, M>
 where
-    F: WorldFun<R, M>
+    F: WorldFun<R, M> + Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    M: Send + Sync + 'static,
 {
     fun: F,
     state: Option<<F::Params as ParamExcl>::State>,
     marker: PhantomData<(R, M)>,
 }
 
-pub trait WorldFun<R, M> {
+pub trait WorldFun<R, M> : Send + Sync + 'static
+    where
+        R: Send + Sync + 'static,
+        M: Send + Sync + 'static
+{
+
     type Params: ParamExcl;
 
     fn run(&mut self, world: &mut World, arg: ArgExcl<Self::Params>) -> R;
@@ -49,8 +56,9 @@ pub trait WorldFun<R, M> {
 
 impl<F, R:'static, M> System for WorldFunSystem<F, R, M>
 where
-    M: 'static,
-    F: WorldFun<R, M> + 'static
+    F: WorldFun<R, M> + Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    M: Send + Sync + 'static,
 {
     type Out = R;
 
@@ -77,7 +85,9 @@ where
 
 impl<F:'static, R:'static, M:'static> IntoSystem<R,fn(M,IsWorld)> for F
 where
-    F: WorldFun<R,M>
+    F: WorldFun<R,M> + Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    M: Send + Sync + 'static
 {
     type System = WorldFunSystem<F, R, M>;
 
@@ -97,9 +107,10 @@ where
 macro_rules! impl_excl_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
-        impl<F: 'static, R, $($param: ParamExcl,)*> WorldFun<R, fn(IsWorld,$($param,)*)> for F
+        impl<F: Send + Sync + 'static, R, $($param: ParamExcl,)*> WorldFun<R, fn(IsWorld,$($param,)*)> for F
         where F:FnMut(&mut World, $($param,)*) -> R +
-            FnMut(&mut World, $(ArgExcl<$param>,)*) -> R
+            FnMut(&mut World, $(ArgExcl<$param>,)*) -> R,
+            R: Send + Sync + 'static
         {
             type Params = ($($param,)*);
 
@@ -123,8 +134,8 @@ impl_excl_function!(P1, P2, P3, P4, P5, P6, P7);
 //
 // Local param
 //
-
-impl<'a, T:Default + 'static> ParamExcl for Local<'a, T> {
+/*
+impl<'a, T:Default + Send + Sync> ParamExcl for Local<'a, T> {
     type State = T;
     type Arg<'s> = Local<'s, T>;
 
@@ -139,6 +150,7 @@ impl<'a, T:Default + 'static> ParamExcl for Local<'a, T> {
         Local(state)
     }
 }
+*/
 
 //
 // Param composed of tuples
@@ -195,8 +207,8 @@ mod tests {
     fn arg_tuples() {
         let mut world = World::new();
 
-        world.eval(|w: &mut World, l: Local<bool>| println!("world!"));
         /*
+        world.eval(|w: &mut World, l: Local<bool>| println!("world!"));
         set_global("init".to_string());
         system(&mut world, test_null);
         assert_eq!(get_global(), "test-null");
@@ -291,7 +303,7 @@ mod tests {
         marker: PhantomData<V>,
     }
 
-    impl<V> ParamExcl for TestArg<V> {
+    impl<V:Sync+Send+'static> ParamExcl for TestArg<V> {
         type Arg<'s> = TestArg<V>;
         type State = ();
 

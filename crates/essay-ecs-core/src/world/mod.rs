@@ -6,7 +6,7 @@ mod world;
 mod cell;
 
 pub use command::Commands;
-pub use world::World;
+pub use world::{World,FromWorld};
 pub use params::{Res, ResMut};
 
 pub(crate) use cell::{Ptr};

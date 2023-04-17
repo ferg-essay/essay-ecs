@@ -5,7 +5,7 @@ use crate::{world::World};
 
 use super::{schedule::SystemId, Phase, phase::DefaultPhase};
 
-pub trait System: 'static {
+pub trait System: Send + Sync + 'static {
     type Out;
 
     fn type_name(&self) -> &'static str {
