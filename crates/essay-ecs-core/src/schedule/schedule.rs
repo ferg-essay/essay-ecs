@@ -78,12 +78,12 @@ impl SystemItem {
         }
     }
 
-    pub(crate) unsafe fn run_unsafe(&mut self, world: &mut World) {
+    pub(crate) unsafe fn run_unsafe(&mut self, world: &World) {
         self.system.get_mut().run_unsafe(world);
     }
 
-    pub(crate) fn run(&mut self, world: &mut World) {
-        self.system.get_mut().run(world);
+    pub(crate) unsafe fn run(&self, world: &mut World) {
+        self.system.as_mut().run(world);
     }
 
     pub(crate) fn system(&self) -> &BoxedSystem {
@@ -201,6 +201,10 @@ impl Schedule {
     pub(crate) fn flush(&mut self, world: &mut World) {
         self.systems.flush(world);
     }
+
+    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
+        self.systems.run_unsafe(id, world);
+    }
 }
 
 impl SchedulePreorder {
@@ -218,7 +222,7 @@ impl SchedulePreorder {
 
         self.systems.push(SystemItem {
             id,
-            meta: SystemMeta::new(id, system.get().type_name()),
+            meta: SystemMeta::new(id, system.get_ref().type_name()),
             system,
             phase: phase_id,
         });
@@ -309,6 +313,12 @@ impl SchedulePreorder {
                 system.system.get_mut().run(world);
             }
         }
+    }
+
+    unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
+        let system = &self.systems[id.index()].system;
+
+        system.as_mut().run_unsafe(world)
     }
 
     fn flush(&mut self, world: &mut World) {

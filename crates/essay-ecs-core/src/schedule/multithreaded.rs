@@ -4,13 +4,13 @@ use fixedbitset::FixedBitSet;
 
 use crate::{Schedule, World, schedule::{schedule::SystemId}};
 
-use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{SystemPlan, Plan}, schedule::SystemItem, System, cell::SyncUnsafeCell};
+use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{SystemPlan, Plan}, schedule::SystemItem, System, cell::{SyncUnsafeCell, UnsafeSendCell}};
 
-type UnsafeWorld = UnsafeSend<World>;
-type ArcWorld = Arc<UnsafeSend<Option<World>>>;
+type UnsafeWorld = UnsafeSendCell<World>;
+type ArcWorld = Arc<UnsafeSendCell<Option<World>>>;
 
-type UnsafeSchedule = UnsafeSend<Schedule>;
-type ArcSchedule = Arc<UnsafeSend<Option<Schedule>>>;
+type UnsafeSchedule = UnsafeSendCell<Schedule>;
+type ArcSchedule = Arc<UnsafeSendCell<Option<Schedule>>>;
 
 pub struct MultithreadedExecutor {
     thread_pool: Option<ThreadPool>,
@@ -33,8 +33,8 @@ struct ChildTask {
 
 impl MultithreadedExecutor {
     pub fn new(schedule: &Schedule) -> Self {
-        let arc_schedule: ArcSchedule = Arc::new(UnsafeSend::new(None));
-        let arc_world: ArcWorld = Arc::new(UnsafeSend::new(None));
+        let arc_schedule: ArcSchedule = Arc::new(UnsafeSendCell::new(None));
+        let arc_world: ArcWorld = Arc::new(UnsafeSendCell::new(None));
 
         let parent_task = ParentTask {
             plan: schedule.plan(),
@@ -47,7 +47,7 @@ impl MultithreadedExecutor {
 
         let pool = ThreadPoolBuilder::new().parent(
             move |sender| {
-                parent_task.run(&sender);
+                parent_task.run(&sender).unwrap();
         }).child(move || {
             let child_task = ChildTask::new(
                 Arc::clone(&arc_schedule_child),
@@ -95,48 +95,12 @@ impl Drop for MultithreadedExecutor {
         self.close();
     }
 }
-/*
-struct ParentGuard<'a> {
-    parent: &'a ParentTask,
-    world: Option<UnsafeWorld>,
-    schedule: Option<Schedule>,
-}
-
-impl<'a> ParentGuard<'a> {
-    fn new(
-        parent: &'a ParentTask,
-        world: UnsafeWorld,
-        schedule: Schedule
-    ) -> Self {
-        Self {
-            parent,
-            world: Some(world),
-            schedule: Some(schedule)
-        }
-    }
-}
-
-impl Drop for ParentGuard<'_> {
-    fn drop(&mut self) {
-        if let Some(world) = self.world.take() {
-            self.parent.env.lock().unwrap().world = Some(world);
-        }
-
-        if let Some(schedule) = self.schedule.take() {
-            self.parent.env.lock().unwrap().schedule = Some(UnsafeSchedule(schedule));
-        }
-    }
-}
-*/
-
 
 impl ParentTask {
-    fn run(&self, sender: &TaskSender) {
+    fn run(&self, sender: &TaskSender) -> Result<(),String> {
         if let Some(schedule) = unsafe { self.schedule.as_mut() } {
             if let Some(world) = unsafe { self.world.as_mut() } {
-                self.run_impl(sender, schedule, world);
-
-                return;
+                return self.run_impl(sender, schedule, world)
             }
         }
 
@@ -148,7 +112,7 @@ impl ParentTask {
         sender: &TaskSender,
         schedule: &mut Schedule,
         world: &mut World
-    ) {
+    ) -> Result<(), String> {
         let n = self.plan.len();
         let mut n_active: usize = 0;
         let mut n_remaining = self.plan.len();
@@ -167,41 +131,44 @@ impl ParentTask {
         let mut started = FixedBitSet::with_capacity(n);
 
         while n_remaining > 0 {
-            started.clear();
-
             assert!(n_ready > 0);
 
-            while n_ready > 0 {
-                for i in ready.ones() {
-                    started.set(i, true);
-                    n_ready -= 1;
+            started.clear();
 
-                    let system_id = SystemId(i);
+            for i in ready.ones() {
+                started.set(i, true);
+                n_ready -= 1;
 
-                    let system_item = unsafe { schedule.system(system_id) };
+                let system_id = SystemId(i);
 
-                    let system = system_item.system();
+                let system_item = schedule.system(system_id);
 
-                    if ! system_item.meta().is_exclusive() {
-                        sender.send(system_id);
-                    } else if system_item.meta().is_flush() {
-                        unsafe { schedule.flush(world) }
-                    } else {
-                        unsafe { system.as_mut().run(world); }
-                    }
+                if ! system_item.meta().is_exclusive() {
+                    n_active += 1;
 
-                    n_remaining -= 1;
+                    sender.send(system_id);
+                } else if system_item.meta().is_flush() {
+                    assert!(n_active == 0);
+
+                    schedule.flush(world);
+                } else {
+                    assert!(n_active == 0);
+
+                    unsafe { system_item.run(world); }
                 }
             }
+
+            ready.difference_with(&started);
 
             sender.flush();
 
             let system_id = sender.read();
             println!("system-id {:?}", system_id);
-
-            ready.difference_with(&started);
+            n_active -= 1;
+            n_remaining -= 1;
         }
-        println!("start: {:?} ready:{:?}", n_remaining, n_ready);
+
+        Ok(())
     }
 
     fn spawn_task<'a>(
@@ -226,9 +193,9 @@ impl ChildTask {
     }
 
     fn run(&self, id: SystemId) {
-        if let Some(schedule) = unsafe { self.schedule.as_mut() } {
-            if let Some(world) = unsafe { self.world.as_mut() } {
-                self.run_impl(id, schedule, world);
+        if let Some(schedule) = unsafe { self.schedule.get_ref() } {
+            if let Some(world) = unsafe { self.world.get_ref() } {
+                unsafe { schedule.run_unsafe(id, world); }
 
                 return;
             }
@@ -236,39 +203,7 @@ impl ChildTask {
 
         panic!("unset world");
     }
-
-    fn run_impl(
-        &self, 
-        id: SystemId, 
-        schedule: &mut Schedule, 
-        world: &mut World
-    ) {
-        println!("run {:?}", id);
-    }
 }
-
-struct UnsafeSend<T>(UnsafeCell<T>);
-
-impl<T> UnsafeSend<T> {
-    fn new(value: T) -> Self {
-        UnsafeSend(UnsafeCell::new(value))
-    }
-
-    pub(crate) fn as_ref(&self) -> &T {
-        unsafe { self.0.get().as_ref().unwrap() }
-    }
-
-    pub(crate) unsafe fn as_mut(&self) -> &mut T {
-        &mut *self.0.get()
-    }
-
-    fn take(self) -> T {
-        self.0.into_inner()
-    }
-}
-
-unsafe impl<T> Send for UnsafeSend<T> {}
-unsafe impl<T> Sync for UnsafeSend<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -283,8 +218,17 @@ mod tests {
         let mut schedule = Schedule::new();
         let mut world = World::new();
 
-        schedule.add_system(move || println!("system-1"));
-        schedule.add_system(move || println!("system-2"));
+        schedule.add_system(move || {
+            println!("[S1");
+            thread::sleep(Duration::from_millis(100));
+            println!("S1]");
+        });
+
+        schedule.add_system(move || {
+            println!("[S2");
+            thread::sleep(Duration::from_millis(100));
+            println!("S2]");
+        });
 
         schedule.init(&mut world);
 
