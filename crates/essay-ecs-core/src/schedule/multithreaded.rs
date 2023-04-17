@@ -2,60 +2,82 @@ use std::{sync::{Arc, Mutex}, cell::UnsafeCell};
 
 use fixedbitset::FixedBitSet;
 
-use crate::{Schedule, World, schedule::{schedule::SystemId, future}};
+use crate::{Schedule, World, schedule::{schedule::SystemId}};
 
 use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{SystemPlan, Plan}, schedule::SystemItem, System, cell::SyncUnsafeCell};
+
+type UnsafeWorld = UnsafeSend<World>;
+type ArcWorld = Arc<UnsafeSend<Option<World>>>;
+
+type UnsafeSchedule = UnsafeSend<Schedule>;
+type ArcSchedule = Arc<UnsafeSend<Option<Schedule>>>;
 
 pub struct MultithreadedExecutor {
     thread_pool: Option<ThreadPool>,
     
-    env: Arc<Mutex<EnvHolder>>,
+    schedule: ArcSchedule,
+    world: ArcWorld,
 }
 
 struct ParentTask {
     plan: Plan,
 
-    env: Arc<Mutex<EnvHolder>>,
+    schedule: ArcSchedule,
+    world: ArcWorld,
 }
 
-struct EnvHolder {
-    world: Option<UnsafeWorld>,
-    schedule: Option<UnsafeSchedule>,
+struct ChildTask {
+    world: ArcWorld,
+    schedule: ArcSchedule,
 }
-
 
 impl MultithreadedExecutor {
     pub fn new(schedule: &Schedule) -> Self {
-        let env_holder = Arc::new(Mutex::new(EnvHolder::new()));
+        let arc_schedule: ArcSchedule = Arc::new(UnsafeSend::new(None));
+        let arc_world: ArcWorld = Arc::new(UnsafeSend::new(None));
 
         let parent_task = ParentTask {
             plan: schedule.plan(),
-            env: Arc::clone(&env_holder),
+            schedule: arc_schedule.clone(),
+            world: arc_world.clone(),
         };
+
+        let arc_schedule_child: ArcSchedule = Arc::clone(&arc_schedule);
+        let arc_world_child: ArcWorld = Arc::clone(&arc_world);
 
         let pool = ThreadPoolBuilder::new().parent(
             move |sender| {
                 parent_task.run(&sender);
+        }).child(move || {
+            let child_task = ChildTask::new(
+                Arc::clone(&arc_schedule_child),
+                Arc::clone(&arc_world_child),
+            );
+
+            Box::new(move |s| { child_task.run(s); })
         }).build();
 
         Self {
             thread_pool: Some(pool),
-            env: env_holder,
+            schedule: arc_schedule,
+            world: arc_world,
         }
     }
 
-    fn run(&self, world: World, schedule: Schedule) -> (World, Schedule) {
+    fn run(&mut self, world: World, schedule: Schedule) -> (World, Schedule) {
         match &self.thread_pool {
             Some(thread_pool) => { 
-                self.env.lock().unwrap().world = Some(UnsafeWorld(world));
-                self.env.lock().unwrap().schedule = Some(UnsafeSchedule(schedule));
+                unsafe {
+                    self.world.as_mut().replace(world);
+                    self.schedule.as_mut().replace(schedule);
+                }
 
                 thread_pool.start(); 
 
-                let world = self.env.lock().unwrap().world.take();
-                let schedule = self.env.lock().unwrap().schedule.take();
+                let world = unsafe { self.world.as_mut().take() };
+                let schedule = unsafe { self.schedule.as_mut().take() };
 
-                (world.unwrap().take(), schedule.unwrap().take())
+                (world.unwrap(), schedule.unwrap())
             },
             None => { panic!("thread pool is closed"); }
         }
@@ -73,7 +95,7 @@ impl Drop for MultithreadedExecutor {
         self.close();
     }
 }
-
+/*
 struct ParentGuard<'a> {
     parent: &'a ParentTask,
     world: Option<UnsafeWorld>,
@@ -105,27 +127,27 @@ impl Drop for ParentGuard<'_> {
         }
     }
 }
+*/
 
 
 impl ParentTask {
     fn run(&self, sender: &TaskSender) {
-        let world = self.env.lock().unwrap().world.take().unwrap();
-        let schedule = self.env.lock().unwrap().schedule.take().unwrap().take();
-
-        let mut guard = ParentGuard::new(&self, world, schedule);
-
-        if let Some(world) = &mut guard.world {
-            if let Some(schedule) = &mut guard.schedule {
+        if let Some(schedule) = unsafe { self.schedule.as_mut() } {
+            if let Some(world) = unsafe { self.world.as_mut() } {
                 self.run_impl(sender, schedule, world);
+
+                return;
             }
         }
+
+        panic!("unset world");
     }
 
-    fn run_impl<'a>(
+    fn run_impl(
         &self, 
-        sender: &'a TaskSender<'a>, 
-        schedule: &'a mut Schedule,
-        world: &'a mut UnsafeWorld
+        sender: &TaskSender,
+        schedule: &mut Schedule,
+        world: &mut World
     ) {
         let n = self.plan.len();
         let mut n_active: usize = 0;
@@ -156,27 +178,26 @@ impl ParentTask {
 
                     let system_id = SystemId(i);
 
-                    let system_item = schedule.system(system_id);
+                    let system_item = unsafe { schedule.system(system_id) };
 
                     let system = system_item.system();
 
                     if ! system_item.meta().is_exclusive() {
-                        /*
-                        let task = async move {
-                            unsafe { system.get_mut().run_unsafe(world.get_mut()); }
-                        };
-                        */
-                        self.spawn_task(sender, system, system_id, world);
-
+                        sender.send(system_id);
                     } else if system_item.meta().is_flush() {
-                        schedule.flush(world.get_mut())
+                        unsafe { schedule.flush(world) }
                     } else {
-                        system.as_mut().run(world.get_mut());
+                        unsafe { system.as_mut().run(world); }
                     }
 
                     n_remaining -= 1;
                 }
             }
+
+            sender.flush();
+
+            let system_id = sender.read();
+            println!("system-id {:?}", system_id);
 
             ready.difference_with(&started);
         }
@@ -190,54 +211,64 @@ impl ParentTask {
         system_id: SystemId,
         world: &'a UnsafeWorld
     ) {
-        sender.send(system_id);
     }
 }
 
-impl EnvHolder {
-    pub fn new() -> Self {
+impl ChildTask {
+    fn new(
+        schedule: ArcSchedule,
+        world: ArcWorld,
+    ) -> Self {
         Self {
-            world: None,
-            schedule: None,
+            schedule,
+            world
         }
     }
-}
 
-struct UnsafeWorld(World);
+    fn run(&self, id: SystemId) {
+        if let Some(schedule) = unsafe { self.schedule.as_mut() } {
+            if let Some(world) = unsafe { self.world.as_mut() } {
+                self.run_impl(id, schedule, world);
 
-impl UnsafeWorld {
-    fn new(world: World) -> Self {
-        UnsafeWorld(world)
+                return;
+            }
+        }
+
+        panic!("unset world");
     }
 
-    fn get_mut(&mut self) -> &mut World {
-        &mut self.0
-    }
-
-    fn take(self) -> World {
-        self.0
-    }
-}
-
-unsafe impl Send for UnsafeWorld {}
-unsafe impl Sync for UnsafeWorld {}
-
-unsafe impl Send for SystemItem {}
-unsafe impl Sync for SystemItem {}
-
-struct UnsafeSchedule(Schedule);
-
-impl UnsafeSchedule {
-    fn new(schedule: Schedule) -> Self {
-        UnsafeSchedule(schedule)
-    }
-
-    fn take(self) -> Schedule {
-        self.0
+    fn run_impl(
+        &self, 
+        id: SystemId, 
+        schedule: &mut Schedule, 
+        world: &mut World
+    ) {
+        println!("run {:?}", id);
     }
 }
 
-unsafe impl Send for UnsafeSchedule {}
+struct UnsafeSend<T>(UnsafeCell<T>);
+
+impl<T> UnsafeSend<T> {
+    fn new(value: T) -> Self {
+        UnsafeSend(UnsafeCell::new(value))
+    }
+
+    pub(crate) fn as_ref(&self) -> &T {
+        unsafe { self.0.get().as_ref().unwrap() }
+    }
+
+    pub(crate) unsafe fn as_mut(&self) -> &mut T {
+        &mut *self.0.get()
+    }
+
+    fn take(self) -> T {
+        self.0.into_inner()
+    }
+}
+
+unsafe impl<T> Send for UnsafeSend<T> {}
+unsafe impl<T> Sync for UnsafeSend<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -257,7 +288,7 @@ mod tests {
 
         schedule.init(&mut world);
 
-        let exec = MultithreadedExecutor::new(&schedule);        
+        let mut exec = MultithreadedExecutor::new(&schedule);        
 
         (world, schedule) = exec.run(world, schedule);
 
