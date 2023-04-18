@@ -3,4 +3,4 @@ mod world_fun_system;
 mod param;
 mod each_system;
 
-pub use param::{Param, Local};
+pub use param::{Param, Arg, Local};

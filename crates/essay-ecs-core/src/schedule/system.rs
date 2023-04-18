@@ -37,7 +37,7 @@ pub struct SystemMeta {
 }
 
 pub trait IntoSystem<Out,M>: Sized {
-    type System:System<Out=Out> + 'static;
+    type System:System<Out=Out>;
 
     fn into_system(this: Self) -> Self::System;
 }

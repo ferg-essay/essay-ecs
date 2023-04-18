@@ -4,6 +4,7 @@ mod params;
 mod resource;
 mod world;
 mod cell;
+mod eval_function;
 
 pub use command::Commands;
 pub use world::{World,FromWorld};

@@ -220,7 +220,7 @@ mod tests {
     use super::MultithreadedExecutor;
 
     #[test]
-    fn test() {
+    fn concurrent_systems() {
         let mut schedule = Schedule::new();
         let mut world = World::new();
 

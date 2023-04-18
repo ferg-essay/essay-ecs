@@ -233,14 +233,14 @@ mod tests {
     fn insert_resource() {
         let mut world = World::new();
 
-        world.eval(|mut c: Commands| c.insert_resource(TestA(100)));
-        assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(100));
+        world.run(|mut c: Commands| c.insert_resource(TestA(100)));
+        assert_eq!(world.run(|r: Res<TestA>| r.clone()), TestA(100));
 
-        world.eval(|mut r: ResMut<TestA>| r.0 += 100);
-        assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(200));
+        world.run(|mut r: ResMut<TestA>| r.0 += 100);
+        assert_eq!(world.run(|r: Res<TestA>| r.clone()), TestA(200));
 
-        world.eval(|mut c: Commands| c.insert_resource(TestA(1000)));
-        assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(1000));
+        world.run(|mut c: Commands| c.insert_resource(TestA(1000)));
+        assert_eq!(world.run(|r: Res<TestA>| r.clone()), TestA(1000));
     }
 
     #[derive(Clone, PartialEq, Debug, Default)]

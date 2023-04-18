@@ -5,7 +5,7 @@ use crate::{
     schedule::{System, IntoSystem, ScheduleLabel, Schedules, SystemMeta}, prelude::Param
 };
 
-use super::{resource::Resources, Ptr};
+use super::{resource::Resources, Ptr, eval_function::EvalFun};
 
 pub struct World {
     ptr: Ptr,
@@ -92,7 +92,7 @@ impl World {
     // eval
     //
 
-    pub fn eval<R, M>(&mut self, fun: impl IntoSystem<R, M>) -> R
+    pub fn run<R, M>(&mut self, fun: impl IntoSystem<R, M>) -> R
     {
         let mut system = IntoSystem::into_system(fun);
 
@@ -101,6 +101,11 @@ impl World {
         system.flush(self);
 
         value
+    }
+
+    pub fn eval<R, M>(&mut self, fun: impl EvalFun<R, M>) -> R
+    {
+        fun.eval(self)
     }
 
     //

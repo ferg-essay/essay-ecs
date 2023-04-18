@@ -2,80 +2,14 @@ use std::marker::PhantomData;
 
 use crate::{
     world::World, 
-    schedule::{SystemMeta, IntoSystem, System}
+    schedule::{SystemMeta, IntoSystem, System}, 
+    systems::{Param, Arg}
 };
 
-use super::{param::{Param, Arg}};
+pub trait EvalFun<R, M> {
+    type Param: Param;
 
-// IsFun prevents collision
-pub struct IsFun;
-
-//
-// FunctionSystem - a system implemented by a function
-// 
-
-pub struct FunctionSystem<F, R, M>
-where
-    F: Fun<R, M>
-{
-    fun: F,
-    state: Option<<F::Params as Param>::State>,
-    marker: PhantomData<(R, M)>,
-}
-
-pub trait Fun<R, M>: Send + Sync + 'static {
-    type Params: Param;
-
-    fn run(&mut self, arg: Arg<Self::Params>) -> R;
-}
-
-//
-// Implementation
-//
-
-impl<F, R:'static, M> System for FunctionSystem<F, R, M>
-where
-    M: Send + Sync + 'static,
-    R: Send + Sync,
-    F: Fun<R, M> + Send + Sync + 'static
-{
-    type Out = R;
-
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
-        self.state = Some(F::Params::init(meta, world));
-    }
-
-    unsafe fn run_unsafe(&mut self, world: &World) -> Self::Out {
-        let arg = F::Params::arg(
-            world,
-            self.state.as_mut().unwrap(),
-        );
-
-        self.fun.run(arg)
-    }
-
-    fn flush(&mut self, world: &mut World) {
-        F::Params::flush(world, self.state.as_mut().unwrap());
-    }
-}    
-
-// struct IsFun;
-impl<F, R:'static, M:'static> IntoSystem<R, fn(M,IsFun)> for F
-where
-    //M: 'static,
-    F: Fun<R, M> + Send + Sync + 'static,
-    M: Send + Sync,
-    R: Send + Sync,
-{
-    type System = FunctionSystem<F, R, M>;
-
-    fn into_system(this: Self) -> Self::System {
-        FunctionSystem {
-            fun: this,
-            state: None,
-            marker: Default::default()
-        }
-    }
+    fn eval(self, world: &mut World) -> R;
 }
 
 //
@@ -85,15 +19,16 @@ where
 macro_rules! impl_system_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
-        impl<F, R, $($param: Param,)*> Fun<R, fn($($param,)*)> for F
-        where F:FnMut($($param,)*) -> R + Send + Sync + 'static +
-            FnMut($(Arg<$param>,)*) -> R,
-            R: 'static
+        impl<F, R, $($param: Param,)*> EvalFun<R, fn($($param,)*)> for F
+        where F:FnOnce($($param,)*) -> R +
+            FnOnce($(Arg<$param>,)*) -> R,
         {
-            type Params = ($($param,)*);
+            type Param = ($($param,)*);
 
-            fn run(&mut self, arg: Arg<($($param,)*)>) -> R {
-                let ($($param,)*) = arg;
+            fn eval(self, world: &mut World) -> R {
+                let mut state = Self::Param::init(&mut SystemMeta::empty(), world);
+                let ($($param,)*) = Self::Param::arg(world, &mut state);
+
                 self($($param,)*)
             }
         }
