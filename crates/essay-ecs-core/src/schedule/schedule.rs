@@ -78,8 +78,8 @@ impl SystemItem {
         }
     }
 
-    pub(crate) unsafe fn run_unsafe(&mut self, world: &World) {
-        self.system.get_mut().run_unsafe(world);
+    pub(crate) unsafe fn run_unsafe(&self, world: &World) {
+        self.system.as_mut().run_unsafe(world);
     }
 
     pub(crate) unsafe fn run(&self, world: &mut World) {

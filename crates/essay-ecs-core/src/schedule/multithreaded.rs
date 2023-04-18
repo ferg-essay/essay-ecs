@@ -130,10 +130,10 @@ impl ParentTask {
 
         let mut started = FixedBitSet::with_capacity(n);
 
-        while n_remaining > 0 {
-            assert!(n_ready > 0);
-
+        while n_remaining + n_active > 0 {
             started.clear();
+
+            assert!(n_ready + n_active > 0);
 
             for i in ready.ones() {
                 started.set(i, true);
@@ -151,10 +151,14 @@ impl ParentTask {
                     assert!(n_active == 0);
 
                     schedule.flush(world);
+
+                    n_remaining -= 1;
                 } else {
                     assert!(n_active == 0);
 
                     unsafe { system_item.run(world); }
+
+                    n_remaining -= 1;
                 }
             }
 
@@ -162,10 +166,12 @@ impl ParentTask {
 
             sender.flush();
 
-            let system_id = sender.read();
-            println!("system-id {:?}", system_id);
-            n_active -= 1;
-            n_remaining -= 1;
+            if n_active > 0 {
+                let system_id = sender.read();
+                println!("system-id {:?}", system_id);
+                n_active -= 1;
+                n_remaining -= 1;
+            }
         }
 
         Ok(())
@@ -195,7 +201,7 @@ impl ChildTask {
     fn run(&self, id: SystemId) {
         if let Some(schedule) = unsafe { self.schedule.get_ref() } {
             if let Some(world) = unsafe { self.world.get_ref() } {
-                unsafe { schedule.run_unsafe(id, world); }
+                unsafe { schedule.system(id).run_unsafe(world); }
 
                 return;
             }
