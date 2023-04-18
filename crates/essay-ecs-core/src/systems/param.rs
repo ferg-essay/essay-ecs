@@ -7,12 +7,12 @@ use crate::{world::{World, FromWorld}, schedule::SystemMeta};
 //
  
 pub trait Param {
-    type Arg<'w, 's>;
-    type State : Send + Sync;
+    type Arg<'w, 's>: Param<State=Self::State>;
+    type State : Send + Sync + 'static;
 
     fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;
 
-    fn arg<'w,'s>(
+    fn arg<'w, 's>(
         world: &'w World,
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's>;
@@ -45,7 +45,7 @@ impl<'s, T:FromWorld> DerefMut for Local<'s, T> {
     }
 }
 
-impl<'a, T:FromWorld> Param for Local<'a, T> {
+impl<'a, T:FromWorld+Send+Sync+'static> Param for Local<'a, T> {
     type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 

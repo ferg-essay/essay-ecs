@@ -11,7 +11,7 @@ pub struct World {
     ptr: Ptr,
 }
 
-pub trait FromWorld : Send + Sync + 'static {
+pub trait FromWorld {
     fn init(world: &mut World) -> Self;
 }
 
@@ -74,7 +74,7 @@ impl World {
         self.get_resource_mut::<T>().unwrap()
     }
 
-    pub fn init_resource<T:FromWorld>(&mut self) {
+    pub fn init_resource<T:FromWorld+'static>(&mut self) {
         if ! self.deref().resources.get::<T>().is_none() {
             return;
         }
@@ -151,7 +151,7 @@ pub struct WorldInner {
     pub(crate) resources: Resources,
 }
 
-impl<T:Default+Send+Sync+'static> FromWorld for T {
+impl<T:Default> FromWorld for T {
     fn init(_world: &mut World) -> T {
         T::default()
     }

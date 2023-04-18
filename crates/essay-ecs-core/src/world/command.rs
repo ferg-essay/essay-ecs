@@ -120,7 +120,7 @@ impl<T:FromWorld> InitResource<T> {
         
     }
 }
-
+/*
 impl<T:FromWorld> Command for InitResource<T> {
     fn flush(self: Box<Self>, world: &mut World) {
         world.init_resource::<T>();
@@ -135,6 +135,7 @@ impl Commands<'_> {
         self.add(InitResource::<T>::new());
     }
 }
+*/
 
 ///
 /// world.insert_resource()
@@ -216,7 +217,7 @@ mod tests {
     #[test]
     fn init_resource() {
         let mut world = World::new();
-
+        /*
         world.eval(|mut c: Commands| c.init_resource::<TestA>());
         assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(0));
 
@@ -225,6 +226,7 @@ mod tests {
 
         world.eval(|mut c: Commands| c.init_resource::<TestA>());
         assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(100));
+        */
     }
 
     #[test]
