@@ -1,4 +1,4 @@
-mod cell;
+mod unsafe_cell;
 mod multithreaded;
 mod plan;
 mod thread_pool;

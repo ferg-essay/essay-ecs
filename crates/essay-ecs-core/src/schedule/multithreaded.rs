@@ -4,7 +4,7 @@ use fixedbitset::FixedBitSet;
 
 use crate::{Schedule, World, schedule::{schedule::SystemId}};
 
-use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{SystemPlan, Plan}, schedule::SystemItem, System, cell::{SyncUnsafeCell, UnsafeSendCell}};
+use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{PlanSystem, Plan}, schedule::SystemItem, System, unsafe_cell::{UnsafeSyncCell, UnsafeSendCell}};
 
 type UnsafeWorld = UnsafeSendCell<World>;
 type ArcWorld = Arc<UnsafeSendCell<Option<World>>>;
@@ -118,6 +118,7 @@ impl ParentTask {
         let mut n_remaining = self.plan.len();
         let mut n_incoming = self.plan.n_incoming().clone();
         let mut n_ready: usize = 0;
+        let mut n_child: usize = 0;
 
         let mut ready = FixedBitSet::with_capacity(n);
 
@@ -128,62 +129,92 @@ impl ParentTask {
             }
         }
 
-        let mut started = FixedBitSet::with_capacity(n);
+        let mut started = Vec::<usize>::new();
+        let mut completed = Vec::<SystemId>::new();
 
         while n_remaining + n_active > 0 {
-            started.clear();
-
             assert!(n_ready + n_active > 0);
 
-            for i in ready.ones() {
-                started.set(i, true);
-                n_ready -= 1;
+            for order_id in ready.ones() {
+                let id = self.plan.system_id(order_id);
 
-                let system_id = SystemId(i);
+                started.push(order_id);
+                n_active += 1;
 
-                let system_item = schedule.system(system_id);
+                let system_item = schedule.system(id);
 
                 if ! system_item.meta().is_exclusive() {
-                    n_active += 1;
+                    sender.send(id);
 
-                    sender.send(system_id);
+                    n_child += 1;
                 } else if system_item.meta().is_flush() {
-                    assert!(n_active == 0);
+                    assert_eq!(n_active, 1);
 
                     schedule.flush(world);
 
-                    n_remaining -= 1;
+                    completed.push(id);
                 } else {
-                    assert!(n_active == 0);
+                    assert_eq!(n_active, 1);
 
                     unsafe { system_item.run(world); }
 
-                    n_remaining -= 1;
+                    completed.push(id);
                 }
             }
 
-            ready.difference_with(&started);
+            for order_id in started.drain(..) {
+                ready.set(order_id, false);
+                n_ready -= 1;
+            }
 
-            sender.flush();
+            if n_child > 0 {
+                sender.flush();
 
-            if n_active > 0 {
-                let system_id = sender.read();
-                println!("system-id {:?}", system_id);
+                n_child -= self.read_completed(sender, &mut completed);
+            }
+
+            for id in completed.drain(..) {
+                n_ready += self.update_ready(id, &mut n_incoming, &mut ready);
+
                 n_active -= 1;
                 n_remaining -= 1;
             }
+
         }
 
         Ok(())
     }
 
-    fn spawn_task<'a>(
-        &self,
-        sender: &TaskSender<'a>, 
-        system: &'a SyncUnsafeCell<Box<dyn System<Out=()>>>,
-        system_id: SystemId,
-        world: &'a UnsafeWorld
-    ) {
+    fn read_completed(
+        &self, 
+        sender: &TaskSender, 
+        completed: &mut Vec<SystemId>
+    ) -> usize {
+        // TODO! multiread when available
+        let id = sender.read(); 
+
+        completed.push(id);
+        1
+    }
+
+    fn update_ready(
+        &self, 
+        id: SystemId, 
+        n_incoming: &mut Vec<usize>,
+        ready: &mut FixedBitSet
+    ) -> usize {
+        let mut n_ready = 0;
+
+        for outgoing in self.plan.outgoing(id) {
+            n_incoming[*outgoing] -= 1;
+
+            if n_incoming[*outgoing] == 0 {
+                ready.set(*outgoing, true);
+                n_ready += 1;
+            }
+        }
+
+        n_ready
     }
 }
 
@@ -213,27 +244,33 @@ impl ChildTask {
 
 #[cfg(test)]
 mod tests {
-    use std::{thread, time::Duration};
+    use std::{thread, time::Duration, sync::{Arc, Mutex}};
 
-    use crate::{World, Schedule};
+    use crate::{World, Schedule, 
+        schedule::{Phase, IntoSystemConfig, IntoPhaseConfigs}
+    };
 
     use super::MultithreadedExecutor;
 
     #[test]
-    fn concurrent_systems() {
+    fn two_concurrent_no_phase() {
         let mut schedule = Schedule::new();
         let mut world = World::new();
 
+        let value = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = value.clone();
         schedule.add_system(move || {
-            println!("[S1");
+            push(&ptr, format!("[S"));
             thread::sleep(Duration::from_millis(100));
-            println!("S1]");
+            push(&ptr, format!("S]"));
         });
 
+        let ptr = value.clone();
         schedule.add_system(move || {
-            println!("[S2");
+            push(&ptr, format!("[S"));
             thread::sleep(Duration::from_millis(100));
-            println!("S2]");
+            push(&ptr, format!("S]"));
         });
 
         schedule.init(&mut world);
@@ -242,9 +279,157 @@ mod tests {
 
         (world, schedule) = exec.run(world, schedule);
 
-        println!("world, schedule");
+        assert_eq!(take(&value), "[S, [S, S], S]");
 
-        thread::sleep(Duration::from_millis(100));
-        println!("complete");
+        exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[S, [S, S], S]");
+    }
+
+    #[test]
+    fn two_concurrent_phase_b() {
+        let mut schedule = Schedule::new();
+        schedule.add_phases((
+            TestPhase::A,
+            TestPhase::B,
+            TestPhase::C,
+        ).chained());
+        schedule.set_default_phase(TestPhase::B);
+
+        let mut world = World::new();
+
+        let value = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = value.clone();
+        schedule.add_system(move || {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        let ptr = value.clone();
+        schedule.add_system(move || {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        schedule.init(&mut world);
+
+        let mut exec = MultithreadedExecutor::new(&schedule);        
+
+        (world, schedule) = exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[B, [B, B], B]");
+
+        exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[B, [B, B], B]");
+    }
+
+    #[test]
+    fn two_sequential_phase_a_b() {
+        let mut schedule = Schedule::new();
+        schedule.add_phases((
+            TestPhase::A,
+            TestPhase::B,
+            TestPhase::C,
+        ).chained());
+        schedule.set_default_phase(TestPhase::B);
+
+        let mut world = World::new();
+
+        let value = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = value.clone();
+        schedule.add_system((move || {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        }).phase(TestPhase::A));
+
+        let ptr = value.clone();
+        schedule.add_system(move || {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        schedule.init(&mut world);
+
+        let mut exec = MultithreadedExecutor::new(&schedule);        
+
+        (world, schedule) = exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[A, A], [B, B]");
+
+        exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[A, A], [B, B]");
+    }
+
+    #[test]
+    fn two_sequential_phase_b_c() {
+        let mut schedule = Schedule::new();
+        schedule.add_phases((
+            TestPhase::A,
+            TestPhase::B,
+            TestPhase::C,
+        ).chained());
+        schedule.set_default_phase(TestPhase::B);
+
+        let mut world = World::new();
+
+        let value = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = value.clone();
+        schedule.add_system((move || {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        }).phase(TestPhase::C));
+
+        let ptr = value.clone();
+        schedule.add_system(move || {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        schedule.init(&mut world);
+
+        let mut exec = MultithreadedExecutor::new(&schedule);        
+
+        (world, schedule) = exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[B, B], [C, C]");
+
+        exec.run(world, schedule);
+
+        assert_eq!(take(&value), "[B, B], [C, C]");
+    }
+
+
+    fn push(arc: &Arc<Mutex<Vec<String>>>, value: String) {
+        arc.lock().unwrap().push(value);
+    }
+
+    fn take(arc: &Arc<Mutex<Vec<String>>>) -> String {
+        let values: Vec<String> = arc.lock().unwrap().drain(..).collect();
+
+        values.join(", ")
+    }
+
+    #[derive(Debug, Clone, PartialEq, Hash, Eq)]
+    enum TestPhase {
+        A,
+        B,
+        C,
+    }
+
+    impl Phase for TestPhase {
+        fn box_clone(&self) -> Box<dyn Phase> {
+            Box::new(Clone::clone(self))
+        }
     }
 }

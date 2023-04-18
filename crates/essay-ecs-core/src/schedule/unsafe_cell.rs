@@ -1,13 +1,13 @@
 use std::cell::UnsafeCell;
 
-pub struct SyncUnsafeCell<T: ?Sized> {
+pub struct UnsafeSyncCell<T: ?Sized> {
     value: UnsafeCell<T>,
 }
 
-unsafe impl<T: ?Sized + Sync> Sync for SyncUnsafeCell<T> {}
-unsafe impl<T: ?Sized + Send> Send for SyncUnsafeCell<T> {}
+unsafe impl<T: ?Sized + Sync> Sync for UnsafeSyncCell<T> {}
+unsafe impl<T: ?Sized + Send> Send for UnsafeSyncCell<T> {}
 
-impl<T> SyncUnsafeCell<T> {
+impl<T> UnsafeSyncCell<T> {
     pub const fn new(value: T) -> Self {
         Self {
             value: UnsafeCell::new(value),

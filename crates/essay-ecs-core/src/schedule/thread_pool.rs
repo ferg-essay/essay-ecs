@@ -202,8 +202,6 @@ impl ThreadPool {
                     panic!("unexpected exit");
                 }
                 Ok(MainMessage::Complete) => {
-                    println!("main complete");
-                    
                     return;
                 }
                 Ok(_) => {
@@ -241,7 +239,6 @@ impl ParentThread {
             match self.main_reader.recv() {
                 Ok(MainMessage::Start) => {
                     (self.task)(&sender);
-                    println!("sender complete");
 
                     self.main_sender.send(MainMessage::Complete).unwrap();
                 }

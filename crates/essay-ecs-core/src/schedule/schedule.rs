@@ -8,14 +8,14 @@ use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
     preorder::{Preorder, NodeId}, 
-    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{SystemPlan, Plan}, cell::SyncUnsafeCell
+    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{PlanSystem, Plan}, unsafe_cell::UnsafeSyncCell
 };
 
 ///
 /// See Bevy schedule.rs
 /// 
 
-pub type BoxedSystem<Out=()> = SyncUnsafeCell<Box<dyn System<Out=Out>>>;
+pub type BoxedSystem<Out=()> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
 pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
 pub struct Schedule {
@@ -138,11 +138,11 @@ impl Schedule {
 
         self.is_changed = true;
 
-        self.systems.add(SyncUnsafeCell::new(system), phase_id)
+        self.systems.add(UnsafeSyncCell::new(system), phase_id)
     }
 
-    pub fn set_default_phase(&mut self, task_set: impl Phase) {
-        self.phases.set_default_phase(Box::new(task_set));
+    pub fn set_default_phase(&mut self, phase: impl Phase) {
+        self.phases.set_default_phase(Box::new(phase));
     }
 
     pub fn add_phase(&mut self, into_config: impl IntoPhaseConfig) {

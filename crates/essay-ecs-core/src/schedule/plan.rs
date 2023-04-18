@@ -1,42 +1,51 @@
 use super::{schedule::SystemId, preorder::{Preorder, NodeId}};
 
 pub struct Plan {
-    systems: Vec<SystemPlan>,
+    systems: Vec<PlanSystem>,
+
+    order: Vec<SystemId>,
     n_incoming: Vec<usize>,
-    n_initial: usize,
 }
 
-pub struct SystemPlan {
+#[derive(Debug)]
+pub struct PlanSystem {
     id: SystemId,
     n_incoming: usize,
-    outgoing: Vec<SystemId>,
+    outgoing: Vec<usize>,
 }
 
 impl Plan {
     pub fn new(preorder: &Preorder) -> Self {
-        let systems: Vec<SystemPlan> = preorder
-            .sort()
-            .iter()
-            .map(|n| SystemPlan::new(preorder, *n))
+        let order = preorder.sort();
+        let system_order: Vec<SystemId> = order.iter()
+            .map(|n| SystemId::from(*n))
             .collect();
 
+        let systems : Vec<PlanSystem> = preorder.node_ids()
+            .iter()
+            .map(|n| PlanSystem::new(
+                preorder, 
+                *n,
+                &order
+            )).collect();
+
+        let n_incoming: Vec<usize> = system_order.iter()
+                .map(|s| systems[s.index()].n_incoming)
+                .collect();
+            
         Self {
-            n_incoming: systems.iter()
-                .map(|s| s.n_incoming)
-                .collect(),
-            n_initial: systems.iter()
-                .filter(|p| p.n_incoming == 0)
-                .count(),
-            systems: systems,
+            order: system_order,
+            systems,
+            n_incoming,
         }
     }
 
     pub fn len(&self) -> usize {
-        self.systems.len()
+        self.order.len()
     }
 
-    pub fn n_initial(&self) -> usize {
-        self.n_initial
+    pub fn order(&self) -> &Vec<SystemId> {
+        &self.order
     }
 
     pub fn n_incoming(&self) -> &Vec<usize> {
@@ -44,18 +53,27 @@ impl Plan {
     }
 
     pub fn system_id(&self, i: usize) -> SystemId {
-        self.systems[i].id
+        self.order[i]
+    }
+
+    pub(crate) fn outgoing(&self, id: SystemId) -> &Vec<usize> {
+        &self.systems[id.index()].outgoing
     }
 }
 
-impl SystemPlan {
-    fn new(preorder: &Preorder, id: NodeId) -> Self {
+impl PlanSystem {
+    fn new(
+        preorder: &Preorder, 
+        id: NodeId,
+        order: &Vec<NodeId>) -> Self {
         Self {
             id: SystemId::from(id),
-            n_incoming: preorder.incoming(id).len(),
-            outgoing: preorder.outgoing(id).iter()
-                .map(|n| SystemId::from(*n))
-                .collect(),
+            n_incoming: preorder.incoming(NodeId::from(id)).len(),
+            outgoing: preorder.outgoing(NodeId::from(id)).iter()
+                .map(|n|
+                    order.iter().position(|n2| n == n2).unwrap()
+                ).collect(),
         }
     }
 }
+

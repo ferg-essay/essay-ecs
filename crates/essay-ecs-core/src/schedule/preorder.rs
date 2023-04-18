@@ -41,13 +41,17 @@ impl Preorder {
         id
     }
 
+    pub(crate) fn node_ids(&self) -> Vec<NodeId> {
+        self.nodes.iter().map(|n| n.id()).collect()
+    }
+
     pub fn add_arrow(&mut self, source_id: NodeId, target_id: NodeId) {
         assert_ne!(source_id, target_id);
 
         self.nodes[source_id.0].outgoing.push(target_id);
         self.nodes[target_id.0].incoming.push(source_id);
 
-        // println!("  Arrow {:?} {:?}", source_id, target_id);
+        //println!("Arrow[{:?}] out:{:?}", source_id, self.nodes[source_id.0].outgoing);
     }
 
     pub fn sort(&self) -> Vec<NodeId> {
