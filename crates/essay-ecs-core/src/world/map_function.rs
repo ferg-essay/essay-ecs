@@ -3,33 +3,70 @@ use std::marker::PhantomData;
 use crate::{
     world::World, 
     schedule::{SystemMeta, IntoSystem, System}, 
-    systems::{Param, Arg}
+    systems::{Param, Arg}, entity::Component
 };
 
-pub trait EvalFun<R, M> {
-    type Param: Param;
+trait MapFun<R> {
+    type Item:Component;
+    type Param:Param;
+}
+/*
+pub struct MapIterator<'a, 'w, F, R>
+where
+    F: MapFun<R> + 'a
+{
+    world: &'w World,
+    state: &'a <F::Param as Param>::State,
+    iter: &'a mut Box<dyn Iterator<Item=F::Item>>,
+    map: &'a Box<dyn FnMut(F::Item, Arg<F::Param>)->R>,
 
-    fn eval(self, world: &mut World) -> R;
+    //marker: PhantomData<R>
+}
+
+impl<'a, 'w, F, R> Iterator for MapIterator<'a, 'w, F, R>
+where
+    F: MapFun<R>
+{
+    type Item = R;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.iter.next() {
+            Some(item) => {
+                //let arg : Arg<F::Param> = F::Param::arg(self.world, &mut self.state);
+
+                //Some((self.map)(item, arg))
+                None
+            }
+
+            None => None,
+        }
+    }
+}
+*/
+fn test() {
+    let v = vec![1, 2, 3];
 }
 
 //
 // eval function
 //
-
+/*
 macro_rules! impl_system_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
-        impl<F, R, $($param: Param,)*> EvalFun<R, fn($($param,)*)> for F
-        where F:FnOnce($($param,)*) -> R +
-            FnOnce($(Arg<$param>,)*) -> R,
+        impl<F, R, $($param: Param,)*> MapFun<R, fn($($param,)*)> for F
+        where F:FnMut($($param,)*) -> R +
+            FnMut($(Arg<$param>,)*) -> R,
         {
             type Param = ($($param,)*);
 
-            fn eval(self, world: &mut World) -> R {
-                let mut state = Self::Param::init(&mut SystemMeta::empty(), world);
-                let ($($param,)*) = Self::Param::arg(world, &mut state);
+            fn map<'w, 's>(
+                self, 
+                arg: <Self::Param as Param>::Arg<'w, 's>
+            ) -> MapIterator<'w, R> {
+                let ($($param,)*) = arg;
 
-                self($($param,)*)
+                let result : Option<R> = Some(self($($param,)*));
             }
         }
     }
@@ -43,7 +80,7 @@ impl_system_function!(P1, P2, P3, P4);
 impl_system_function!(P1, P2, P3, P4, P5);
 impl_system_function!(P1, P2, P3, P4, P5, P6);
 impl_system_function!(P1, P2, P3, P4, P5, P6, P7);
-
+*/
 #[cfg(test)]
 mod tests {
     use std::any::type_name;

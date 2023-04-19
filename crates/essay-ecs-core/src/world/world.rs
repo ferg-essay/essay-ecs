@@ -88,24 +88,8 @@ impl World {
         self.deref_mut().resources.insert::<T>(value)
     }
 
-    //
-    // eval
-    //
-
-    pub fn run<R, M>(&mut self, fun: impl IntoSystem<R, M>) -> R
-    {
-        let mut system = IntoSystem::into_system(fun);
-
-        system.init(&mut SystemMeta::empty(), self);
-        let value = system.run(self);
-        system.flush(self);
-
-        value
-    }
-
-    pub fn eval<R, M>(&mut self, fun: impl EvalFun<R, M>) -> R
-    {
-        fun.eval(self)
+    pub fn query<Q:View>(&mut self) -> ViewIterator<Q> {
+        self.deref_mut().table.iter_view()
     }
 
     //
@@ -120,7 +104,7 @@ impl World {
         self.resource_mut::<Schedules>().insert(label, schedule);
     }
 
-    pub(crate) fn extract_world(&mut self) -> Self {
+    pub(crate) fn take(&mut self) -> Self {
         let ptr = mem::replace(&mut self.ptr, Ptr::new(WorldInner {
             table: Store::new(),
             resources: Resources::new(),
@@ -131,7 +115,7 @@ impl World {
         }
     }
 
-    pub(crate) fn restore_world(&mut self, world: World) {
+    pub(crate) fn replace(&mut self, world: World) {
         self.ptr = world.ptr
     }
 }
@@ -147,7 +131,7 @@ impl Param for &World {
         world
     }
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
     }
 }
 
@@ -242,48 +226,46 @@ mod tests {
     }
 
     #[test]
-    fn eval() {
-        /*
+    fn query() {
         let mut world = World::new();
         assert_eq!(world.len(), 0);
 
         let values = Rc::new(RefCell::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        world.eval(move |a: &TestA| push(&ptr, format!("{:?}", a)));
-        assert_eq!(take(&values), "");
+        
+        assert_eq!(world.query::<&TestA>()
+            .map(|v| format!("{:?}", v))
+            .collect::<Vec<String>>()
+            .join(", "),
+            "");
 
+        
         world.spawn(TestA(1001));
-        let ptr = values.clone();
-        world.eval(move |a: &TestA| push(&ptr, format!("{:?}", a)));
-        assert_eq!(take(&values), "TestA(1001)");
+        
+        assert_eq!(world.query::<&TestA>()
+            .map(|v| format!("{:?}", v))
+            .collect::<Vec<String>>()
+            .join(", "),
+            "TestA(1001)");
 
         world.spawn(TestA(2002));
-        let ptr = values.clone();
-        world.eval(move |a: &TestA| push(&ptr, format!("{:?}", a)));
-        assert_eq!(take(&values), "TestA(1001), TestA(2002)");
 
-        world.eval(|a: &mut TestA| a.0 += 1);
-        let ptr = values.clone();
-        world.eval(move |a: &TestA| push(&ptr, format!("{:?}", a)));
-        assert_eq!(take(&values), "TestA(1002), TestA(2003)");
-        */
-    }
+        assert_eq!(world.query::<&TestA>()
+            .map(|v| format!("{:?}", v))
+            .collect::<Vec<String>>()
+            .join(", "),
+            "TestA(1001), TestA(2002)");
 
-    #[test]
-    fn eval_out() {
-        let mut world = World::new();
-        assert_eq!(world.len(), 0);
+        for test in world.query::<&mut TestA>() {
+            test.0 += 1;
+        }
 
-        assert_eq!(world.eval(|| "result"), "result");
-
-        world.insert_resource(TestA(1000));
-
-        assert_eq!(world.eval(|r: Res<TestA>| format!("{:?}", r.get())), "TestA(1000)");
-        assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(1000));
-
-        assert_eq!(world.eval(|mut r: ResMut<TestA>| r.0 += 1), ());
-        assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(1001));
+        assert_eq!(world.query::<&TestA>()
+            .map(|v| format!("{:?}", v))
+            .collect::<Vec<String>>()
+            .join(", "),
+            "TestA(1002), TestA(2003)");
     }
 
     fn push(ptr: &Rc<RefCell<Vec<String>>>, value: String) {

@@ -164,7 +164,7 @@ mod tests {
     use core::fmt;
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{world::{World, Res, ResMut}, entity::Component};
+    use crate::{world::{World, Res, ResMut}, entity::Component, Schedule};
 
     use super::Commands;
 
@@ -233,14 +233,17 @@ mod tests {
     fn insert_resource() {
         let mut world = World::new();
 
-        world.run(|mut c: Commands| c.insert_resource(TestA(100)));
-        assert_eq!(world.run(|r: Res<TestA>| r.clone()), TestA(100));
+        let mut schedule = Schedule::new();
+        schedule.add_system(|mut c: Commands| c.insert_resource(TestA(100)));
+        schedule.run(&mut world);
 
-        world.run(|mut r: ResMut<TestA>| r.0 += 100);
-        assert_eq!(world.run(|r: Res<TestA>| r.clone()), TestA(200));
+        assert_eq!(world.resource::<TestA>(), &TestA(100));
 
-        world.run(|mut c: Commands| c.insert_resource(TestA(1000)));
-        assert_eq!(world.run(|r: Res<TestA>| r.clone()), TestA(1000));
+        let mut schedule = Schedule::new();
+        schedule.add_system(|mut c: Commands| c.insert_resource(TestA(1000)));
+        schedule.run(&mut world);
+
+        assert_eq!(world.resource::<TestA>(), &TestA(1000));
     }
 
     #[derive(Clone, PartialEq, Debug, Default)]
