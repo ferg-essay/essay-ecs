@@ -8,7 +8,7 @@ use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
     preorder::{Preorder, NodeId}, 
-    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{PlanSystem, Plan}, unsafe_cell::UnsafeSyncCell
+    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{PlanSystem, Plan}, unsafe_cell::UnsafeSyncCell, planner::Planner
 };
 
 ///
@@ -19,21 +19,11 @@ pub type BoxedSystem<Out=()> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
 pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
 pub struct Schedule {
-    systems: SchedulePreorder,
+    systems: Planner,
 
     phases: PhasePreorder,
 
     is_changed: bool,
-}
-
-struct SchedulePreorder {
-    systems: Vec<SystemItem>,
-
-    uninit_systems: Vec<SystemId>,
-
-    preorder: Preorder,
-
-    order: Vec<SystemId>,
 }
 
 pub struct Schedules {
@@ -50,15 +40,15 @@ pub trait ScheduleLabel : DynLabel + fmt::Debug {
 pub struct SystemId(pub(crate) usize);
 
 pub(crate) struct SystemItem {
-    id: SystemId,
-    meta: SystemMeta,
+    pub(crate) id: SystemId,
+    pub(crate) meta: SystemMeta,
 
-    system: BoxedSystem,
-    phase: Option<SystemId>,
+    pub(crate) system: BoxedSystem,
+    pub(crate) phase: Option<SystemId>,
 }
 
 impl SystemItem {
-    fn add_phase_arrows(
+    pub(crate) fn add_phase_arrows(
         &self, 
         preorder: &mut Preorder, 
         prev_map: &HashMap<SystemId, SystemId>
@@ -204,148 +194,6 @@ impl Schedule {
 
     pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
         self.systems.run_unsafe(id, world);
-    }
-}
-
-impl SchedulePreorder {
-    fn add(
-        &mut self, 
-        system: BoxedSystem,
-        phase_id: Option<SystemId>,
-    ) -> SystemId {
-        // let system: BoxedSystem = Box::new(IntoSystem::into_system(system));
-
-        let id = self.preorder.add_node(0);
-        assert_eq!(id.index(), self.systems.len());
-
-        let id = SystemId::from(id);
-
-        self.systems.push(SystemItem {
-            id,
-            meta: SystemMeta::new(id, system.get_ref().type_name()),
-            system,
-            phase: phase_id,
-        });
-
-        self.uninit_systems.push(id);
-
-        id
-    }
-
-    fn init(&mut self, world: &mut World) {
-        for id in self.uninit_systems.drain(..) {
-            let system = &mut self.systems[id.index()];
-            //println!("init {:?}", id);
-            system.system.get_mut().init(&mut system.meta, world);
-        }
-    }
-
-    fn sort(&mut self, phase_order: Vec<SystemId>) {
-        let mut preorder = self.preorder.clone();
-
-        let prev_map = self.prev_map(
-            &mut preorder, 
-            phase_order
-        );
-
-        for system in &self.systems {
-            if ! system.meta.is_flush() {
-                system.add_phase_arrows(&mut preorder, &prev_map);
-            }
-        }
-
-        self.order = preorder.sort().iter()
-            .map(|n| SystemId::from(*n))
-            .collect();
-    }
-
-    fn plan(&self, phase_order: Vec<SystemId>) -> Plan {
-        let mut preorder = self.preorder.clone();
-
-        let prev_map = self.prev_map(
-            &mut preorder, 
-            phase_order
-        );
-
-        for system in &self.systems {
-            if ! system.meta.is_flush() {
-                system.add_phase_arrows(&mut preorder, &prev_map);
-            }
-        }
-
-        Plan::new(&preorder)
-    }
-
-    fn prev_map(
-        &self, 
-        preorder: &mut Preorder,
-        task_set_order: Vec<SystemId>
-    ) -> HashMap<SystemId,SystemId> {
-        let mut map = HashMap::new();
-
-        let mut iter = task_set_order.iter();
-
-        let Some(prev_id) = iter.next() else { return map };
-
-        let mut prev_id = prev_id;
-
-        for next_id in iter {
-            // println!("Phase set {:?} -> {:?}", prev_id, next_id);
-            preorder.add_arrow(
-                NodeId::from(*prev_id),
-                NodeId::from(*next_id)
-            );
-
-            map.insert(*next_id, *prev_id);
-            prev_id = next_id;
-        }
-
-        map
-    }
-
-    fn run(&mut self, world: &mut World) {
-        for id in &self.order {
-            let system = &mut self.systems[id.index()];
-            
-            if system.meta.is_flush() {
-                // self.flush(world);
-            } else {
-                system.system.get_mut().run(world);
-            }
-        }
-    }
-
-    unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
-        let system = &self.systems[id.index()].system;
-
-        system.as_mut().run_unsafe(world)
-    }
-
-    fn flush(&mut self, world: &mut World) {
-        for system in &mut self.systems {
-            if ! system.meta.is_flush() {
-                system.system.get_mut().flush(world);
-            }
-        }
-    }
-
-    fn get_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
-        &mut self.systems[system_id.index()]
-    }
-
-    fn get(&self, system_id: SystemId) -> &SystemItem {
-        &self.systems[system_id.index()]
-    }
-}
-
-impl Default for SchedulePreorder {
-    fn default() -> Self {
-        Self { 
-            systems: Default::default(), 
-            preorder: Default::default(),
-            uninit_systems: Default::default(),
-            order: Default::default(),
-        }
     }
 }
 

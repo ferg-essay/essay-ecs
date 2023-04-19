@@ -1,3 +1,4 @@
+mod planner;
 mod unsafe_cell;
 mod multithreaded;
 mod plan;
