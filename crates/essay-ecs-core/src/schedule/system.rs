@@ -3,7 +3,10 @@ use std::{borrow::Cow, any::type_name};
 
 use crate::{world::World};
 
-use super::{schedule::SystemId, Phase, phase::DefaultPhase};
+use super::{Phase, phase::DefaultPhase};
+
+#[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
+pub struct SystemId(pub(crate) usize);
 
 pub trait System: Send + Sync + 'static {
     type Out;

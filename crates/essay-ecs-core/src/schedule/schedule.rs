@@ -8,7 +8,7 @@ use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
     preorder::{Preorder, NodeId}, 
-    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{PlanSystem, Plan}, unsafe_cell::UnsafeSyncCell, planner::Planner
+    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{PlanSystem, Plan}, unsafe_cell::UnsafeSyncCell, planner::Planner, system::SystemId
 };
 
 ///
@@ -18,26 +18,26 @@ use super::{
 pub type BoxedSystem<Out=()> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
 pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
-pub struct Schedule {
-    systems: Planner,
-
-    phases: PhasePreorder,
-
-    is_changed: bool,
-}
-
 pub struct Schedules {
-    schedule: Schedule,
-
-    schedule_map: HashMap<BoxedLabel, Schedule>,
+    schedule_map: HashMap<Box<dyn ScheduleLabel>, Schedule>,
 }
 
 pub trait ScheduleLabel : DynLabel + fmt::Debug {
     fn box_clone(&self) -> BoxedLabel;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
-pub struct SystemId(pub(crate) usize);
+pub struct Schedule(Option<ScheduleInner>);
+
+struct ScheduleInner {
+    phases: PhasePreorder,
+
+    systems: Vec<BoxedSystem>,
+    uninit_systems: Vec<SystemId>,
+
+    planner: Planner,
+
+    is_changed: bool,
+}
 
 pub(crate) struct SystemItem {
     pub(crate) id: SystemId,
@@ -78,122 +78,6 @@ impl SystemItem {
 
     pub(crate) fn system(&self) -> &BoxedSystem {
         &self.system
-    }
-}
-
-impl Schedule {
-    pub fn new() -> Self {
-        Schedule {
-            systems: Default::default(),
-
-            phases: PhasePreorder::new(),
-
-            is_changed: true,
-        }
-    }
-
-    pub(crate) fn system_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
-        self.systems.get_mut(system_id)
-    }
-
-    pub(crate) fn system(&self, system_id: SystemId) -> &SystemItem {
-        self.systems.get(system_id)
-    }
-
-    pub fn add_system<M>(
-        &mut self, 
-        config: impl IntoSystemConfig<M>
-    ) -> SystemId {
-        let SystemConfig {
-            system,
-            phase,
-        } = config.into_config();
-
-        let phase_id = match phase {
-            Some(phase) => {
-                if phase == Box::new(DefaultPhase) {
-                    self.phases.get_default_phase()
-                } else {
-                    let phase_id = self.phases.add_phase(
-                        PhaseConfig::new(phase)
-                    );
-                    self.init_phases();
-                    Some(phase_id)
-                }
-            }
-            None => None,
-        };
-
-        let phase_id = self.phases.get_server_id(phase_id);
-
-        self.is_changed = true;
-
-        self.systems.add(UnsafeSyncCell::new(system), phase_id)
-    }
-
-    pub fn set_default_phase(&mut self, phase: impl Phase) {
-        self.phases.set_default_phase(Box::new(phase));
-    }
-
-    pub fn add_phase(&mut self, into_config: impl IntoPhaseConfig) {
-        let config = into_config.into_config();
-
-        self.phases.add_phase(config);
-        self.init_phases();
-
-        self.is_changed = true;
-    }
-
-    pub fn add_phases(&mut self, into_config: impl IntoPhaseConfigs) {
-        let config = into_config.into_config();
-
-        self.phases.add_phases(config);
-        self.init_phases();
-
-        self.is_changed = true;
-    }
-
-    fn init_phases(&mut self) {
-        let uninit = self.phases.uninit_phases();
-
-        for phase_id in uninit {
-            let system_id = self.add_system(
-                SystemFlush(phase_id).no_phase()
-            );
-
-            self.phases.set_system_id(phase_id, system_id);
-        }
-    }
-
-    pub fn run(&mut self, world: &mut World) {
-        while self.is_changed {
-            self.is_changed = false;
-            self.init(world);
-        }
-
-        self.systems.run(world);
-        self.systems.flush(world);
-    }
-
-    pub(crate) fn init(&mut self, world: &mut World) {
-        self.systems.init(world);
-        self.init_phases();
-        let phase_order = self.phases.sort();
-        self.systems.sort(phase_order);
-    }
-
-    pub(crate) fn plan(&self) -> Plan {
-        let phase_order = self.phases.sort();
-
-        self.systems.plan(phase_order)
-    }
-
-    pub(crate) fn flush(&mut self, world: &mut World) {
-        self.systems.flush(world);
-    }
-
-    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
-        self.systems.run_unsafe(id, world);
     }
 }
 
@@ -242,9 +126,148 @@ impl Schedules {
 impl Default for Schedules {
     fn default() -> Self {
         Self { 
-            schedule: Schedule::new(),
             schedule_map: HashMap::new(),
          }
+    }
+}
+
+impl Default for Schedule {
+
+    fn default() -> Self {
+        Schedule(Some(ScheduleInner {
+            phases: PhasePreorder::new(),
+
+            systems: Default::default(),
+            uninit_systems: Default::default(),
+
+            planner: Planner::new(),
+    
+            is_changed: true,
+        }))
+    }
+}
+
+impl Schedule {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub(crate) fn system_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
+        self.inner_mut().planner.get_mut(system_id)
+    }
+
+    pub(crate) fn system(&self, system_id: SystemId) -> &SystemItem {
+        self.inner().planner.get(system_id)
+    }
+
+    pub fn add_system<M>(
+        &mut self, 
+        config: impl IntoSystemConfig<M>
+    ) -> SystemId {
+        let SystemConfig {
+            system,
+            phase,
+        } = config.into_config();
+
+        let phase_id = match phase {
+            Some(phase) => {
+                if phase == Box::new(DefaultPhase) {
+                    self.inner_mut().phases.get_default_phase()
+                } else {
+                    let phase_id = self.inner_mut().phases.add_phase(
+                        PhaseConfig::new(phase)
+                    );
+                    self.init_phases();
+                    Some(phase_id)
+                }
+            }
+            None => None,
+        };
+
+        let phase_id = self.inner_mut().phases.get_server_id(phase_id);
+
+        self.inner_mut().is_changed = true;
+
+        self.inner_mut().planner.add(UnsafeSyncCell::new(system), phase_id)
+    }
+
+    pub fn set_default_phase(&mut self, phase: impl Phase) {
+        self.inner_mut().phases.set_default_phase(Box::new(phase));
+    }
+
+    pub fn add_phase(&mut self, into_config: impl IntoPhaseConfig) {
+        let config = into_config.into_config();
+
+        self.inner_mut().phases.add_phase(config);
+        self.init_phases();
+
+        self.inner_mut().is_changed = true;
+    }
+
+    pub fn add_phases(&mut self, into_config: impl IntoPhaseConfigs) {
+        let config = into_config.into_config();
+
+        self.inner_mut().phases.add_phases(config);
+        self.init_phases();
+
+        self.inner_mut().is_changed = true;
+    }
+
+    fn init_phases(&mut self) {
+        let uninit = self.inner_mut().phases.uninit_phases();
+
+        for phase_id in uninit {
+            let system_id = self.add_system(
+                SystemFlush(phase_id).no_phase()
+            );
+
+            self.inner_mut().phases.set_system_id(phase_id, system_id);
+        }
+    }
+
+    pub fn run(&mut self, world: &mut World) {
+        while self.inner_mut().is_changed {
+            self.inner_mut().is_changed = false;
+            self.init(world);
+        }
+
+        self.inner_mut().planner.run(world);
+        self.inner_mut().planner.flush(world);
+    }
+
+    pub(crate) fn init(&mut self, world: &mut World) {
+        self.inner_mut().planner.init(world);
+        self.init_phases();
+        let phase_order = self.inner_mut().phases.sort();
+        self.inner_mut().planner.sort(phase_order);
+    }
+
+    pub(crate) fn plan(&self) -> Plan {
+        let phase_order = self.inner().phases.sort();
+
+        self.inner().planner.plan(phase_order)
+    }
+
+    pub(crate) fn flush(&mut self, world: &mut World) {
+        self.inner_mut().planner.flush(world);
+    }
+
+    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
+        self.inner().planner.run_unsafe(id, world);
+    }
+
+    fn inner(&self) -> &ScheduleInner {
+        match &self.0 {
+            Some(inner) => inner,
+            None => panic!("schedule has been taken for execution"),
+        }
+    }
+
+    fn inner_mut(&mut self) -> &mut ScheduleInner {
+        match &mut self.0 {
+            Some(inner) => inner,
+            None => panic!("schedule has been taken for execution"),
+        }
     }
 }
 

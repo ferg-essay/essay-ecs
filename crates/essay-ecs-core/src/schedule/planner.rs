@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{schedule::SystemMeta, World};
 
-use super::{schedule::{SystemItem, SystemId, BoxedSystem}, preorder::{Preorder, NodeId}, plan::Plan};
+use super::{schedule::{SystemItem, BoxedSystem}, preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
 
 
 pub struct Planner {
@@ -16,6 +16,15 @@ pub struct Planner {
 }
 
 impl Planner {
+    pub(crate) fn new() -> Self {
+        Self {
+            systems: Default::default(),
+            uninit_systems: Default::default(),
+            preorder: Preorder::new(),
+            order: Default::default(),
+        }
+    }
+    
     pub(crate) fn add(
         &mut self, 
         system: BoxedSystem,

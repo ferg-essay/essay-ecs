@@ -1,4 +1,4 @@
-use super::{schedule::SystemId, preorder::{Preorder, NodeId}};
+use super::{system::SystemId, preorder::{Preorder, NodeId}};
 
 pub struct Plan {
     systems: Vec<PlanSystem>,

@@ -9,7 +9,8 @@ use concurrent_queue::{ConcurrentQueue, PopError};
 
 use crate::{World, Schedule};
 
-use super::schedule::SystemId;
+use super::system::SystemId;
+
 
 pub struct ThreadPoolBuilder {
     parent_task: Option<Box<dyn Fn(&TaskSender) + Send>>,
@@ -340,7 +341,7 @@ impl fmt::Debug for TaskMessage {
 mod tests {
     use std::{thread, time::Duration, sync::{Arc, Mutex}};
 
-    use crate::schedule::schedule::SystemId;
+    use crate::schedule::system::SystemId;
 
     use super::ThreadPoolBuilder;
 

@@ -2,7 +2,7 @@ use std::{sync::{Arc, Mutex}, cell::UnsafeCell};
 
 use fixedbitset::FixedBitSet;
 
-use crate::{Schedule, World, schedule::{schedule::SystemId}};
+use crate::{Schedule, World, schedule::{system::SystemId}};
 
 use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{PlanSystem, Plan}, schedule::SystemItem, System, unsafe_cell::{UnsafeSyncCell, UnsafeSendCell}};
 
