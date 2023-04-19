@@ -28,6 +28,17 @@ pub trait ScheduleLabel : DynLabel + fmt::Debug {
 
 pub struct Schedule(Option<ScheduleInner>);
 
+pub trait Executor {
+    fn run(
+        &mut self, 
+        schedule: Schedule, 
+        world: World
+    ) -> Result<(Schedule, World), ScheduleErr>;
+}
+
+#[derive(Debug, Clone)]
+pub struct ScheduleErr;
+
 struct ScheduleInner {
     phases: PhasePreorder,
 
@@ -330,7 +341,7 @@ impl Hash for dyn ScheduleLabel {
 
 #[cfg(test)]
 mod tests {
-    use std::{rc::Rc, cell::RefCell};
+    use std::{rc::Rc, cell::RefCell, sync::{Arc, Mutex}};
 
     use crate::{world::World, schedule::Phase};
 
@@ -368,8 +379,7 @@ mod tests {
 
     #[test]
     fn phase_a_b_c() {
-        /*
-        let values = Rc::new(RefCell::new(Vec::<String>::new()));
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let mut world = World::new();
 
@@ -436,7 +446,6 @@ mod tests {
 
         schedule.run(&mut world);
         assert_eq!(take(&values), "b, c");
-        */
     }
 
     fn new_schedule_a_b_c() -> Schedule {
@@ -459,13 +468,13 @@ mod tests {
         println!("b");
     }
 
-    fn take(values: &Rc<RefCell<Vec<String>>>) -> String {
-        let str_vec = values.borrow_mut().drain(..).collect::<Vec<String>>();
+    fn take(values: &Arc<Mutex<Vec<String>>>) -> String {
+        let str_vec = values.lock().unwrap().drain(..).collect::<Vec<String>>();
 
         return str_vec.join(", ");
     }
 
-    fn push(values: &Rc<RefCell<Vec<String>>>, s: &str) {
-        values.borrow_mut().push(s.to_string());
+    fn push(values: &Arc<Mutex<Vec<String>>>, s: &str) {
+        values.lock().unwrap().push(s.to_string());
     }
 }

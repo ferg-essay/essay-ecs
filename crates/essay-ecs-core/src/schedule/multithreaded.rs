@@ -4,7 +4,7 @@ use fixedbitset::FixedBitSet;
 
 use crate::{Schedule, World, schedule::{system::SystemId}};
 
-use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{PlanSystem, Plan}, schedule::SystemItem, System, unsafe_cell::{UnsafeSyncCell, UnsafeSendCell}};
+use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{PlanSystem, Plan}, schedule::{SystemItem, Executor}, System, unsafe_cell::{UnsafeSyncCell, UnsafeSendCell}};
 
 type UnsafeWorld = UnsafeSendCell<World>;
 type ArcWorld = Arc<UnsafeSendCell<Option<World>>>;
@@ -64,28 +64,34 @@ impl MultithreadedExecutor {
         }
     }
 
-    fn run(&mut self, world: World, schedule: Schedule) -> (World, Schedule) {
+    fn close(&mut self) {
+        if let Some(mut pool) = self.thread_pool.take() {
+            pool.close();
+        }
+    }
+}
+
+impl Executor for MultithreadedExecutor {
+    fn run(
+        &mut self, 
+        schedule: Schedule, 
+        world: World
+    ) -> Result<(Schedule, World), super::schedule::ScheduleErr> {
         match &self.thread_pool {
             Some(thread_pool) => { 
                 unsafe {
                     self.world.as_mut().replace(world);
                     self.schedule.as_mut().replace(schedule);
                 }
-
+    
                 thread_pool.start(); 
-
+    
                 let world = unsafe { self.world.as_mut().take() };
                 let schedule = unsafe { self.schedule.as_mut().take() };
-
-                (world.unwrap(), schedule.unwrap())
+    
+                Ok((schedule.unwrap(), world.unwrap()))
             },
             None => { panic!("thread pool is closed"); }
-        }
-    }
-
-    fn close(&mut self) {
-        if let Some(mut pool) = self.thread_pool.take() {
-            pool.close();
         }
     }
 }
@@ -250,7 +256,7 @@ mod tests {
         schedule::{Phase, IntoSystemConfig, IntoPhaseConfigs}
     };
 
-    use super::MultithreadedExecutor;
+    use super::{MultithreadedExecutor, Executor};
 
     #[test]
     fn two_concurrent_no_phase() {
@@ -277,11 +283,11 @@ mod tests {
 
         let mut exec = MultithreadedExecutor::new(&schedule);        
 
-        (world, schedule) = exec.run(world, schedule);
+        (schedule, world) = exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[S, [S, S], S]");
 
-        exec.run(world, schedule);
+        exec.run(schedule, world);
 
         assert_eq!(take(&value), "[S, [S, S], S]");
     }
@@ -318,11 +324,11 @@ mod tests {
 
         let mut exec = MultithreadedExecutor::new(&schedule);        
 
-        (world, schedule) = exec.run(world, schedule);
+        (schedule, world) = exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[B, [B, B], B]");
 
-        exec.run(world, schedule);
+        exec.run(schedule, world);
 
         assert_eq!(take(&value), "[B, [B, B], B]");
     }
@@ -359,11 +365,11 @@ mod tests {
 
         let mut exec = MultithreadedExecutor::new(&schedule);        
 
-        (world, schedule) = exec.run(world, schedule);
+        (schedule, world) = exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[A, A], [B, B]");
 
-        exec.run(world, schedule);
+        exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[A, A], [B, B]");
     }
@@ -400,11 +406,11 @@ mod tests {
 
         let mut exec = MultithreadedExecutor::new(&schedule);        
 
-        (world, schedule) = exec.run(world, schedule);
+        (schedule, world) = exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[B, B], [C, C]");
 
-        exec.run(world, schedule);
+        exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[B, B], [C, C]");
     }
