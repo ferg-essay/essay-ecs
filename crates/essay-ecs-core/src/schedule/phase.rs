@@ -12,6 +12,10 @@ use super::{preorder::{Preorder, NodeId}, system::{SystemId}};
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct PhaseId(usize);
 
+impl PhaseId {
+    const UNSET : PhaseId = PhaseId(usize::MAX);
+}
+
 pub trait Phase : DynLabel + fmt::Debug {
     fn name(&self) -> String {
         type_name::<Self>().to_string()

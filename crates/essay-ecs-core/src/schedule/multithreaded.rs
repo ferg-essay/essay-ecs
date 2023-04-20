@@ -1,16 +1,20 @@
-use std::{sync::{Arc, Mutex}, cell::UnsafeCell};
+use std::{sync::{Arc}};
 
 use fixedbitset::FixedBitSet;
 
 use crate::{Schedule, World, schedule::{system::SystemId}};
 
-use super::{thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, plan::{PlanSystem, Plan}, schedule::{SystemItem, Executor}, System, unsafe_cell::{UnsafeSyncCell, UnsafeSendCell}};
+use super::{
+    thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, 
+    plan::{Plan}, 
+    schedule::{Executor, ExecutorFactory, ScheduleErr}, 
+    unsafe_cell::{UnsafeSendCell}
+};
 
-type UnsafeWorld = UnsafeSendCell<World>;
 type ArcWorld = Arc<UnsafeSendCell<Option<World>>>;
-
-type UnsafeSchedule = UnsafeSendCell<Schedule>;
 type ArcSchedule = Arc<UnsafeSendCell<Option<Schedule>>>;
+
+pub struct MultithreadedExecutorFactory;
 
 pub struct MultithreadedExecutor {
     thread_pool: Option<ThreadPool>,
@@ -31,13 +35,19 @@ struct ChildTask {
     schedule: ArcSchedule,
 }
 
+impl ExecutorFactory for MultithreadedExecutorFactory {
+    fn create(&self, plan: Plan) -> Box<dyn Executor> {
+        Box::new(MultithreadedExecutor::new(plan))
+    }
+}
+
 impl MultithreadedExecutor {
-    pub fn new(schedule: &Schedule) -> Self {
+    pub fn new(plan: Plan) -> Self {
         let arc_schedule: ArcSchedule = Arc::new(UnsafeSendCell::new(None));
         let arc_world: ArcWorld = Arc::new(UnsafeSendCell::new(None));
 
         let parent_task = ParentTask {
-            plan: schedule.plan(),
+            plan,
             schedule: arc_schedule.clone(),
             world: arc_world.clone(),
         };
@@ -147,13 +157,13 @@ impl ParentTask {
                 started.push(order_id);
                 n_active += 1;
 
-                let system_item = schedule.system(id);
+                let meta = schedule.meta(id);
 
-                if ! system_item.meta().is_exclusive() {
+                if ! meta.is_exclusive() {
                     sender.send(id);
 
                     n_child += 1;
-                } else if system_item.meta().is_flush() {
+                } else if meta.is_flush() {
                     assert_eq!(n_active, 1);
 
                     schedule.flush(world);
@@ -162,7 +172,7 @@ impl ParentTask {
                 } else {
                     assert_eq!(n_active, 1);
 
-                    unsafe { system_item.run(world); }
+                    unsafe { schedule.run_unsafe(id, world); }
 
                     completed.push(id);
                 }
@@ -235,12 +245,12 @@ impl ChildTask {
         }
     }
 
-    fn run(&self, id: SystemId) {
+    fn run(&self, id: SystemId) -> Result<(), ScheduleErr> {
         if let Some(schedule) = unsafe { self.schedule.get_ref() } {
             if let Some(world) = unsafe { self.world.get_ref() } {
-                unsafe { schedule.system(id).run_unsafe(world); }
+                unsafe { schedule.run_unsafe(id, world); }
 
-                return;
+                return Ok(());
             }
         }
 
@@ -253,10 +263,11 @@ mod tests {
     use std::{thread, time::Duration, sync::{Arc, Mutex}};
 
     use crate::{World, Schedule, 
-        schedule::{Phase, IntoSystemConfig, IntoPhaseConfigs}
+        schedule::{Phase, IntoSystemConfig, IntoPhaseConfigs, 
+            Executor, ExecutorFactory}
     };
 
-    use super::{MultithreadedExecutor, Executor};
+    use super::{MultithreadedExecutor, MultithreadedExecutorFactory};
 
     #[test]
     fn two_concurrent_no_phase() {
@@ -281,13 +292,14 @@ mod tests {
 
         schedule.init(&mut world);
 
-        let mut exec = MultithreadedExecutor::new(&schedule);        
+        let factory = MultithreadedExecutorFactory;
+        let mut exec = factory.create(schedule.plan());        
 
         (schedule, world) = exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[S, [S, S], S]");
 
-        exec.run(schedule, world);
+        exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[S, [S, S], S]");
     }
@@ -322,13 +334,13 @@ mod tests {
 
         schedule.init(&mut world);
 
-        let mut exec = MultithreadedExecutor::new(&schedule);        
+        let mut exec = MultithreadedExecutor::new(schedule.plan());        
 
         (schedule, world) = exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[B, [B, B], B]");
 
-        exec.run(schedule, world);
+        exec.run(schedule, world).unwrap();
 
         assert_eq!(take(&value), "[B, [B, B], B]");
     }
@@ -363,7 +375,7 @@ mod tests {
 
         schedule.init(&mut world);
 
-        let mut exec = MultithreadedExecutor::new(&schedule);        
+        let mut exec = MultithreadedExecutor::new(schedule.plan());        
 
         (schedule, world) = exec.run(schedule, world).unwrap();
 
@@ -404,7 +416,7 @@ mod tests {
 
         schedule.init(&mut world);
 
-        let mut exec = MultithreadedExecutor::new(&schedule);        
+        let mut exec = MultithreadedExecutor::new(schedule.plan());        
 
         (schedule, world) = exec.run(schedule, world).unwrap();
 

@@ -2,17 +2,24 @@ use std::collections::HashMap;
 
 use crate::{schedule::SystemMeta, World};
 
-use super::{schedule::{SystemItem, BoxedSystem}, preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
+use super::{schedule::{BoxedSystem}, preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
 
 
 pub struct Planner {
-    systems: Vec<SystemItem>,
-
+    systems: Vec<SystemMeta>,
     uninit_systems: Vec<SystemId>,
 
     preorder: Preorder,
 
     order: Vec<SystemId>,
+}
+
+pub(crate) struct SystemItem {
+    pub(crate) id: SystemId,
+    pub(crate) meta: SystemMeta,
+
+    //pub(crate) system: BoxedSystem,
+    pub(crate) phase: Option<SystemId>,
 }
 
 impl Planner {
@@ -27,34 +34,26 @@ impl Planner {
     
     pub(crate) fn add(
         &mut self, 
-        system: BoxedSystem,
+        id: SystemId,
+        type_name: String,
         phase_id: Option<SystemId>,
     ) -> SystemId {
         // let system: BoxedSystem = Box::new(IntoSystem::into_system(system));
 
-        let id = self.preorder.add_node(0);
-        assert_eq!(id.index(), self.systems.len());
+        let node_id = self.preorder.add_node(0);
+        assert_eq!(id.index(), node_id.index());
 
         let id = SystemId::from(id);
 
-        self.systems.push(SystemItem {
-            id,
-            meta: SystemMeta::new(id, system.get_ref().type_name()),
-            system,
-            phase: phase_id,
-        });
+        self.systems.push(SystemMeta::new(
+            id, 
+            type_name,
+            phase_id,
+        ));
 
-        self.uninit_systems.push(id);
+        // self.uninit_systems.push(id);
 
         id
-    }
-
-    pub(crate) fn init(&mut self, world: &mut World) {
-        for id in self.uninit_systems.drain(..) {
-            let system = &mut self.systems[id.index()];
-            //println!("init {:?}", id);
-            system.system.get_mut().init(&mut system.meta, world);
-        }
     }
 
     pub(crate) fn sort(&mut self, phase_order: Vec<SystemId>) {
@@ -65,9 +64,9 @@ impl Planner {
             phase_order
         );
 
-        for system in &self.systems {
-            if ! system.meta.is_flush() {
-                system.add_phase_arrows(&mut preorder, &prev_map);
+        for meta in &self.systems {
+            if ! meta.is_flush() {
+                meta.add_phase_arrows(&mut preorder, &prev_map);
             }
         }
 
@@ -84,9 +83,9 @@ impl Planner {
             phase_order
         );
 
-        for system in &self.systems {
-            if ! system.meta.is_flush() {
-                system.add_phase_arrows(&mut preorder, &prev_map);
+        for meta in &self.systems {
+            if ! meta.is_flush() {
+                meta.add_phase_arrows(&mut preorder, &prev_map);
             }
         }
 
@@ -120,6 +119,7 @@ impl Planner {
         map
     }
 
+    /*
     pub(crate) fn run(&mut self, world: &mut World) {
         for id in &self.order {
             let system = &mut self.systems[id.index()];
@@ -131,27 +131,14 @@ impl Planner {
             }
         }
     }
+    */
 
-    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
-        let system = &self.systems[id.index()].system;
-
-        system.as_mut().run_unsafe(world)
+    pub(crate) fn meta(&self, id: SystemId) -> &SystemMeta {
+        &self.systems[id.index()]
     }
 
-    pub(crate) fn flush(&mut self, world: &mut World) {
-        for system in &mut self.systems {
-            if ! system.meta.is_flush() {
-                system.system.get_mut().flush(world);
-            }
-        }
-    }
-
-    pub(crate) fn get_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
-        &mut self.systems[system_id.index()]
-    }
-
-    pub(crate) fn get(&self, system_id: SystemId) -> &SystemItem {
-        &self.systems[system_id.index()]
+    pub(crate) fn meta_mut(&mut self, id: SystemId) -> &mut SystemMeta {
+        &mut self.systems[id.index()]
     }
 }
 
@@ -164,4 +151,39 @@ impl Default for Planner {
             order: Default::default(),
         }
     }
+}
+
+impl SystemItem {
+    pub(crate) fn add_phase_arrows(
+        &self, 
+        preorder: &mut Preorder, 
+        prev_map: &HashMap<SystemId, SystemId>
+    ) {
+        if let Some(phase) = &self.phase {
+            preorder.add_arrow(
+                NodeId::from(self.id), 
+                NodeId::from(*phase)
+            );
+
+            if let Some(prev) = prev_map.get(&phase) {
+                preorder.add_arrow(
+                    NodeId::from(*prev), 
+                    NodeId::from(self.id)
+                );
+            }
+        }
+    }
+    /*
+    pub(crate) unsafe fn run_unsafe(&self, world: &World) {
+        self.system.as_mut().run_unsafe(world);
+    }
+
+    pub(crate) unsafe fn run(&self, world: &mut World) {
+        self.system.as_mut().run(world);
+    }
+
+    pub(crate) fn system(&self) -> &BoxedSystem {
+        &self.system
+    }
+    */
 }

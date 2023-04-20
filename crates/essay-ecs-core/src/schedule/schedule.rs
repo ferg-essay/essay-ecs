@@ -8,7 +8,11 @@ use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
     preorder::{Preorder, NodeId}, 
-    System, IntoSystemConfig, SystemConfig, SystemMeta, plan::{PlanSystem, Plan}, unsafe_cell::UnsafeSyncCell, planner::Planner, system::SystemId
+    System, IntoSystemConfig, SystemConfig, SystemMeta, 
+    plan::{PlanSystem, Plan}, 
+    unsafe_cell::UnsafeSyncCell, 
+    planner::{Planner, SystemItem}, 
+    system::SystemId
 };
 
 ///
@@ -26,7 +30,10 @@ pub trait ScheduleLabel : DynLabel + fmt::Debug {
     fn box_clone(&self) -> BoxedLabel;
 }
 
-pub struct Schedule(Option<ScheduleInner>);
+pub struct Schedule {
+    inner: Option<ScheduleInner>,
+    executor: Option<Box<dyn Executor>>,
+}
 
 pub trait Executor {
     fn run(
@@ -34,6 +41,10 @@ pub trait Executor {
         schedule: Schedule, 
         world: World
     ) -> Result<(Schedule, World), ScheduleErr>;
+}
+
+pub trait ExecutorFactory {
+    fn create(&self, plan: Plan) -> Box<dyn Executor>;
 }
 
 #[derive(Debug, Clone)]
@@ -47,49 +58,9 @@ struct ScheduleInner {
 
     planner: Planner,
 
+    executor_factory: Box<dyn ExecutorFactory>,
+
     is_changed: bool,
-}
-
-pub(crate) struct SystemItem {
-    pub(crate) id: SystemId,
-    pub(crate) meta: SystemMeta,
-
-    pub(crate) system: BoxedSystem,
-    pub(crate) phase: Option<SystemId>,
-}
-
-impl SystemItem {
-    pub(crate) fn add_phase_arrows(
-        &self, 
-        preorder: &mut Preorder, 
-        prev_map: &HashMap<SystemId, SystemId>
-    ) {
-        if let Some(phase) = &self.phase {
-            preorder.add_arrow(
-                NodeId::from(self.id), 
-                NodeId::from(*phase)
-            );
-
-            if let Some(prev) = prev_map.get(&phase) {
-                preorder.add_arrow(
-                    NodeId::from(*prev), 
-                    NodeId::from(self.id)
-                );
-            }
-        }
-    }
-
-    pub(crate) unsafe fn run_unsafe(&self, world: &World) {
-        self.system.as_mut().run_unsafe(world);
-    }
-
-    pub(crate) unsafe fn run(&self, world: &mut World) {
-        self.system.as_mut().run(world);
-    }
-
-    pub(crate) fn system(&self) -> &BoxedSystem {
-        &self.system
-    }
 }
 
 impl Schedules {
@@ -143,18 +114,22 @@ impl Default for Schedules {
 }
 
 impl Default for Schedule {
-
     fn default() -> Self {
-        Schedule(Some(ScheduleInner {
-            phases: PhasePreorder::new(),
+        Schedule {
+            inner: Some(ScheduleInner {
+                phases: PhasePreorder::new(),
 
-            systems: Default::default(),
-            uninit_systems: Default::default(),
+                systems: Default::default(),
+                uninit_systems: Default::default(),
 
-            planner: Planner::new(),
+                planner: Planner::new(),
+
+                executor_factory: Default::default(),
     
-            is_changed: true,
-        }))
+                is_changed: true,
+            }),
+            executor: None,
+        }
     }
 }
 
@@ -162,7 +137,7 @@ impl Schedule {
     pub fn new() -> Self {
         Default::default()
     }
-
+    /*
     pub(crate) fn system_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
         self.inner_mut().planner.get_mut(system_id)
     }
@@ -170,6 +145,7 @@ impl Schedule {
     pub(crate) fn system(&self, system_id: SystemId) -> &SystemItem {
         self.inner().planner.get(system_id)
     }
+    */
 
     pub fn add_system<M>(
         &mut self, 
@@ -199,7 +175,7 @@ impl Schedule {
 
         self.inner_mut().is_changed = true;
 
-        self.inner_mut().planner.add(UnsafeSyncCell::new(system), phase_id)
+        self.inner_mut().add_system(UnsafeSyncCell::new(system), phase_id)
     }
 
     pub fn set_default_phase(&mut self, phase: impl Phase) {
@@ -236,18 +212,35 @@ impl Schedule {
         }
     }
 
-    pub fn run(&mut self, world: &mut World) {
+    pub fn run(&mut self, world: &mut World) -> Result<(), ScheduleErr> {
         while self.inner_mut().is_changed {
             self.inner_mut().is_changed = false;
             self.init(world);
+            let plan = self.plan();
+            self.executor = Some(
+                self.inner_mut().executor_factory.create(plan)
+            );
         }
 
-        self.inner_mut().planner.run(world);
-        self.inner_mut().planner.flush(world);
+        let exec_schedule = self.take();
+        let exec_world = world.take();
+
+        let executor = match &mut self.executor {
+            Some(executor) => executor,
+            None => { panic!("missing executor"); }
+        };
+
+        let (exec_schedule, exec_world) = executor.run(exec_schedule, exec_world)?;
+
+        self.replace(exec_schedule);
+        world.replace(exec_world);
+
+        Ok(())
     }
 
     pub(crate) fn init(&mut self, world: &mut World) {
-        self.inner_mut().planner.init(world);
+        self.inner_mut().init(world);
+
         self.init_phases();
         let phase_order = self.inner_mut().phases.sort();
         self.inner_mut().planner.sort(phase_order);
@@ -260,25 +253,120 @@ impl Schedule {
     }
 
     pub(crate) fn flush(&mut self, world: &mut World) {
-        self.inner_mut().planner.flush(world);
+        self.inner_mut().flush(world);
+    }
+
+    pub(crate) unsafe fn run_system(&self, id: SystemId, world: &mut World) {
+        self.inner().systems[id.index()].as_mut().run(world);
     }
 
     pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
-        self.inner().planner.run_unsafe(id, world);
+        self.inner().systems[id.index()].as_mut().run_unsafe(world);
     }
 
     fn inner(&self) -> &ScheduleInner {
-        match &self.0 {
+        match &self.inner {
             Some(inner) => inner,
             None => panic!("schedule has been taken for execution"),
         }
     }
 
     fn inner_mut(&mut self) -> &mut ScheduleInner {
-        match &mut self.0 {
+        match &mut self.inner {
             Some(inner) => inner,
             None => panic!("schedule has been taken for execution"),
         }
+    }
+
+    pub(crate) fn take(&mut self) -> Self {
+        Schedule{
+            inner: self.inner.take(),
+            executor: None,
+        }
+    }
+
+    pub(crate) fn replace(&mut self, schedule: Schedule) {
+        self.inner.replace(schedule.inner.unwrap());
+    }
+
+    pub(crate) fn meta(&self, id: SystemId) -> &SystemMeta {
+        self.inner().planner.meta(id)
+    }
+}
+
+impl ScheduleInner {
+    pub(crate) fn init(&mut self, world: &mut World) {
+        for id in self.uninit_systems.drain(..) {
+            let system = &mut self.systems[id.index()];
+            let mut meta = self.planner.meta_mut(id);
+            
+            system.get_mut().init(&mut meta, world);
+        }
+    }
+
+    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
+        let system = &self.systems[id.index()];
+
+        system.as_mut().run_unsafe(world)
+    }
+
+    pub(crate) fn flush(&mut self, world: &mut World) {
+        for system in &mut self.systems {
+            //if ! system.meta.is_flush() {
+                system.get_mut().flush(world);
+            //}
+        }
+    }
+
+    fn add_system(
+        &mut self, 
+        system: UnsafeSyncCell<Box<dyn System<Out = ()>>>, 
+        phase_id: Option<SystemId>
+    ) -> SystemId {
+        let id = SystemId(self.systems.len());
+        let type_name = system.get_ref().type_name().to_string();
+
+        self.systems.push(system);
+        self.uninit_systems.push(id);
+        self.planner.add(id, type_name, phase_id);
+
+        id
+    }
+}
+
+struct SingleExecutorFactory;
+
+impl ExecutorFactory for SingleExecutorFactory {
+    fn create(&self, plan: Plan) -> Box<dyn Executor> {
+        Box::new(SingleExecutor(plan))
+    }
+}
+
+impl Default for Box<dyn ExecutorFactory> {
+    fn default() -> Self {
+        Box::new(SingleExecutorFactory {})
+    }
+}
+struct SingleExecutor(Plan);
+
+impl Executor for SingleExecutor {
+    fn run(
+        &mut self, 
+        mut schedule: Schedule, 
+        mut world: World
+    ) -> Result<(Schedule, World), ScheduleErr> {
+        for id in self.0.order() {
+            let meta = schedule.meta(*id);
+
+            if meta.is_flush() {
+                schedule.flush(&mut world);
+            }
+            else {
+                unsafe { schedule.run_system(*id, &mut world); }
+            }
+        }
+
+        Ok((schedule, world))
     }
 }
 
@@ -297,7 +385,7 @@ impl System for SystemFlush {
     }
 
     fn flush(&mut self, _world: &mut World) {
-        panic!("SystemFlush[{:?}] flush can't be called directly", self.0);
+    //    panic!("SystemFlush[{:?}] flush can't be called directly", self.0);
     }
 }
 
@@ -396,7 +484,7 @@ mod tests {
             push(&ptr, "b"); 
         });
 
-        schedule.run(&mut world);
+        schedule.run(&mut world).unwrap();
         assert_eq!(take(&values), "a, b");
 
         // C, default

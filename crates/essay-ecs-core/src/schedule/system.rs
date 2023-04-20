@@ -1,9 +1,9 @@
 use core::fmt;
-use std::{borrow::Cow, any::type_name};
+use std::{borrow::Cow, any::type_name, collections::HashMap};
 
 use crate::{world::World};
 
-use super::{Phase, phase::DefaultPhase};
+use super::{Phase, phase::{DefaultPhase, PhaseId}, preorder::{Preorder, NodeId}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);
@@ -31,7 +31,8 @@ pub struct Priority(u32);
 
 pub struct SystemMeta {
     id: SystemId,
-    name: Cow<'static, str>,
+    name: String,
+    phase: Option<SystemId>,
 
     priority: Priority,
 
@@ -72,10 +73,15 @@ pub trait IntoSystemConfig<M>: Sized {
 }
 
 impl SystemMeta {
-    pub(crate) fn new(id: SystemId, name: &'static str) -> Self {
+    pub(crate) fn new(
+        id: SystemId, 
+        name: String,
+        phase: Option<SystemId>,
+    ) -> Self {
         Self {
             id,
-            name: name.into(),
+            name,
+            phase,
             priority: Default::default(),
             is_flush: false,
             is_exclusive: false,
@@ -85,8 +91,9 @@ impl SystemMeta {
     pub fn empty() -> Self {
         Self {
             id: SystemId(0),
-            name: "empty".into(),
+            name: "empty".to_string(),
             priority: Default::default(),
+            phase: None,
             is_flush: false,
             is_exclusive: false,
         }
@@ -127,6 +134,26 @@ impl SystemMeta {
     pub fn sub_priority(&mut self, delta: u32) {
         self.priority = self.priority.sub(delta);
     }
+    
+    pub(crate) fn add_phase_arrows(
+        &self, 
+        preorder: &mut Preorder, 
+        prev_map: &HashMap<SystemId, SystemId>
+    ) {
+        if let Some(phase) = &self.phase {
+            preorder.add_arrow(
+                NodeId::from(self.id), 
+                NodeId::from(*phase)
+            );
+
+            if let Some(prev) = prev_map.get(&phase) {
+                preorder.add_arrow(
+                    NodeId::from(*prev), 
+                    NodeId::from(self.id)
+                );
+            }
+        }
+    }
 }
 
 impl fmt::Debug for SystemMeta {
@@ -134,6 +161,9 @@ impl fmt::Debug for SystemMeta {
         f.debug_struct("SystemMeta")
          .field("id", &self.id)
          .field("name", &self.name)
+         .field("phase", &self.phase)
+         .field("is_exclusive", &self.is_exclusive)
+         .field("is_flush", &self.is_exclusive)
          .finish()
     }
 }
