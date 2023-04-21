@@ -1,10 +1,12 @@
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, collections::HashSet};
+
+use crate::schedule::SystemMeta;
 
 use super::{
     {Store, ViewId}, 
     meta::{TableType, ViewTableType, ColumnId}, 
-    store::{Component}, entity::Entity
+    store::{Component}, entity::Entity, ComponentId
 };
 
 pub trait View {
@@ -27,11 +29,17 @@ pub struct ViewCursor<'a, 't> {
 pub struct ViewBuilder<'a> {
     store: &'a mut Store, 
     columns: Vec<ColumnId>,
+
+    components: HashSet<ColumnId>,
+    mut_components: HashSet<ColumnId>,
 }
 
-pub(crate) struct ViewPlan {
+pub struct ViewPlan {
     view: ViewId,
     cols: Vec<usize>,
+
+    components: HashSet<ColumnId>,
+    mut_components: HashSet<ColumnId>,
 }
 
 impl ViewPlan {
@@ -54,6 +62,14 @@ impl ViewPlan {
 
     pub(crate) fn view(&self) -> ViewId {
         self.view
+    }
+
+    pub(crate) fn components(&self) -> &HashSet<ColumnId> {
+        &self.components
+    }
+
+    pub(crate) fn mut_components(&self) -> &HashSet<ColumnId> {
+        &self.mut_components
     }
 }
 
@@ -84,6 +100,8 @@ impl<'a, 't> ViewBuilder<'a> {
         Self {
             store,
             columns: Vec::new(),
+            components: Default::default(),
+            mut_components: Default::default(),
         }
     }
 
@@ -91,12 +109,16 @@ impl<'a, 't> ViewBuilder<'a> {
         let col_id = self.store.add_column::<T>();
 
         self.columns.push(col_id);
+
+        self.components.insert(col_id);
     }
 
     pub fn add_mut<T:'static>(&mut self) {
         let col_id = self.store.add_column::<T>();
 
         self.columns.push(col_id);
+
+        self.mut_components.insert(col_id);
     }
 
     pub(crate) fn build(self) -> ViewPlan {
@@ -110,6 +132,9 @@ impl<'a, 't> ViewBuilder<'a> {
         ViewPlan {
             view: view_id,
             cols: cols,
+
+            components: self.components,
+            mut_components: self.mut_components,
         }
     }
 }
@@ -205,7 +230,7 @@ impl<T:Component> View for &mut T {
     type Item<'t> = &'t mut T;
 
     fn build(builder: &mut ViewBuilder) {
-        builder.add_ref::<T>();
+        builder.add_mut::<T>();
     }
 
     unsafe fn deref<'a, 't>(cursor: &mut ViewCursor<'a, 't>) -> Self::Item<'t> { //<'a> {

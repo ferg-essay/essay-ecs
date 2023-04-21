@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{collections::{HashMap, HashSet}, hash};
 
-use crate::{world::ResourceId};
+use crate::{world::ResourceId, entity::ComponentId};
 
 use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
 
@@ -29,6 +29,9 @@ pub struct SystemMeta {
 
     resources: HashSet<ResourceId>,
     mut_resources: HashSet<ResourceId>,
+
+    components: HashSet<ComponentId>,
+    mut_components: HashSet<ComponentId>,
 }
 
 pub struct PhasePlan {
@@ -37,7 +40,10 @@ pub struct PhasePlan {
     group_map: HashMap<AccessGroup, AccessGroupId>,
     groups: Vec<AccessGroup>,
 
+    exclusive: Option<AccessGroupId>,
+
     resource_mut_map: HashMap<ResourceId, Vec<AccessGroupId>>,
+    component_mut_map: HashMap<ComponentId, Vec<AccessGroupId>>,
 }
 
 pub struct AccessGroup {
@@ -48,6 +54,9 @@ pub struct AccessGroup {
 
     resources: Vec<ResourceId>,
     mut_resources: Vec<ResourceId>,
+
+    components: Vec<ComponentId>,
+    mut_components: Vec<ComponentId>,
 
     systems: Vec<SystemId>,
 
@@ -213,6 +222,9 @@ impl SystemMeta {
 
             resources: Default::default(),
             mut_resources: Default::default(),
+
+            components: Default::default(),
+            mut_components: Default::default(),
         }
     }
 
@@ -228,6 +240,9 @@ impl SystemMeta {
 
             resources: Default::default(),
             mut_resources: Default::default(),
+
+            components: Default::default(),
+            mut_components: Default::default(),
         }
     }
 
@@ -243,11 +258,11 @@ impl SystemMeta {
         self.is_exclusive
     }
 
-    pub fn set_flush(&mut self) {
+    pub(crate) fn set_flush(&mut self) {
         self.is_flush = true;
     }
 
-    pub fn is_flush(&self) -> bool {
+    pub(crate) fn is_flush(&self) -> bool {
         self.is_flush
     }
 
@@ -267,12 +282,20 @@ impl SystemMeta {
         self.priority = self.priority.sub(delta);
     }
 
-    pub(crate) fn add_resource(&mut self, id: ResourceId) {
+    pub(crate) fn insert_resource(&mut self, id: ResourceId) {
         self.resources.insert(id);
     }
 
     pub(crate) fn insert_resource_mut(&mut self, id: ResourceId) {
         self.mut_resources.insert(id);
+    }
+
+    pub(crate) fn insert_component(&mut self, id: ComponentId) {
+        self.components.insert(id);
+    }
+
+    pub(crate) fn insert_component_mut(&mut self, id: ComponentId) {
+        self.mut_components.insert(id);
     }
     
     pub(crate) fn add_phase_arrows(
@@ -356,7 +379,10 @@ impl PhasePlan {
             group_map: Default::default(),
             groups: Default::default(),
 
+            exclusive: None,
+
             resource_mut_map: Default::default(),
+            component_mut_map: Default::default(),
         };
 
         phase_plan.add_systems(&planner.systems);
@@ -376,12 +402,28 @@ impl PhasePlan {
             if id.0 == self.groups.len() {
                 let group = AccessGroup::from(meta);
 
-                for resource_id in &group.mut_resources {
-                    let groups = self.resource_mut_map
-                        .entry(*resource_id)
-                        .or_insert_with(|| Vec::new());
+                if group.is_exclusive {
+                    if ! group.is_flush {
+                        if self.exclusive.is_none() {
+                            self.exclusive = Some(id);
+                        }
+                    }
+                } else {
+                    for resource_id in &group.mut_resources {
+                        let groups = self.resource_mut_map
+                            .entry(*resource_id)
+                            .or_insert_with(|| Vec::new());
                     
-                    groups.push(id);
+                        groups.push(id);
+                    }
+
+                    for component_id in &group.mut_components {
+                        let groups = self.component_mut_map
+                            .entry(*component_id)
+                            .or_insert_with(|| Vec::new());
+                    
+                        groups.push(id);
+                    }
                 }
 
                 self.groups.push(group);
@@ -400,9 +442,11 @@ impl PhasePlan {
     }
 
     fn group_arrows(&self, preorder: &mut Preorder) {
-        // arrows from MutRes to this group
-
         for group in &self.groups {
+            if group.is_exclusive {
+                continue;
+            }
+
             for id in &group.resources {
                 let id = *id;
 
@@ -411,6 +455,37 @@ impl PhasePlan {
 
                     self.arrows_from_tail(preorder, &mut_ids, group);
                 }
+            }
+
+            for id in &group.components {
+                let id = *id;
+
+                if let Some(mut_ids) = self.component_mut_map.get(&id) {
+                    let mut_ids = mut_ids.clone();
+
+                    self.arrows_from_tail(preorder, &mut_ids, group);
+                }
+            }
+
+            if let Some(exclusive) = self.exclusive {
+                let exclusive_last = self.groups[exclusive.0].last.unwrap();
+
+                match group.first {
+                    Some(first) => { 
+                        preorder.add_arrow(
+                            NodeId::from(exclusive_last),
+                            NodeId::from(first),
+                        );
+                    },
+                    None => {
+                        for id in &group.systems {
+                            preorder.add_arrow(
+                                NodeId::from(exclusive_last),
+                                NodeId::from(*id),
+                            );
+                        }
+                    }
+                };
             }
         }
     }
@@ -439,11 +514,10 @@ impl AccessGroup {
         self.is_exclusive
         || self.is_flush
         || ! self.mut_resources.is_empty()
+        || ! self.mut_components.is_empty()
     }
 
     fn internal_arrows(&mut self, preorder: &mut Preorder) {
-        // println!("Internal {:#?}", self);
-
         if self.is_write() {
             let mut iter = self.systems.iter();
 
@@ -488,6 +562,9 @@ impl From<&SystemMeta> for AccessGroup {
             resources: meta.resources.iter().map(|s| *s).collect(),
             mut_resources: meta.mut_resources.iter().map(|s| *s).collect(),
 
+            components: meta.components.iter().map(|s| *s).collect(),
+            mut_components: meta.mut_components.iter().map(|s| *s).collect(),
+
             systems: Vec::new(),
 
             first: None,
@@ -496,6 +573,9 @@ impl From<&SystemMeta> for AccessGroup {
 
         group.resources.sort();
         group.mut_resources.sort();
+
+        group.components.sort();
+        group.mut_components.sort();
 
         group
     }
@@ -507,6 +587,8 @@ impl PartialEq for AccessGroup {
         && self.is_flush == other.is_flush
         && self.resources == other.resources
         && self.mut_resources == other.mut_resources
+        && self.components == other.components
+        && self.mut_components == other.mut_components
     }
 }
 
@@ -515,10 +597,15 @@ impl Eq for AccessGroup {}
 impl hash::Hash for AccessGroup {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.phase.hash(state);
+
         self.is_exclusive.hash(state);
         self.is_flush.hash(state);
+
         self.resources.hash(state);
         self.mut_resources.hash(state);
+
+        self.components.hash(state);
+        self.mut_components.hash(state);
     }
 }
 
@@ -530,6 +617,8 @@ impl fmt::Debug for AccessGroup {
         .field("is_flush", &self.is_flush)
         .field("resources", &self.resources)
         .field("mut_resources", &self.mut_resources)
+        .field("components", &self.components)
+        .field("mut_components", &self.mut_components)
         .field("systems", &self.systems)
         .field("first", &self.first)
         .field("last", &self.last)
@@ -541,7 +630,110 @@ impl fmt::Debug for AccessGroup {
 mod test {
     use std::{sync::{Arc, Mutex}, thread, time::Duration};
 
-    use crate::{base_app::{BaseApp, BaseSchedule}, Res, schedule::{schedule::ExecutorType}, ResMut};
+    use crate::{
+        base_app::{BaseApp, BaseSchedule, BasePhases}, 
+        entity::Component, 
+        schedule::{schedule::ExecutorType, IntoSystemConfig}, 
+        Res, ResMut, Commands, World
+    };
+
+    #[test]
+    fn phase_groups() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.insert_resource("test".to_string());
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system((move || {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        }).phase(BasePhases::Last));
+        
+        let ptr = values.clone();
+        app.add_system((move || {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        }).phase(BasePhases::Last));
+        
+        let ptr = values.clone();
+        app.add_system(move || {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move || {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        let ptr = values.clone();
+        app.add_system((move || {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        }).phase(BasePhases::First));
+        
+        let ptr = values.clone();
+        app.add_system((move || {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        }).phase(BasePhases::First));
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, [A, A], A], [B, [B, B], B], [C, [C, C], C]");
+    }
+
+    #[test]
+    fn world_mut_sequential() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.insert_resource("test".to_string());
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_w: &mut World| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_w: &mut World| {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move || {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move || {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, A], [B, B], [C, [C, C], C]");
+    }
 
     #[test]
     fn res_parallel() {
@@ -671,6 +863,143 @@ mod test {
 
         assert_eq!(take(&values), "[A, A], [B, B], [C, [C, C], C]");
     }
+
+    #[test]
+    fn comp_parallel() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_item: &TestA| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_item: &TestA| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, [A, A], A]");
+        
+    }
+
+    #[test]
+    fn comp_sequential() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_item: &mut TestA| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_item: &mut TestA| {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, A], [B, B]");
+        
+    }
+
+    #[test]
+    fn comp_mut_disjoint() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+        app.run_system(|mut c: Commands| c.spawn(TestB(200)));
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_item: &mut TestA| {
+            push(&ptr, format!("[S"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_item: &mut TestB| {
+            push(&ptr, format!("[S"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[S, S], [S, S]");
+        
+    }
+
+    #[test]
+    fn comp_sequential_parallel() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_item: &mut TestA| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_item: &mut TestA| {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_item: &TestA| {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        });
+
+        let ptr = values.clone();
+        app.add_system(move |_item: &TestA| {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, A], [B, B], [C, [C, C], C]");
+        
+    }
+
+    struct TestA(u32);
+    struct TestB(u32);
+
+    impl Component for TestA {}
+    impl Component for TestB {}
 
     fn push(values: &Arc<Mutex<Vec<String>>>, value: String) {
         values.lock().unwrap().push(value);

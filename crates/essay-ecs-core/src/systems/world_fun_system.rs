@@ -168,6 +168,8 @@ macro_rules! impl_param_excl_tuple {
                 world: &mut World, 
                 meta: &mut SystemMeta
             ) -> Self::State {
+                meta.set_exclusive();
+
                 ($($param::init(world, meta),)*)
             }
 

@@ -1,7 +1,7 @@
 use std::mem;
 
 use crate::{
-    entity::{Store, ViewIterator, View, Insert, EntityId}, 
+    entity::{Store, ViewIterator, View, Insert, EntityId, ViewPlan}, 
     schedule::{System, IntoSystem, ScheduleLabel, Schedules, SystemMeta}, prelude::Param
 };
 
@@ -94,6 +94,10 @@ impl World {
 
     pub fn query<Q:View>(&mut self) -> ViewIterator<Q> {
         self.deref_mut().table.iter_view()
+    }
+
+    pub(crate) fn view_build<Q:View>(&self) -> ViewPlan {
+        self.deref_mut().table.view_plan::<Q>()
     }
 
     //

@@ -6,7 +6,7 @@ mod column;
 pub(crate) mod meta;
 
 pub use store::{
-    Store, Component
+    Store, ComponentId, Component
 };
 
 pub use entity::{
@@ -17,6 +17,6 @@ pub use insert::{
     Insert, InsertBuilder, InsertCursor,
 };
 pub use view::{
-    View, ViewBuilder, ViewCursor, ViewIterator,
+    View, ViewBuilder, ViewPlan, ViewCursor, ViewIterator,
 };
 pub use meta::{ViewId};

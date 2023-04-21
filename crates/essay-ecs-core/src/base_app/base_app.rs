@@ -1,6 +1,8 @@
 use crate::{
     World, Schedule, IntoSystemConfig, 
-    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel}, entity::{View, ViewIterator}, Schedules
+    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, System, SystemMeta}, 
+    entity::{View, ViewIterator}, 
+    Schedules, IntoSystem,
 };
 
 
@@ -74,6 +76,17 @@ impl BaseApp {
 
     pub fn get_mut_schedule(&mut self, label: &dyn ScheduleLabel) -> Option<&mut Schedule> {
         self.world.resource_mut::<Schedules>().get_mut(label)
+    }
+
+    pub fn run_system<M>(&mut self, into_system: impl IntoSystem<(),M>) -> &mut Self {
+        let mut system = IntoSystem::into_system(into_system);
+        
+        let mut meta = SystemMeta::empty();
+        system.init(&mut meta, &mut self.world);
+        system.run(&mut self.world);
+        system.flush(&mut self.world);
+
+        self
     }
 
     pub fn tick(&mut self) -> &mut Self {

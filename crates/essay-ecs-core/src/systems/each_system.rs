@@ -1,6 +1,6 @@
 use std::{marker::PhantomData};
 
-use crate::{world::World, entity::{View}, 
+use crate::{world::World, entity::{View, ViewBuilder, ComponentId}, 
     schedule::{System, IntoSystem, SystemMeta}
 };
 
@@ -19,7 +19,7 @@ where
 }
 
 pub trait EachFun<M> : Send + Sync {
-    type Item<'w>:View;
+    type Item<'w>: View;
     type Params: Param;
 
     fn run<'a,'w>(
@@ -57,6 +57,17 @@ where
     type Out = ();
     
     fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
+        let plan = world.view_build::<F::Item<'_>>();
+
+        for id in plan.components() {
+            meta.insert_component(ComponentId::from(*id));
+        }
+
+        for id in plan.mut_components() {
+            meta.insert_component_mut(ComponentId::from(*id));
+        }
+        
+        //F::Item::init(meta);
         self.state = Some(F::Params::init(meta, world))
     }
     

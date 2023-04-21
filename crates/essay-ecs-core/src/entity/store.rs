@@ -16,7 +16,7 @@ pub struct Store {
 
 pub trait Component:Send + Sync + 'static {}
 
-#[derive (Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]
+#[derive (Debug, Copy, Clone, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct ComponentId(usize);
 
 //
@@ -204,6 +204,12 @@ impl Store {
             Some(row_id) => self.rows.get(row_id.index()),
             None => None,
         }
+    }
+}
+
+impl From<ColumnId> for ComponentId {
+    fn from(id: ColumnId) -> Self {
+        ComponentId(id.index())
     }
 }
 

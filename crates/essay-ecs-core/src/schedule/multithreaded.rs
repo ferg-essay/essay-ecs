@@ -171,7 +171,7 @@ impl ParentTask {
                 } else {
                     assert_eq!(n_active, 1);
 
-                    unsafe { schedule.run_unsafe(id, world); }
+                    unsafe { schedule.run_system(id, world); }
 
                     completed.push(id);
                 }

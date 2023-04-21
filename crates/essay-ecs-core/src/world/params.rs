@@ -30,7 +30,7 @@ impl<'a, T:'static> Param for Res<'_, T> {
     }
 
     fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
-        meta.add_resource(world.get_resource_id::<T>());
+        meta.insert_resource(world.get_resource_id::<T>());
     }
 }
 
