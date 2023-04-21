@@ -93,7 +93,6 @@ impl Executor for MultithreadedExecutor {
                     self.world.as_mut().replace(world);
                     self.schedule.as_mut().replace(schedule);
                 }
-    
                 thread_pool.start(); 
     
                 let world = unsafe { self.world.as_mut().take() };

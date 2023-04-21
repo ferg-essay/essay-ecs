@@ -131,10 +131,10 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(local_system);
 
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
         assert_eq!(world.resource::<String>(), "local(1)");
 
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
         assert_eq!(world.resource::<String>(), "local(2)");
     }
 

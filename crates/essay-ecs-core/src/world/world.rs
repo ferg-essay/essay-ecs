@@ -99,7 +99,7 @@ impl World {
     pub fn run_schedule(&mut self, label: impl ScheduleLabel) {
         let mut schedule = self.resource_mut::<Schedules>().remove(&label).unwrap();
 
-        schedule.run(self);
+        schedule.tick(self).unwrap();
 
         self.resource_mut::<Schedules>().insert(label, schedule);
     }

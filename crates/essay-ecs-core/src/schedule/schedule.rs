@@ -12,7 +12,7 @@ use super::{
     plan::{Plan}, 
     unsafe_cell::UnsafeSyncCell, 
     planner::{Planner, SystemItem}, 
-    system::SystemId
+    system::SystemId, multithreaded::MultithreadedExecutor
 };
 
 ///
@@ -47,6 +47,22 @@ pub trait ExecutorFactory {
     fn create(&self, plan: Plan) -> Box<dyn Executor>;
 }
 
+pub enum ExecutorType {
+    Single,
+    Multithreaded,
+}
+
+impl ExecutorFactory for ExecutorType {
+    fn create(&self, plan: Plan) -> Box<dyn Executor> {
+        match self {
+            ExecutorType::Single => Box::new(SingleExecutor(plan)),
+            ExecutorType::Multithreaded => {
+                Box::new(MultithreadedExecutor::new(plan))
+            },
+        }
+    }   
+}
+
 #[derive(Debug, Clone)]
 pub struct ScheduleErr;
 
@@ -68,6 +84,10 @@ impl Schedules {
         self.schedule_map.get(label)
     }
 
+    pub fn get_mut(&mut self, label: &dyn ScheduleLabel) -> Option<&mut Schedule> {
+        self.schedule_map.get_mut(label)
+    }
+
     pub fn insert(&mut self, label: impl ScheduleLabel, schedule: Schedule) -> Option<Schedule> {
         self.schedule_map.insert(label.box_clone(), schedule)
     }
@@ -82,12 +102,14 @@ impl Schedules {
             .add_system::<M>(config);
     }
 
-    pub fn run(&mut self, label: &dyn ScheduleLabel, world: &mut World) {
-        let (key, mut schedule) = self.schedule_map.remove_entry(label).unwrap();
+    pub fn tick(
+        &mut self, 
+        label: &dyn ScheduleLabel, 
+        world: &mut World
+    ) -> Result<(), ScheduleErr> {
+        let schedule = self.schedule_map.get_mut(label).unwrap();
         
-        schedule.run(world);
-
-        self.schedule_map.insert(key, schedule);
+        schedule.tick(world)
     }
 
     pub(crate) fn remove(
@@ -212,7 +234,7 @@ impl Schedule {
         }
     }
 
-    pub fn run(&mut self, world: &mut World) -> Result<(), ScheduleErr> {
+    pub fn tick(&mut self, world: &mut World) -> Result<(), ScheduleErr> {
         while self.inner_mut().is_changed {
             self.inner_mut().is_changed = false;
             self.init(world);
@@ -292,6 +314,10 @@ impl Schedule {
     pub(crate) fn meta(&self, id: SystemId) -> &SystemMeta {
         self.inner().planner.meta(id)
     }
+
+    pub(crate) fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) {
+        self.inner_mut().set_executor_factory(Box::new(executor));
+    }
 }
 
 impl ScheduleInner {
@@ -329,8 +355,14 @@ impl ScheduleInner {
         self.systems.push(system);
         self.uninit_systems.push(id);
         self.planner.add(id, type_name, phase_id);
+        self.is_changed = true;
 
         id
+    }
+
+    fn set_executor_factory(&mut self, factory: Box<dyn ExecutorFactory>) {
+        self.executor_factory = factory;
+        self.is_changed = true;
     }
 }
 
@@ -484,7 +516,7 @@ mod tests {
             push(&ptr, "b"); 
         });
 
-        schedule.run(&mut world).unwrap();
+        schedule.tick(&mut world).unwrap();
         assert_eq!(take(&values), "a, b");
 
         // C, default
@@ -500,7 +532,7 @@ mod tests {
             push(&ptr, "b"); 
         });
 
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
         assert_eq!(take(&values), "b, c");
 
         // default, A
@@ -516,7 +548,7 @@ mod tests {
             push(&ptr, "a"); 
         }).phase(TestPhase::A));
 
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
         assert_eq!(take(&values), "a, b");
 
         // default, C
@@ -532,7 +564,7 @@ mod tests {
             push(&ptr, "c"); 
         }).phase(TestPhase::C));
 
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
         assert_eq!(take(&values), "b, c");
     }
 

@@ -235,13 +235,13 @@ mod tests {
 
         let mut schedule = Schedule::new();
         schedule.add_system(|mut c: Commands| c.insert_resource(TestA(100)));
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
 
         assert_eq!(world.resource::<TestA>(), &TestA(100));
 
         let mut schedule = Schedule::new();
         schedule.add_system(|mut c: Commands| c.insert_resource(TestA(1000)));
-        schedule.run(&mut world);
+        schedule.tick(&mut world);
 
         assert_eq!(world.resource::<TestA>(), &TestA(1000));
     }

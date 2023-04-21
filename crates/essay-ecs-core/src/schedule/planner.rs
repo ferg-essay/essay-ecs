@@ -187,3 +187,79 @@ impl SystemItem {
     }
     */
 }
+
+#[cfg(test)]
+mod test {
+    use std::{sync::{Arc, Mutex}, thread, time::Duration};
+
+    use crate::{base_app::{BaseApp, BaseSchedule}, Res, schedule::{multithreaded::MultithreadedExecutor, schedule::ExecutorType}, ResMut};
+
+    #[test]
+    fn two_resource_parallel() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.insert_resource("test".to_string());
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |res: Res<String>| {
+            push(&ptr, format!("[S-{}", res.get()));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S-{}]", res.get()));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |res: Res<String>| {
+            push(&ptr, format!("[S-{}", res.get()));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S-{}]", res.get()));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[S-test, [S-test, S-test], S-test]");
+        
+    }
+
+
+    #[test]
+    fn two_resource_sequential() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.insert_resource("test".to_string());
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |res: ResMut<String>| {
+            push(&ptr, format!("[S-{}", res.get()));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S-{}]", res.get()));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |res: ResMut<String>| {
+            push(&ptr, format!("[S-{}", res.get()));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S-{}]", res.get()));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[S-test, S-test], [S-test, S-test]");
+        
+    }
+
+    fn push(values: &Arc<Mutex<Vec<String>>>, value: String) {
+        values.lock().unwrap().push(value);
+    }
+
+    fn take(values: &Arc<Mutex<Vec<String>>>) -> String {
+        let values : Vec<String> = values.lock().unwrap().drain(..).collect();
+
+        values.join(", ")
+    }
+}

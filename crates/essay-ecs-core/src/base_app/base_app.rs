@@ -72,6 +72,10 @@ impl BaseApp {
         self.world.query()
     }
 
+    pub fn get_mut_schedule(&mut self, label: &dyn ScheduleLabel) -> Option<&mut Schedule> {
+        self.world.resource_mut::<Schedules>().get_mut(label)
+    }
+
     pub fn tick(&mut self) -> &mut Self {
         self.world.run_schedule(BaseSchedule::Main);
 
@@ -83,7 +87,9 @@ impl Default for BaseApp {
     fn default() -> Self {
         let mut app = BaseApp::empty();
 
-        app.insert_resource(BasePhases::main_schedule());
+        app.insert_resource(Schedules::default());
+        app.resource_mut::<Schedules>()
+            .insert(BaseSchedule::Main, BasePhases::main_schedule());
 
         app
     }
