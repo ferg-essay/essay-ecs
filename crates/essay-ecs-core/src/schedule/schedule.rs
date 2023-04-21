@@ -7,9 +7,9 @@ use crate::{world::World, util::DynLabel};
 use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
-    preorder::{Preorder, NodeId}, 
+    preorder::{NodeId}, 
     System, IntoSystemConfig, SystemConfig, SystemMeta, 
-    plan::{PlanSystem, Plan}, 
+    plan::{Plan}, 
     unsafe_cell::UnsafeSyncCell, 
     planner::{Planner, SystemItem}, 
     system::SystemId
@@ -429,7 +429,7 @@ impl Hash for dyn ScheduleLabel {
 
 #[cfg(test)]
 mod tests {
-    use std::{rc::Rc, cell::RefCell, sync::{Arc, Mutex}};
+    use std::{sync::{Arc, Mutex}};
 
     use crate::{world::World, schedule::Phase};
 

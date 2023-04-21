@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{schedule::SystemMeta, World};
+use crate::{schedule::SystemMeta};
 
-use super::{schedule::{BoxedSystem}, preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
+use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
 
 
 pub struct Planner {

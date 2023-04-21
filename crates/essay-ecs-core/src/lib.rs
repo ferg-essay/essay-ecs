@@ -1,3 +1,4 @@
+pub mod base_app;
 mod util;
 pub mod schedule;
 pub mod entity;
