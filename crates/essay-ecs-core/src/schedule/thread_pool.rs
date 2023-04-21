@@ -1,13 +1,10 @@
 use core::fmt;
 use std::{
     thread::{Thread, self, JoinHandle}, 
-    sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex}, 
-    time::Duration, future::Future
+    sync::{mpsc::{self, Receiver, Sender}, Arc}, 
 };
 
 use concurrent_queue::{ConcurrentQueue, PopError};
-
-use crate::{World, Schedule};
 
 use super::system::SystemId;
 
@@ -29,9 +26,6 @@ pub struct ThreadPool {
 pub struct TaskSender<'a> {
     thread: &'a ParentThread,
 }
-
-type MainClosure = Box<dyn FnOnce(&TaskSender) + Send>;
-type TaskClosure = Box<dyn FnOnce() -> SystemId + Send>;
 
 enum MainMessage {
     Start,

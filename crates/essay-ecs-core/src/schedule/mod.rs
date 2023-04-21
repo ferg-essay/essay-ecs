@@ -10,7 +10,11 @@ mod system;
 
 use essay_ecs_macros::Phase;
 pub use system::{
-    System, IntoSystem, SystemConfig, IntoSystemConfig, SystemMeta,
+    System, IntoSystem, SystemConfig, IntoSystemConfig,
+};
+
+pub use planner::{
+    SystemMeta,
 };
 
 pub use schedule::{

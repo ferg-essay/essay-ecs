@@ -11,7 +11,7 @@ use super::{
     System, IntoSystemConfig, SystemConfig, SystemMeta, 
     plan::{Plan}, 
     unsafe_cell::UnsafeSyncCell, 
-    planner::{Planner, SystemItem}, 
+    planner::{Planner}, 
     system::SystemId, multithreaded::MultithreadedExecutor
 };
 
@@ -418,18 +418,6 @@ impl System for SystemFlush {
 
     fn flush(&mut self, _world: &mut World) {
     //    panic!("SystemFlush[{:?}] flush can't be called directly", self.0);
-    }
-}
-
-impl SystemItem {
-    pub(crate) fn meta(&self) -> &SystemMeta {
-        &self.meta
-    }
-}
-
-impl SystemId {
-    pub fn index(&self) -> usize {
-        self.0
     }
 }
 

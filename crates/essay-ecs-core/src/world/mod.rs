@@ -10,5 +10,6 @@ mod map_function;
 pub use command::Commands;
 pub use world::{World,FromWorld};
 pub use params::{Res, ResMut};
+pub use resource::ResourceId;
 
 pub(crate) use cell::{Ptr};

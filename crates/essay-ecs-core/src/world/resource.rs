@@ -6,7 +6,7 @@ use super::{cell::Ptr, World, world::FromWorld};
 
 struct IsResource;
 
-#[derive(Copy, Clone, Debug, PartialEq, Hash, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd)]
 pub struct ResourceId(usize);
 
 struct Resource {

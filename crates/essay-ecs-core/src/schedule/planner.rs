@@ -1,32 +1,73 @@
-use std::collections::HashMap;
+use core::fmt;
+use std::{collections::{HashMap, HashSet}, hash};
 
-use crate::{schedule::SystemMeta};
+use crate::{world::ResourceId};
 
-use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
+use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId, phase::PhaseId};
 
 
 pub struct Planner {
     systems: Vec<SystemMeta>,
-    uninit_systems: Vec<SystemId>,
 
     preorder: Preorder,
 
     order: Vec<SystemId>,
 }
 
-pub(crate) struct SystemItem {
-    pub(crate) id: SystemId,
-    pub(crate) meta: SystemMeta,
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
+pub struct Priority(u32);
 
-    //pub(crate) system: BoxedSystem,
-    pub(crate) phase: Option<SystemId>,
+pub struct SystemMeta {
+    id: SystemId,
+    name: String,
+    phase: Option<SystemId>,
+
+    priority: Priority,
+
+    is_exclusive: bool,
+    is_flush: bool,
+
+    resources: HashSet<ResourceId>,
+    mut_resources: HashSet<ResourceId>,
+}
+
+pub struct SystemAccessGroup {
+    phase: Option<PhaseId>,
+    
+    is_exclusive: bool,
+    is_flush: bool, 
+
+    resources: Vec<ResourceId>,
+    mut_resources: Vec<ResourceId>,
+
+    systems: Vec<SystemId>,
+}
+
+impl PartialEq for SystemAccessGroup {
+    fn eq(&self, other: &Self) -> bool {
+        self.phase == other.phase
+        && self.is_exclusive == other.is_exclusive
+        && self.is_flush == other.is_flush
+        && self.resources == other.resources
+        && self.mut_resources == other.mut_resources
+    }
+}
+
+impl hash::Hash for SystemAccessGroup {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.phase.hash(state);
+        self.is_exclusive.hash(state);
+        self.is_flush.hash(state);
+        self.resources.hash(state);
+        self.mut_resources.hash(state);
+    }
 }
 
 impl Planner {
     pub(crate) fn new() -> Self {
         Self {
             systems: Default::default(),
-            uninit_systems: Default::default(),
+            // uninit_systems: Default::default(),
             preorder: Preorder::new(),
             order: Default::default(),
         }
@@ -38,8 +79,6 @@ impl Planner {
         type_name: String,
         phase_id: Option<SystemId>,
     ) -> SystemId {
-        // let system: BoxedSystem = Box::new(IntoSystem::into_system(system));
-
         let node_id = self.preorder.add_node(0);
         assert_eq!(id.index(), node_id.index());
 
@@ -106,7 +145,6 @@ impl Planner {
         let mut prev_id = prev_id;
 
         for next_id in iter {
-            // println!("Phase set {:?} -> {:?}", prev_id, next_id);
             preorder.add_arrow(
                 NodeId::from(*prev_id),
                 NodeId::from(*next_id)
@@ -118,20 +156,6 @@ impl Planner {
 
         map
     }
-
-    /*
-    pub(crate) fn run(&mut self, world: &mut World) {
-        for id in &self.order {
-            let system = &mut self.systems[id.index()];
-            
-            if system.meta.is_flush() {
-                // self.flush(world);
-            } else {
-                system.system.get_mut().run(world);
-            }
-        }
-    }
-    */
 
     pub(crate) fn meta(&self, id: SystemId) -> &SystemMeta {
         &self.systems[id.index()]
@@ -147,13 +171,82 @@ impl Default for Planner {
         Self { 
             systems: Default::default(), 
             preorder: Default::default(),
-            uninit_systems: Default::default(),
             order: Default::default(),
         }
     }
 }
 
-impl SystemItem {
+impl SystemMeta {
+    pub(crate) fn new(
+        id: SystemId, 
+        name: String,
+        phase: Option<SystemId>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            phase,
+            priority: Default::default(),
+
+            is_flush: false,
+            is_exclusive: false,
+
+            resources: Default::default(),
+            mut_resources: Default::default(),
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            id: SystemId(0),
+            name: "empty".to_string(),
+            priority: Default::default(),
+            phase: None,
+
+            is_flush: false,
+            is_exclusive: false,
+
+            resources: Default::default(),
+            mut_resources: Default::default(),
+        }
+    }
+
+    pub fn id(&self) -> SystemId {
+        self.id
+    }
+
+    pub fn set_exclusive(&mut self) {
+        self.is_exclusive = true;
+    }
+
+    pub fn is_exclusive(&self) -> bool {
+        self.is_exclusive
+    }
+
+    pub fn set_flush(&mut self) {
+        self.is_flush = true;
+    }
+
+    pub fn is_flush(&self) -> bool {
+        self.is_flush
+    }
+
+    pub fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    pub fn set_priority(&mut self, priority: Priority) {
+        self.priority = priority;
+    }
+
+    pub fn add_priority(&mut self, delta: u32) {
+        self.priority = self.priority.add(delta);
+    }
+
+    pub fn sub_priority(&mut self, delta: u32) {
+        self.priority = self.priority.sub(delta);
+    }
+    
     pub(crate) fn add_phase_arrows(
         &self, 
         preorder: &mut Preorder, 
@@ -173,26 +266,55 @@ impl SystemItem {
             }
         }
     }
-    /*
-    pub(crate) unsafe fn run_unsafe(&self, world: &World) {
-        self.system.as_mut().run_unsafe(world);
+}
+
+impl fmt::Debug for SystemMeta {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SystemMeta")
+         .field("id", &self.id)
+         .field("name", &self.name)
+         .field("phase", &self.phase)
+         .field("is_exclusive", &self.is_exclusive)
+         .field("is_flush", &self.is_exclusive)
+         .finish()
+    }
+}
+
+impl Priority {
+    pub const HIGH : Priority = Priority(2000);
+    pub const DEFAULT : Priority = Priority(1000);
+    pub const LOW : Priority = Priority(500);
+
+    pub fn value(&self) -> u32 {
+        self.0
     }
 
-    pub(crate) unsafe fn run(&self, world: &mut World) {
-        self.system.as_mut().run(world);
+    pub fn add(&self, value: u32) -> Priority {
+        Priority(self.0 + value)
     }
 
-    pub(crate) fn system(&self) -> &BoxedSystem {
-        &self.system
+    pub fn sub(&self, value: u32) -> Priority {
+        Priority(self.0 - value)
     }
-    */
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Priority::DEFAULT
+    }
+}
+
+impl From<u32> for Priority {
+    fn from(value: u32) -> Self {
+        Priority(value)
+    }
 }
 
 #[cfg(test)]
 mod test {
     use std::{sync::{Arc, Mutex}, thread, time::Duration};
 
-    use crate::{base_app::{BaseApp, BaseSchedule}, Res, schedule::{multithreaded::MultithreadedExecutor, schedule::ExecutorType}, ResMut};
+    use crate::{base_app::{BaseApp, BaseSchedule}, Res, schedule::{schedule::ExecutorType}, ResMut};
 
     #[test]
     fn two_resource_parallel() {
