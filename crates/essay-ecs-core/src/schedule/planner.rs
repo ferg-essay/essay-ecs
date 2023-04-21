@@ -3,7 +3,7 @@ use std::{collections::{HashMap, HashSet}, hash};
 
 use crate::{world::ResourceId};
 
-use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId, phase::PhaseId};
+use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
 
 
 pub struct Planner {
@@ -31,8 +31,17 @@ pub struct SystemMeta {
     mut_resources: HashSet<ResourceId>,
 }
 
-pub struct SystemAccessGroup {
-    phase: Option<PhaseId>,
+pub struct PhasePlan {
+    phase: Option<SystemId>,
+
+    group_map: HashMap<AccessGroup, AccessGroupId>,
+    groups: Vec<AccessGroup>,
+
+    resource_mut_map: HashMap<ResourceId, Vec<AccessGroupId>>,
+}
+
+pub struct AccessGroup {
+    phase: Option<SystemId>,
     
     is_exclusive: bool,
     is_flush: bool, 
@@ -41,26 +50,9 @@ pub struct SystemAccessGroup {
     mut_resources: Vec<ResourceId>,
 
     systems: Vec<SystemId>,
-}
 
-impl PartialEq for SystemAccessGroup {
-    fn eq(&self, other: &Self) -> bool {
-        self.phase == other.phase
-        && self.is_exclusive == other.is_exclusive
-        && self.is_flush == other.is_flush
-        && self.resources == other.resources
-        && self.mut_resources == other.mut_resources
-    }
-}
-
-impl hash::Hash for SystemAccessGroup {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.phase.hash(state);
-        self.is_exclusive.hash(state);
-        self.is_flush.hash(state);
-        self.resources.hash(state);
-        self.mut_resources.hash(state);
-    }
+    first: Option<SystemId>,
+    last: Option<SystemId>,
 }
 
 impl Planner {
@@ -117,12 +109,40 @@ impl Planner {
     pub(crate) fn plan(&self, phase_order: Vec<SystemId>) -> Plan {
         let mut preorder = self.preorder.clone();
 
+        preorder = PhasePlan::plan(self, preorder, &None);
+
+        for phase in &phase_order {
+            preorder = PhasePlan::plan(self, preorder, &Some(*phase));
+        }
+
+        // let mut preorder = PhasePlan::plan(self);
+
+        //let mut preorder = self.preorder.clone();
+
+        /*
+        let mut access_set = HashSet::<AccessGroup>::new();
+
+        let access_groups: Vec<AccessGroup> = self.systems.iter()
+            .map(|m| AccessGroup::from(m))
+            .collect();
+        */
+        
+        //self.add_to_access_set(access_set, meta);
+        //println!("Meta {:?}", meta);
+            /*
+            if ! meta.is_flush() {
+                meta.add_phase_arrows(&mut preorder, &prev_map);
+            }
+            */
+
         let prev_map = self.prev_map(
             &mut preorder, 
             phase_order
         );
 
         for meta in &self.systems {
+            // self.add_to_access_group(meta);
+            // println!("Meta {:?}", meta);
             if ! meta.is_flush() {
                 meta.add_phase_arrows(&mut preorder, &prev_map);
             }
@@ -246,6 +266,14 @@ impl SystemMeta {
     pub fn sub_priority(&mut self, delta: u32) {
         self.priority = self.priority.sub(delta);
     }
+
+    pub(crate) fn add_resource(&mut self, id: ResourceId) {
+        self.resources.insert(id);
+    }
+
+    pub(crate) fn insert_resource_mut(&mut self, id: ResourceId) {
+        self.mut_resources.insert(id);
+    }
     
     pub(crate) fn add_phase_arrows(
         &self, 
@@ -266,6 +294,10 @@ impl SystemMeta {
             }
         }
     }
+
+    pub(crate) fn set_phase(&mut self, system_id: SystemId) {
+        self.phase = Some(system_id);
+    }
 }
 
 impl fmt::Debug for SystemMeta {
@@ -276,6 +308,8 @@ impl fmt::Debug for SystemMeta {
          .field("phase", &self.phase)
          .field("is_exclusive", &self.is_exclusive)
          .field("is_flush", &self.is_exclusive)
+         .field("resources", &self.resources)
+         .field("mut_resources", &self.mut_resources)
          .finish()
     }
 }
@@ -310,6 +344,199 @@ impl From<u32> for Priority {
     }
 }
 
+impl PhasePlan {
+    fn plan(
+        planner: &Planner, 
+        mut preorder: Preorder,
+        phase: &Option<SystemId>
+    ) -> Preorder {
+        let mut phase_plan = Self {
+            phase: *phase,
+
+            group_map: Default::default(),
+            groups: Default::default(),
+
+            resource_mut_map: Default::default(),
+        };
+
+        phase_plan.add_systems(&planner.systems);
+        phase_plan.internal_arrows(&mut preorder);
+        phase_plan.group_arrows(&mut preorder);
+
+        preorder
+    }
+
+    fn add_systems(&mut self, metas: &Vec<SystemMeta>) {
+        for meta in metas.iter().filter(|m| m.phase == self.phase) {
+            let group = AccessGroup::from(meta);
+            let id = AccessGroupId(self.groups.len());
+
+            let id = *self.group_map.entry(group).or_insert(id);
+
+            if id.0 == self.groups.len() {
+                let group = AccessGroup::from(meta);
+
+                for resource_id in &group.mut_resources {
+                    let groups = self.resource_mut_map
+                        .entry(*resource_id)
+                        .or_insert_with(|| Vec::new());
+                    
+                    groups.push(id);
+                }
+
+                self.groups.push(group);
+            }
+
+            let group = &mut self.groups[id.0];
+
+            group.systems.push(meta.id());
+        }
+    }
+
+    fn internal_arrows(&mut self, preorder: &mut Preorder) {
+        for group in &mut self.groups {
+            group.internal_arrows(preorder);
+        }
+    }
+
+    fn group_arrows(&self, preorder: &mut Preorder) {
+        // arrows from MutRes to this group
+
+        for group in &self.groups {
+            for id in &group.resources {
+                let id = *id;
+
+                if let Some(mut_ids) = self.resource_mut_map.get(&id) {
+                    let mut_ids = mut_ids.clone();
+
+                    self.arrows_from_tail(preorder, &mut_ids, group);
+                }
+            }
+        }
+    }
+
+    fn arrows_from_tail(
+        &self, 
+        preorder: &mut Preorder, 
+        mut_ids: &[AccessGroupId], 
+        group: &AccessGroup
+    ) {
+        for id in mut_ids.iter().rev() {
+            let last = self.groups[id.0].last.clone();
+            
+            if let Some(last) = last {
+                group.arrows_from_tail(preorder, last);
+                return;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct AccessGroupId(usize);
+impl AccessGroup {
+    fn is_write(&self) -> bool {
+        self.is_exclusive
+        || self.is_flush
+        || ! self.mut_resources.is_empty()
+    }
+
+    fn internal_arrows(&mut self, preorder: &mut Preorder) {
+        // println!("Internal {:#?}", self);
+
+        if self.is_write() {
+            let mut iter = self.systems.iter();
+
+            let Some(prev_id) = iter.next() else { return };
+    
+            let mut prev_id = prev_id;
+
+            self.first = Some(*prev_id);
+    
+            for next_id in iter {
+                preorder.add_arrow(
+                    NodeId::from(*prev_id),
+                    NodeId::from(*next_id)
+                );
+                // println!("  Arrow {:?} -> {:?}", prev_id, next_id);
+    
+                prev_id = next_id;
+            }
+
+            self.last = Some(*prev_id);
+        }
+    }
+
+    fn arrows_from_tail(&self, preorder: &mut Preorder, tail: SystemId) {
+        for id in &self.systems {
+            preorder.add_arrow(
+                NodeId::from(tail),
+                NodeId::from(*id),
+            );
+        }
+    }
+}
+
+impl From<&SystemMeta> for AccessGroup {
+    fn from(meta: &SystemMeta) -> Self {
+        let mut group = AccessGroup {
+            phase: meta.phase,
+
+            is_exclusive: meta.is_exclusive, 
+            is_flush: meta.is_flush,
+
+            resources: meta.resources.iter().map(|s| *s).collect(),
+            mut_resources: meta.mut_resources.iter().map(|s| *s).collect(),
+
+            systems: Vec::new(),
+
+            first: None,
+            last: None,
+        };
+
+        group.resources.sort();
+        group.mut_resources.sort();
+
+        group
+    }
+}
+impl PartialEq for AccessGroup {
+    fn eq(&self, other: &Self) -> bool {
+        self.phase == other.phase
+        && self.is_exclusive == other.is_exclusive
+        && self.is_flush == other.is_flush
+        && self.resources == other.resources
+        && self.mut_resources == other.mut_resources
+    }
+}
+
+impl Eq for AccessGroup {}
+
+impl hash::Hash for AccessGroup {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.phase.hash(state);
+        self.is_exclusive.hash(state);
+        self.is_flush.hash(state);
+        self.resources.hash(state);
+        self.mut_resources.hash(state);
+    }
+}
+
+impl fmt::Debug for AccessGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AccessGroup")
+        .field("phase", &self.phase)
+        .field("is_exclusive", &self.is_exclusive)
+        .field("is_flush", &self.is_flush)
+        .field("resources", &self.resources)
+        .field("mut_resources", &self.mut_resources)
+        .field("systems", &self.systems)
+        .field("first", &self.first)
+        .field("last", &self.last)
+        .finish()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::{sync::{Arc, Mutex}, thread, time::Duration};
@@ -317,7 +544,7 @@ mod test {
     use crate::{base_app::{BaseApp, BaseSchedule}, Res, schedule::{schedule::ExecutorType}, ResMut};
 
     #[test]
-    fn two_resource_parallel() {
+    fn res_parallel() {
         let mut app = BaseApp::new();
 
         app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
@@ -345,9 +572,8 @@ mod test {
         
     }
 
-
     #[test]
-    fn two_resource_sequential() {
+    fn resmut_sequential() {
         let mut app = BaseApp::new();
 
         app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
@@ -357,22 +583,93 @@ mod test {
 
         let ptr = values.clone();
         app.add_system(move |res: ResMut<String>| {
-            push(&ptr, format!("[S-{}", res.get()));
+            push(&ptr, format!("[A-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
-            push(&ptr, format!("S-{}]", res.get()));
+            push(&ptr, format!("A-{}]", res.get()));
         });
         
         let ptr = values.clone();
         app.add_system(move |res: ResMut<String>| {
-            push(&ptr, format!("[S-{}", res.get()));
+            push(&ptr, format!("[B-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
-            push(&ptr, format!("S-{}]", res.get()));
+            push(&ptr, format!("B-{}]", res.get()));
         });
 
         app.tick();
 
-        assert_eq!(take(&values), "[S-test, S-test], [S-test, S-test]");
+        assert_eq!(take(&values), "[A-test, A-test], [B-test, B-test]");
+    }
+
+    #[test]
+    fn resmut_disjoint_parallel() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.insert_resource("test".to_string());
+        app.insert_resource(10 as u32);
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |res: ResMut<String>| {
+            push(&ptr, format!("[A-{}", res.get()));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A-{}]", res.get()));
+        });
         
+        let ptr = values.clone();
+        app.add_system(move |res: ResMut<u32>| {
+            thread::sleep(Duration::from_millis(10));
+            push(&ptr, format!("[B-{}", res.get()));
+            thread::sleep(Duration::from_millis(50));
+            push(&ptr, format!("B-{}]", res.get()));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A-test, [B-10, B-10], A-test]");
+    }
+
+    #[test]
+    fn res_resmut_parallel_sequential() {
+        let mut app = BaseApp::new();
+
+        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.insert_resource("test".to_string());
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_res: Res<String>| {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        });
+
+        let ptr = values.clone();
+        app.add_system(move |_res: Res<String>| {
+            push(&ptr, format!("[C"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("C]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_res: ResMut<String>| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_res: ResMut<String>| {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, A], [B, B], [C, [C, C], C]");
     }
 
     fn push(values: &Arc<Mutex<Vec<String>>>, value: String) {

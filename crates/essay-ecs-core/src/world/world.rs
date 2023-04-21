@@ -5,7 +5,7 @@ use crate::{
     schedule::{System, IntoSystem, ScheduleLabel, Schedules, SystemMeta}, prelude::Param
 };
 
-use super::{resource::Resources, Ptr, eval_function::EvalFun};
+use super::{resource::Resources, Ptr, eval_function::EvalFun, ResourceId};
 
 pub struct World {
     ptr: Ptr,
@@ -86,6 +86,10 @@ impl World {
 
     pub fn insert_resource<T:'static>(&mut self, value: T) {
         self.deref_mut().resources.insert::<T>(value)
+    }
+
+    pub fn get_resource_id<T:'static>(&mut self) -> ResourceId {
+        self.deref_mut().resources.get_resource_id::<T>()
     }
 
     pub fn query<Q:View>(&mut self) -> ViewIterator<Q> {

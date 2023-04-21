@@ -117,9 +117,6 @@ impl ThreadPoolBuilder {
         assert!(! self.parent_task.is_none());
         assert!(! self.child_task_builder.is_none());
 
-        let parallelism = thread::available_parallelism().unwrap();
-        
-
         let (executive_sender, main_reader) = mpsc::channel();
         let (main_sender, executive_reader) = mpsc::channel();
 
@@ -127,7 +124,7 @@ impl ThreadPoolBuilder {
 
         let n_threads = match self.n_threads {
             Some(n_threads) => n_threads,
-            None => 2,
+            None => usize::from(thread::available_parallelism().unwrap()),
         };
 
         let mut registry = Registry {

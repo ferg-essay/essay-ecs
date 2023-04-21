@@ -29,7 +29,8 @@ impl<'a, T:'static> Param for Res<'_, T> {
         }
     }
 
-    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+        meta.add_resource(world.get_resource_id::<T>());
     }
 }
 
@@ -75,7 +76,8 @@ impl<T:'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
     type State = ();
 
-    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+        meta.insert_resource_mut(world.get_resource_id::<T>());
     }
 
     fn arg<'w, 's>(

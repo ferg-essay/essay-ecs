@@ -6,7 +6,7 @@ use super::{cell::Ptr, World, world::FromWorld};
 
 struct IsResource;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ResourceId(usize);
 
 struct Resource {
@@ -56,21 +56,6 @@ impl Resources {
             //resources: Vec::new(),
         }
     }
-    /*
-    pub(crate) fn init<T: FromWorld>(
-        &mut self, 
-        fun: impl FnOnce() -> <T as FromWorld>::Item
-    ) {
-        let id = ResourceId::new(self.resources.len());
-        let type_id = TypeId::of::<T>();
-
-        let id = *self.resource_map.entry(type_id).or_insert(id);
-
-        if id.index() == self.resources.len() {
-            self.resources.push(Resource::new(id, fun()));
-        }
-    }
-    */
 
     pub fn insert<T:'static>(&mut self, value: T) {
         let id = ResourceId::new(self.resources.len());
@@ -84,6 +69,13 @@ impl Resources {
             // TODO: drop
             self.resources[id.index()] = Resource::new(id, value);
         }
+    }
+
+    pub(crate) fn get_resource_id<T:'static>(&self) -> ResourceId {
+        let id = ResourceId::new(self.resources.len());
+        let type_id = TypeId::of::<T>();
+
+        *self.resource_map.get(&type_id).unwrap()
     }
 
     pub fn get<T:'static>(&self) -> Option<&T> {

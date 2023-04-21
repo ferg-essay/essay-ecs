@@ -230,7 +230,8 @@ impl Schedule {
                 SystemFlush(phase_id).no_phase()
             );
 
-            self.inner_mut().phases.set_system_id(phase_id, system_id);
+            self.inner_mut().set_phase(phase_id, system_id);
+            // self.inner_mut().phases.set_system_id(phase_id, system_id);
         }
     }
 
@@ -321,12 +322,29 @@ impl Schedule {
 }
 
 impl ScheduleInner {
+    fn add_system(
+        &mut self, 
+        system: UnsafeSyncCell<Box<dyn System<Out = ()>>>, 
+        phase_id: Option<SystemId>
+    ) -> SystemId {
+        let id = SystemId(self.systems.len());
+        let type_name = system.get_ref().type_name().to_string();
+
+        self.systems.push(system);
+        self.uninit_systems.push(id);
+        self.planner.add(id, type_name, phase_id);
+        self.is_changed = true;
+
+        id
+    }
+
     pub(crate) fn init(&mut self, world: &mut World) {
         for id in self.uninit_systems.drain(..) {
             let system = &mut self.systems[id.index()];
             let mut meta = self.planner.meta_mut(id);
             
             system.get_mut().init(&mut meta, world);
+            //println!("Meta-init {:#?}", meta);
         }
     }
 
@@ -344,25 +362,15 @@ impl ScheduleInner {
         }
     }
 
-    fn add_system(
-        &mut self, 
-        system: UnsafeSyncCell<Box<dyn System<Out = ()>>>, 
-        phase_id: Option<SystemId>
-    ) -> SystemId {
-        let id = SystemId(self.systems.len());
-        let type_name = system.get_ref().type_name().to_string();
-
-        self.systems.push(system);
-        self.uninit_systems.push(id);
-        self.planner.add(id, type_name, phase_id);
-        self.is_changed = true;
-
-        id
-    }
-
     fn set_executor_factory(&mut self, factory: Box<dyn ExecutorFactory>) {
         self.executor_factory = factory;
         self.is_changed = true;
+    }
+
+    fn set_phase(&mut self, phase_id: PhaseId, system_id: SystemId) {
+        self.phases.set_system_id(phase_id, system_id);
+
+        self.planner.meta_mut(system_id).set_phase(system_id);
     }
 }
 
