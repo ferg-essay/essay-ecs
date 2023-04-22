@@ -158,7 +158,8 @@ impl PhasePreorder {
     }
 
     pub(crate) fn sort(&self) -> Vec<SystemId> {
-        let order = self.preorder.sort();
+        let mut preorder = self.preorder.clone();
+        let order = preorder.sort();
 
         order.iter()
             .map(|id| self.phases[id.index()].system_id.unwrap())

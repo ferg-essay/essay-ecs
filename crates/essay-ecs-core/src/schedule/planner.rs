@@ -157,7 +157,7 @@ impl Planner {
             }
         }
 
-        Plan::new(&preorder)
+        Plan::new(&mut preorder)
     }
 
     fn prev_map(
@@ -994,6 +994,35 @@ mod test {
 
         assert_eq!(take(&values), "[A, A], [B, B], [C, [C, C], C]");
         
+    }
+
+    #[test]
+    fn resmut_cycle() {
+        let mut app = BaseApp::new();
+
+        app.set_executor(Executors::Multithreaded);
+        app.insert_resource("test".to_string());
+        app.insert_resource(10 as u32);
+
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        app.add_system(move |_r1: Res<u32>, _r2: ResMut<String>| {
+            push(&ptr, format!("[A"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("A]"));
+        });
+        
+        let ptr = values.clone();
+        app.add_system(move |_r1: ResMut<u32>, _r2: Res<String>| {
+            push(&ptr, format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("B]"));
+        });
+
+        app.tick();
+
+        assert_eq!(take(&values), "[A, A], [B, B]");
     }
 
     struct TestA(u32);

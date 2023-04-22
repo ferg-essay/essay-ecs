@@ -16,7 +16,7 @@ pub struct PlanSystem {
 }
 
 impl Plan {
-    pub fn new(preorder: &Preorder) -> Self {
+    pub fn new(preorder: &mut Preorder) -> Self {
         let order = preorder.sort();
         let system_order: Vec<SystemId> = order.iter()
             .map(|n| SystemId::from(*n))

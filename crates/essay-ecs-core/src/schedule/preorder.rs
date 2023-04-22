@@ -1,8 +1,10 @@
 use core::fmt;
+use std::{collections::HashSet, cmp::{Ordering}};
 
 use fixedbitset::FixedBitSet;
+use log::info;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(pub(crate) usize);
 
 #[derive(Clone)]
@@ -16,8 +18,8 @@ struct Node {
 
     weight: u64, // greedy value
 
-    incoming: Vec<NodeId>,
-    outgoing: Vec<NodeId>,
+    incoming: HashSet<NodeId>,
+    outgoing: HashSet<NodeId>,
 }
 
 impl Preorder {
@@ -25,11 +27,11 @@ impl Preorder {
         Self::default()
     }
 
-    pub(crate) fn incoming(&self, id: NodeId) -> &Vec<NodeId> {
+    pub(crate) fn incoming(&self, id: NodeId) -> &HashSet<NodeId> {
         &self.nodes[id.index()].incoming
     }
 
-    pub(crate) fn outgoing(&self, id: NodeId) -> &Vec<NodeId> {
+    pub(crate) fn outgoing(&self, id: NodeId) -> &HashSet<NodeId> {
         &self.nodes[id.index()].outgoing
     }
 
@@ -48,13 +50,13 @@ impl Preorder {
     pub fn add_arrow(&mut self, source_id: NodeId, target_id: NodeId) {
         assert_ne!(source_id, target_id);
 
-        self.nodes[source_id.0].outgoing.push(target_id);
-        self.nodes[target_id.0].incoming.push(source_id);
+        self.nodes[source_id.0].outgoing.insert(target_id);
+        self.nodes[target_id.0].incoming.insert(source_id);
 
         //println!("Arrow[{:?}] out:{:?}", source_id, self.nodes[source_id.0].outgoing);
     }
 
-    pub fn sort(&self) -> Vec<NodeId> {
+    pub fn sort(&mut self) -> Vec<NodeId> {
         let mut results = Vec::<NodeId>::new();
 
         let mut pending = FixedBitSet::with_capacity(self.nodes.len());
@@ -79,7 +81,7 @@ impl Preorder {
             }
 
             if results.len() == start_len {
-                panic!("preorder sort unable to make progress, possibly due to loops");
+                self.break_cycle(&pending);
             }
 
             let new_results = &mut results.as_mut_slice()[start_len..];
@@ -91,6 +93,90 @@ impl Preorder {
 
         assert!(results.len() == self.nodes.len());
         results
+    }
+
+    fn break_cycle(&mut self, pending: &FixedBitSet) {
+        let mut cycle_ids : Vec<NodeId> = pending.ones()
+            .map(|i| NodeId(i))
+            .filter(|n| self.is_cyclic(*n, &pending))
+            .collect();
+        
+        cycle_ids.sort_by(|&a, &b| self.compare_nodes(a, b));
+
+        let node_id = cycle_ids[0];
+
+        info!("breaking cycle with {:?}", self.nodes[node_id.index()]);
+
+        while self.remove_pending(node_id, pending) {
+        }
+        //panic!("preorder sort unable to make progress, possibly due to loops");
+    }
+
+    fn is_cyclic(&self, id: NodeId, pending: &FixedBitSet) -> bool {
+        let mut visited = HashSet::<NodeId>::new();
+        visited.insert(id);
+
+        self.is_cyclic_rec(id, id, pending, &mut visited)
+    }
+
+    fn is_cyclic_rec(
+        &self, 
+        top_id: NodeId, 
+        id: NodeId, 
+        pending: &FixedBitSet,
+        visited: &mut HashSet<NodeId>,
+    ) -> bool {
+        let node = &self.nodes[id.index()];
+        
+        for out_id in &node.outgoing {
+            if *out_id == top_id {
+                return true;
+            } else if ! visited.contains(out_id) {
+                visited.insert(*out_id);
+
+                if self.is_cyclic_rec(top_id, *out_id, pending, visited) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    fn remove_pending(&mut self, node_id: NodeId, pending: &FixedBitSet) -> bool {
+        let node = &mut self.nodes[node_id.index()];
+
+        let incoming_id = match node.find_pending(&pending) {
+            Some(incoming_id) => incoming_id,
+            None => return false,
+        };
+
+        node.remove_incoming(incoming_id);
+        self.nodes[incoming_id.index()].remove_outgoing(node_id);
+        
+        return false;
+    }
+
+    fn compare_nodes(&self, id_a: NodeId, id_b: NodeId) -> Ordering {
+        let node_a = &self.nodes[id_a.index()];
+        let node_b = &self.nodes[id_b.index()];
+
+        let cmp = node_a.incoming.len().cmp(&node_b.incoming.len());
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+
+        let cmp = node_b.outgoing.len().cmp(&node_a.outgoing.len());
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+
+        let cmp = node_a.weight.cmp(&node_b.weight);
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+
+        id_a.cmp(&id_b)
     }
 }
 
@@ -129,6 +215,24 @@ impl Node {
 
         return false
     }
+
+    fn remove_incoming(&mut self, node_id: NodeId) {
+        self.incoming.remove(&node_id);
+    }
+
+    fn remove_outgoing(&mut self, node_id: NodeId) {
+        self.outgoing.remove(&node_id);
+    }
+
+    fn find_pending(&mut self, pending: &FixedBitSet) -> Option<NodeId> {
+        for incoming in &self.incoming {
+            if pending.contains(incoming.0) {
+                return Some(*incoming);
+            }
+        }
+
+        return None
+    }
 }
 
 impl fmt::Debug for Node {
@@ -146,7 +250,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        let graph = Preorder::new();
+        let mut graph = Preorder::new();
 
         assert_eq!(as_vec(graph.sort()).as_slice(), []);
     }
@@ -172,98 +276,98 @@ mod tests {
 
     #[test]
     fn pair() {
-        let g = graph(2, &[(0, 1)]);
+        let mut g = graph(2, &[(0, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 1]);
 
-        let g = graph(2, &[(1, 0)]);
+        let mut g = graph(2, &[(1, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 0]);
     }
 
     #[test]
     fn triple() {
         // single arrows
-        let g = graph(3, &[(0, 1)]);
+        let mut g = graph(3, &[(0, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 2, 1]);
 
-        let g = graph(3, &[(1, 0)]);
+        let mut g = graph(3, &[(1, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 2, 0]);
 
-        let g = graph(3, &[(0, 2)]);
+        let mut g = graph(3, &[(0, 2)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 1, 2]);
 
-        let g = graph(3, &[(2, 0)]);
+        let mut g = graph(3, &[(2, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 2, 0]);
 
-        let g = graph(3, &[(1, 2)]);
+        let mut g = graph(3, &[(1, 2)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 1, 2]);
 
-        let g = graph(3, &[(2, 1)]);
+        let mut g = graph(3, &[(2, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 2, 1]);
 
         // two arrows
-        let g = graph(3, &[(0, 1), (0, 2)]);
+        let mut g = graph(3, &[(0, 1), (0, 2)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 1, 2]);
 
-        let g = graph(3, &[(0, 1), (2, 0)]);
+        let mut g = graph(3, &[(0, 1), (2, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [2, 0, 1]);
 
-        let g = graph(3, &[(1, 0), (2, 0)]);
+        let mut g = graph(3, &[(1, 0), (2, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 2, 0]);
 
-        let g = graph(3, &[(1, 0), (0, 2)]);
+        let mut g = graph(3, &[(1, 0), (0, 2)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 0, 2]);
 
         // --
-        let g = graph(3, &[(0, 1), (1, 2)]);
+        let mut g = graph(3, &[(0, 1), (1, 2)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 1, 2]);
 
-        let g = graph(3, &[(1, 0), (1, 2)]);
+        let mut g = graph(3, &[(1, 0), (1, 2)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 0, 2]);
 
-        let g = graph(3, &[(1, 0), (2, 1)]);
+        let mut g = graph(3, &[(1, 0), (2, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [2, 1, 0]);
 
-        let g = graph(3, &[(0, 1), (2, 1)]);
+        let mut g = graph(3, &[(0, 1), (2, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 2, 1]);
     }
 
     #[test]
     #[should_panic]
     fn cycle() {
-        let g = graph(3, &[(0, 1), (1, 0)]);
+        let mut g = graph(3, &[(0, 1), (1, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 2, 1]);
     }
 
     #[test]
     fn weights_no_arrows() {
-        let g = graph_w(&[0, 1], &[]);
+        let mut g = graph_w(&[0, 1], &[]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 0]);
 
-        let g = graph_w(&[1, 0], &[]);
+        let mut g = graph_w(&[1, 0], &[]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 1]);
 
-        let g = graph_w(&[0, 1, 2], &[]);
+        let mut g = graph_w(&[0, 1, 2], &[]);
         assert_eq!(as_vec(g.sort()).as_slice(), [2, 1, 0]);
 
-        let g = graph_w(&[0, 2, 1], &[]);
+        let mut g = graph_w(&[0, 2, 1], &[]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 2, 0]);
 
-        let g = graph_w(&[0, 0, 1], &[]);
+        let mut g = graph_w(&[0, 0, 1], &[]);
         assert_eq!(as_vec(g.sort()).as_slice(), [2, 0, 1]);
     }
 
     #[test]
     fn weights_triple_one_arrow() {
-        let g = graph_w(&[0, 1, 2], &[(0, 1)]);
+        let mut g = graph_w(&[0, 1, 2], &[(0, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [2, 0, 1]);
 
-        let g = graph_w(&[0, 1, 2], &[(1, 0)]);
+        let mut g = graph_w(&[0, 1, 2], &[(1, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [2, 1, 0]);
 
-        let g = graph_w(&[2, 1, 0], &[(0, 1)]);
+        let mut g = graph_w(&[2, 1, 0], &[(0, 1)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [0, 2, 1]);
 
-        let g = graph_w(&[2, 1, 0], &[(1, 0)]);
+        let mut g = graph_w(&[2, 1, 0], &[(1, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 2, 0]);
     }
 
