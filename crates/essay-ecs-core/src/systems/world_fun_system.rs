@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::{world::World, schedule::{SystemMeta, IntoSystem, System}, prelude::Local};
+use crate::{world::World, schedule::{SystemMeta, IntoSystem, System}};
 
-use super::{param::{Param, Arg}};
+use crate::params::{Param, Arg};
 
 // IsFun prevents collision
 pub struct IsWorld;
@@ -198,7 +198,7 @@ mod tests {
     use std::any::type_name;
     use std::marker::PhantomData;
 
-    use crate::{world::World, prelude::Local, 
+    use crate::{world::World, 
         schedule::{IntoSystem, SystemMeta, System}};
 
     use super::ParamExcl;

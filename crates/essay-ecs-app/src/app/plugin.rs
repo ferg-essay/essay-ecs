@@ -92,7 +92,7 @@ mod tests {
         app.add_plugin(TestSpawn::new(TestA(200)));
     }
 
-    fn take<T:fmt::Debug>(ptr: &Rc<RefCell<Vec<T>>>) -> String {
+    fn _take<T:fmt::Debug>(ptr: &Rc<RefCell<Vec<T>>>) -> String {
         let values : Vec<String> = ptr.borrow_mut()
             .drain(..)
             .map(|v| format!("{:?}", v))

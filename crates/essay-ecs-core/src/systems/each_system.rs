@@ -4,7 +4,7 @@ use crate::{world::World, entity::{View, ComponentId},
     schedule::{System, IntoSystem, SystemMeta}
 };
 
-use super::{Param, param::Arg};
+use crate::params::{Param, Arg};
 
 // IsEach prevents collisions
 pub struct IsEach;

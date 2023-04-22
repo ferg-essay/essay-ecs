@@ -162,7 +162,7 @@ impl<T:Default> FromWorld for T {
 mod tests {
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{world::{Res, ResMut}, entity::Component};
+    use crate::{params::{Res, ResMut}, entity::Component};
 
     use super::World;
 

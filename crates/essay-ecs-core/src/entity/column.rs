@@ -24,7 +24,7 @@ pub(crate) struct Column {
 }
 
 impl RowId {
-    pub const INVALID: RowId = RowId(u32::MAX);
+    pub const _INVALID: RowId = RowId(u32::MAX);
 
     pub fn new(index: usize) -> RowId {
         RowId(index as u32)
@@ -77,7 +77,7 @@ impl Column {
     }
 
     #[inline]
-    pub fn capacity(&self) -> usize {
+    pub fn _capacity(&self) -> usize {
         self.capacity
     }
 
@@ -87,7 +87,7 @@ impl Column {
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub fn _is_empty(&self) -> bool {
         self.len == 0
     }
     
@@ -222,7 +222,7 @@ mod tests {
         let mut metas = StoreMeta::new();
         let col = Column::new::<()>(&mut metas);
 
-        assert_eq!(col.capacity(), 1);
+        assert_eq!(col._capacity(), 1);
         assert_eq!(col.len(), 1);
         
         //assert_eq!(col.push(()), 0);
@@ -237,7 +237,7 @@ mod tests {
         let mut metas = StoreMeta::new();
         let mut col = Column::new::<u8>(&mut metas);
 
-        assert_eq!(col.capacity(), 0);
+        assert_eq!(col._capacity(), 0);
         assert_eq!(col.len(), 0);
         
         unsafe {
@@ -246,7 +246,7 @@ mod tests {
             assert_eq!(col.push::<u8>(1), RowId::new(0));
         }
 
-        assert_eq!(col.capacity(), 8);
+        assert_eq!(col._capacity(), 8);
         assert_eq!(col.len(), 1);
 
         unsafe {
@@ -256,7 +256,7 @@ mod tests {
             assert_eq!(col.push::<u8>(2), RowId::new(1));
         }
 
-        assert_eq!(col.capacity(), 8);
+        assert_eq!(col._capacity(), 8);
         assert_eq!(col.len(), 2);
 
         unsafe {
@@ -271,7 +271,7 @@ mod tests {
         let mut metas = StoreMeta::new();
         let mut col = Column::new::<TestA>(&mut metas);
 
-        assert_eq!(col.capacity(), 0);
+        assert_eq!(col._capacity(), 0);
         assert_eq!(col.len(), 0);
         
         unsafe {
@@ -280,7 +280,7 @@ mod tests {
             assert_eq!(col.push::<TestA>(TestA(1)), RowId::new(0));
         }
 
-        assert_eq!(col.capacity(), 8);
+        assert_eq!(col._capacity(), 8);
         assert_eq!(col.len(), 1);
 
         unsafe {
@@ -290,7 +290,7 @@ mod tests {
             assert_eq!(col.push::<TestA>(TestA(1002)), RowId::new(1));   
         }
 
-        assert_eq!(col.capacity(), 8);
+        assert_eq!(col._capacity(), 8);
         assert_eq!(col.len(), 2);
 
         unsafe {

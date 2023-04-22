@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{World, systems::Param, schedule::SystemMeta, entity::ComponentId};
+use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::SystemMeta, World};
 
-use super::{View, ViewPlan, ViewIterator};
+use super::Param;
+
 
 pub struct Query<'w, 's, Q:View> {
     world: &'w World,
@@ -24,17 +25,6 @@ impl<'w, 's, Q:View> Query<'w, 's, Q> {
         unsafe { self.world.view_iter_from_plan(&self.plan) }
     }
 }
-/*
-impl<'w, Q:View + 'static> IntoIterator for Query<'w, '_, Q> {
-    type Item=<Q as View>::Item<'w>;
-
-    type IntoIter=ViewIterator<'w, Q>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-*/
 
 impl<Q:View> Param for Query<'_, '_, Q>
 {

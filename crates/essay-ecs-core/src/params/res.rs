@@ -1,9 +1,8 @@
 use std::{ops::{Deref, DerefMut}};
 
-use crate::{systems::{Param}, schedule::SystemMeta};
+use crate::{schedule::SystemMeta, World};
 
-use super::World;
-
+use super::Param;
 
 #[derive(Debug)]
 pub struct Res<'a, T> {

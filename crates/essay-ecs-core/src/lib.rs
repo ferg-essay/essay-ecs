@@ -1,3 +1,4 @@
+mod params;
 pub mod base_app;
 mod util;
 pub mod schedule;
@@ -15,21 +16,19 @@ pub use schedule::{
     Schedule, Schedules,
 };
 
-pub use systems::{
-    Local
+pub use params::{
+    Local,
+    Commands, Res, ResMut, 
 };
 
 pub use world::{
-    Commands, Res, ResMut, 
     World
 };
 
 pub mod prelude {
-    pub use crate::world::{Commands, World, Res, ResMut};
+    pub use crate::world::{World};
+    pub use crate::params::{Commands, Param, Res, ResMut};
     pub use essay_ecs_macros::{Component, ScheduleLabel, Phase};
-    pub use crate::systems::{
-        Param, Local
-    };
 
     pub use crate::schedule::{
         IntoSystem, IntoSystemConfig,

@@ -1,8 +1,10 @@
 use std::{collections::VecDeque, marker::PhantomData};
 
-use crate::{prelude::{Param}, entity::Component, schedule::SystemMeta};
+use crate::{entity::Component, schedule::SystemMeta};
 
-use super::{World, FromWorld};
+use crate::world::{World, FromWorld};
+
+use super::Param;
 
 pub trait Command: Send + Sync + 'static {
     fn flush(self: Box<Self>, world: &mut World);
@@ -164,7 +166,7 @@ mod tests {
     use core::fmt;
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{world::{World, Res, ResMut}, entity::Component, Schedule};
+    use crate::{params::{Res, ResMut}, world::World, entity::Component, Schedule};
 
     use super::Commands;
 

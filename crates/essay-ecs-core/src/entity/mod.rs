@@ -1,4 +1,3 @@
-mod query;
 mod entity;
 mod view;
 mod bundle;
@@ -20,10 +19,6 @@ pub use bundle::{
 
 pub use view::{
     View, ViewBuilder, ViewPlan, ViewCursor, ViewIterator,
-};
-
-pub use query::{
-    Query,
 };
 
 pub use meta::{ViewId};

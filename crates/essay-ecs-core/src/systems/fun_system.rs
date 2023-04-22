@@ -5,7 +5,7 @@ use crate::{
     schedule::{SystemMeta, IntoSystem, System}
 };
 
-use super::{param::{Param, Arg}};
+use crate::params::{Param, Arg};
 
 // IsFun prevents collision
 pub struct IsFun;
@@ -62,7 +62,6 @@ where
 // struct IsFun;
 impl<F, R:'static, M:'static> IntoSystem<R, fn(M,IsFun)> for F
 where
-    //M: 'static,
     F: Fun<R, M> + Send + Sync + 'static,
     M: Send + Sync,
     R: Send + Sync,
