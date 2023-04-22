@@ -7,7 +7,7 @@ use std::alloc::Layout;
 use super::meta::{ColumnId, ColumnType, StoreMeta};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct RowId(u32);
+pub struct RowId(u32, u32);
 
 pub(crate) struct Column {
     meta: ColumnType,
@@ -16,23 +16,29 @@ pub(crate) struct Column {
     pad_size: usize,
 
     data: NonNull<u8>,
+    row_gen: Vec<u32>,
     
     len: usize,
     capacity: usize,
 
-    //marker: PhantomData<&'c u8>,
+    drop: Option<Box<dyn Fn(&mut Column, usize)>>,
 }
 
 impl RowId {
-    pub const _INVALID: RowId = RowId(u32::MAX);
+    pub const FREE_MASK: u32 = 0x8000_0000;
 
     pub fn new(index: usize) -> RowId {
-        RowId(index as u32)
+        RowId(index as u32, 0)
     }
         
     #[inline]
     pub fn index(&self) -> usize {
         self.0 as usize
+    }
+        
+    #[inline]
+    pub fn gen(&self) -> u32 {
+        self.1
     }
 }
 
@@ -57,6 +63,8 @@ impl Column {
 
         let data = dangling_data(meta.layout_padded().align());
         
+        let drop = Box::new(|c: &mut Column, i: usize| c.drop_row::<T>(i));
+
         Self {
             meta: meta.clone(),
 
@@ -64,11 +72,12 @@ impl Column {
             inc: inc,
 
             data: data,
+            row_gen: Default::default(),
 
             len: length,
             capacity: capacity,
 
-            // marker: Default::default(),
+            drop: Some(drop),
         }
     }
     
@@ -94,7 +103,7 @@ impl Column {
     pub(crate) unsafe fn get<T>(&self, row: RowId) -> Option<&T> {
         let index = row.index();
         
-        if index < self.len {
+        if index < self.len && self.row_gen[index] == row.gen() {
             let offset = self.offset(index);
 
             Some(&*self.data.as_ptr().add(offset).cast::<T>())
@@ -106,7 +115,7 @@ impl Column {
     pub(crate) unsafe fn get_mut<T>(&self, row: RowId) -> Option<&mut T> {
         let index = row.index();
 
-        if index < self.len {
+        if index < self.len && self.row_gen[index] == row.gen() {
             let offset = self.offset(index);
 
             Some(&mut *self.data.as_ptr().add(offset).cast::<T>())
@@ -121,10 +130,31 @@ impl Column {
         let index = self.len;
 
         self.write(index, value);
+        self.row_gen.push(0);
         
         self.len += 1;
 
         RowId::new(index)
+    }
+
+    pub(crate) unsafe fn remove<T>(&mut self, row: RowId) -> Option<T> {
+        let index = row.index();
+
+        if index < self.len() && self.row_gen[index] == row.gen() {
+            self.row_gen[index] = self.row_gen[index] + 1 | RowId::FREE_MASK;
+
+            unsafe {
+                let offset = self.offset(index);
+
+                Some(self.data.as_ptr()
+                    .add(offset)
+                    .cast::<T>()
+                    .read())
+            }
+
+        } else {
+            None
+        }
     }
 
     unsafe fn write<T>(&mut self, index: usize, value: T) {
@@ -141,6 +171,21 @@ impl Column {
         let count = mem::size_of::<T>();
 
         std::ptr::copy_nonoverlapping::<u8>(src, dst, count);
+    }
+
+    fn drop_row<T>(&mut self, index: usize) {
+        if index < self.len && self.row_gen[index] & RowId::FREE_MASK == 0 {
+            self.row_gen[index] |= RowId::FREE_MASK;
+
+            let offset = self.offset(index);
+
+            unsafe {
+                self.data.as_ptr()
+                    .add(offset)
+                    .cast::<T>()
+                    .drop_in_place();
+            }
+        }
     }
     
     #[inline]
@@ -161,6 +206,8 @@ impl Column {
     fn extend(&mut self, new_capacity: usize) {
         assert!(self.pad_size > 0, "zero sized column items can't be pushed");
         assert!(self.capacity < new_capacity);
+
+        self.row_gen.reserve_exact(new_capacity - self.capacity);
 
         let layout = self.array_layout(new_capacity);
 
@@ -190,6 +237,19 @@ impl Column {
     }
 }
 
+impl Drop for Column {
+    fn drop(&mut self) {
+        let len = self.len();
+        let drop = self.drop.take();
+
+        if let Some(drop) = drop {
+            for i in 0..len {
+                drop(self, i);
+            }
+        }
+    }
+}
+
 impl fmt::Debug for Column {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Column")
@@ -213,6 +273,8 @@ fn dangling_data(align: usize) -> NonNull<u8> {
 
 #[cfg(test)]
 mod tests {
+    use std::{rc::Rc, cell::RefCell};
+
     use crate::entity::{meta::StoreMeta, column::RowId};
 
     use super::Column;
@@ -300,6 +362,68 @@ mod tests {
         }
     }
 
+    #[test]
+    fn column_drop() {
+        let mut metas = StoreMeta::new();
+
+        let value = Rc::new(RefCell::new(Vec::<String>::new()));
+        
+        {
+            let mut col = Column::new::<TestDrop>(&mut metas);
+
+            unsafe {
+                assert_eq!(col.push::<TestDrop>(TestDrop(value.clone(), 10)), RowId::new(0));
+                assert_eq!(col.push::<TestDrop>(TestDrop(value.clone(), 20)), RowId::new(1));
+            }
+
+            assert_eq!(take(&value), "");
+        }
+        
+        assert_eq!(take(&value), "drop[10], drop[20]");
+    }
+
+    #[test]
+    fn remove_drop() {
+        let mut metas = StoreMeta::new();
+
+        let value = Rc::new(RefCell::new(Vec::<String>::new()));
+        
+        {
+            let mut col = Column::new::<TestDrop>(&mut metas);
+
+            unsafe {
+                assert_eq!(col.push::<TestDrop>(TestDrop(value.clone(), 10)), RowId::new(0));
+                assert_eq!(col.push::<TestDrop>(TestDrop(value.clone(), 20)), RowId::new(1));
+            }
+
+            assert_eq!(take(&value), "");
+
+            unsafe {
+                let value = col.remove::<TestDrop>(RowId::new(0));
+                assert!(! value.is_none());
+            }
+        
+            assert_eq!(take(&value), "drop[10]");
+        }
+
+        assert_eq!(take(&value), "drop[20]");
+    }
+
+    fn take(value: &Rc<RefCell<Vec<String>>>) -> String {
+        let values : Vec<String> = value.borrow_mut().drain(..).collect();
+
+        values.join(", ")
+    }
+
     #[derive(Debug, PartialEq)]
     struct TestA(u16);
+
+    #[derive(Debug, PartialEq)]
+    struct TestDrop(Rc<RefCell<Vec<String>>>, usize);
+
+    impl Drop for TestDrop {
+        fn drop(&mut self) {
+            self.0.borrow_mut().push(format!("drop[{:?}]", self.1));
+        }
+    }
 }
