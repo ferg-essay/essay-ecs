@@ -9,7 +9,7 @@ use super::{
     store::{Component}, entity::Entity, ComponentId
 };
 
-pub trait View {
+pub trait View : Send + Sync {
     type Item<'a>;
 
     fn build(builder: &mut ViewBuilder);
@@ -34,6 +34,7 @@ pub struct ViewBuilder<'a> {
     mut_components: HashSet<ColumnId>,
 }
 
+#[derive(Clone)]
 pub struct ViewPlan {
     view: ViewId,
     cols: Vec<usize>,

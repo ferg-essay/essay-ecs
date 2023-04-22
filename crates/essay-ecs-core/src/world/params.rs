@@ -1,6 +1,6 @@
 use std::{ops::{Deref, DerefMut}};
 
-use crate::{prelude::{Param}, schedule::SystemMeta};
+use crate::{systems::{Param}, schedule::SystemMeta};
 
 use super::World;
 
@@ -16,7 +16,7 @@ impl<'a, T:'static> Res<'a, T> {
     }
 }
 
-impl<'a, T:'static> Param for Res<'_, T> {
+impl<T:'static> Param for Res<'_, T> {
     type Arg<'w, 's> = Res<'w, T>;
     type State = ();
 

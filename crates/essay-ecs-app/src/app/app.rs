@@ -8,7 +8,7 @@ use essay_ecs_core::{
         System, SystemMeta, ScheduleLabel
     }, 
     World,
-    entity::{Insert, EntityId}, 
+    entity::{Bundle, EntityId}, 
     Local,
 };
 
@@ -112,7 +112,7 @@ impl App {
         self
     }
 
-    pub fn spawn<T:Insert>(&mut self, value: T) -> EntityId {
+    pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
         self.world.spawn(value)
     }
 

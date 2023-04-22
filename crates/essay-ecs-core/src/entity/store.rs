@@ -1,6 +1,6 @@
 use super::column::{Column, RowId};
 use super::entity::{Entity, EntityId};
-use super::insert::{InsertBuilder, Insert, InsertPlan};
+use super::bundle::{InsertBuilder, Bundle, InsertPlan};
 use super::ViewId;
 use super::view::{View, ViewIterator, ViewBuilder, ViewPlan};
 use super::meta::{StoreMeta, ColumnId, TableId, ViewType};
@@ -14,7 +14,7 @@ pub struct Store {
     rows_by_table: Vec<Vec<EntityId>>,
 }
 
-pub trait Component:Send + Sync + 'static {}
+pub trait Component: Send + Sync + 'static {}
 
 #[derive (Debug, Copy, Clone, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct ComponentId(usize);
@@ -93,13 +93,13 @@ impl Store {
         }
     }
 
-    pub fn spawn<T:Insert>(&mut self, value: T) -> EntityId {
+    pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
         let plan = self.insert_plan::<T>();
 
         self.spawn_with_plan(plan, value)
     }
 
-    pub(crate) fn insert_plan<T:Insert>(&mut self) -> InsertPlan {
+    pub(crate) fn insert_plan<T:Bundle>(&mut self) -> InsertPlan {
         let mut builder = InsertBuilder::new(self);
 
         T::build(&mut builder);
@@ -107,7 +107,7 @@ impl Store {
         builder.build()
     }
 
-    pub(crate) fn spawn_with_plan<T:Insert>(
+    pub(crate) fn spawn_with_plan<T:Bundle>(
         &mut self, 
         plan: InsertPlan, 
         value: T
@@ -215,9 +215,9 @@ impl From<ColumnId> for ComponentId {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::{insert::InsertCursor, Component}};
+    use crate::{entity::{bundle::InsertCursor, Component}};
 
-    use super::{Store, InsertBuilder, Insert};
+    use super::{Store, InsertBuilder, Bundle};
 
     #[test]
     fn spawn() {
@@ -365,7 +365,7 @@ mod tests {
     impl Component for TestA {}
     impl Component for TestB {}
     
-    impl Insert for TestC {
+    impl Bundle for TestC {
         fn build(builder: &mut InsertBuilder) {
             builder.add_column::<TestC>()
         }

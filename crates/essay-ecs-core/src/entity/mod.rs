@@ -1,6 +1,7 @@
+mod query;
 mod entity;
 mod view;
-mod insert;
+mod bundle;
 mod store;
 mod column;
 pub(crate) mod meta;
@@ -13,10 +14,16 @@ pub use entity::{
     EntityId,
 };
 
-pub use insert::{
-    Insert, InsertBuilder, InsertCursor,
+pub use bundle::{
+    Bundle, InsertBuilder, InsertCursor,
 };
+
 pub use view::{
     View, ViewBuilder, ViewPlan, ViewCursor, ViewIterator,
 };
+
+pub use query::{
+    Query,
+};
+
 pub use meta::{ViewId};

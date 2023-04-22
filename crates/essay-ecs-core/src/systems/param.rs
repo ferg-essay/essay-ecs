@@ -8,7 +8,7 @@ use crate::{world::{World, FromWorld}, schedule::SystemMeta};
  
 pub trait Param {
     type Arg<'w, 's>: Param<State=Self::State>;
-    type State : Send + Sync + 'static;
+    type State: Sync + Send + 'static;
 
     fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;
 

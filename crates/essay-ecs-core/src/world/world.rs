@@ -1,11 +1,11 @@
 use std::mem;
 
 use crate::{
-    entity::{Store, ViewIterator, View, Insert, EntityId, ViewPlan}, 
-    schedule::{System, IntoSystem, ScheduleLabel, Schedules, SystemMeta}, prelude::Param
+    entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan}, 
+    schedule::{ScheduleLabel, Schedules, SystemMeta}, prelude::Param
 };
 
-use super::{resource::Resources, Ptr, eval_function::EvalFun, ResourceId};
+use super::{resource::Resources, Ptr, ResourceId};
 
 pub struct World {
     ptr: Ptr,
@@ -37,7 +37,7 @@ impl World {
         self.deref().table.len()
     }
 
-    pub fn spawn<T:Insert>(&mut self, value: T) -> EntityId {
+    pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
         self.deref_mut().table.spawn::<T>(value)
     }
 
@@ -98,6 +98,10 @@ impl World {
 
     pub(crate) fn view_build<Q:View>(&self) -> ViewPlan {
         self.deref_mut().table.view_plan::<Q>()
+    }
+
+    pub(crate) unsafe fn view_iter_from_plan<Q: View>(&self, plan: &ViewPlan) -> ViewIterator<Q> {
+        self.deref_mut().table.iter_view_with_plan::<Q>(plan.clone())
     }
 
     //

@@ -19,14 +19,14 @@ where
     F: Fun<R, M>
 {
     fun: F,
-    state: Option<<F::Params as Param>::State>,
+    state: Option<<F::Param as Param>::State>,
     marker: PhantomData<(R, M)>,
 }
 
 pub trait Fun<R, M>: Send + Sync + 'static {
-    type Params: Param;
+    type Param: Param;
 
-    fn run(&mut self, arg: Arg<Self::Params>) -> R;
+    fn run(&mut self, arg: Arg<Self::Param>) -> R;
 }
 
 //
@@ -42,11 +42,11 @@ where
     type Out = R;
 
     fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
-        self.state = Some(F::Params::init(meta, world));
+        self.state = Some(F::Param::init(meta, world));
     }
 
     unsafe fn run_unsafe(&mut self, world: &World) -> Self::Out {
-        let arg = F::Params::arg(
+        let arg = F::Param::arg(
             world,
             self.state.as_mut().unwrap(),
         );
@@ -55,7 +55,7 @@ where
     }
 
     fn flush(&mut self, world: &mut World) {
-        F::Params::flush(world, self.state.as_mut().unwrap());
+        F::Param::flush(world, self.state.as_mut().unwrap());
     }
 }    
 
@@ -90,7 +90,7 @@ macro_rules! impl_system_function {
             FnMut($(Arg<$param>,)*) -> R,
             R: 'static
         {
-            type Params = ($($param,)*);
+            type Param = ($($param,)*);
 
             fn run(&mut self, arg: Arg<($($param,)*)>) -> R {
                 let ($($param,)*) = arg;

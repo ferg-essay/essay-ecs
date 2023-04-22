@@ -5,7 +5,7 @@
 
 use super::{meta::{TableId, ColumnId}, Store, column::RowId, Component, entity::EntityId};
 
-pub trait Insert:'static {
+pub trait Bundle:'static {
     fn build(builder: &mut InsertBuilder);
 
     unsafe fn insert(cursor: &mut InsertCursor, value: Self);
@@ -112,7 +112,7 @@ impl<'a> InsertCursor<'a> {
 // Insert tuples of components
 //
 
-impl<T:Component> Insert for T {
+impl<T:Component> Bundle for T {
     fn build(builder: &mut InsertBuilder) {
         builder.add_column::<T>();
     }
@@ -130,7 +130,7 @@ impl<T:Component> Insert for T {
 macro_rules! impl_insert_tuple {
     ($($part:ident),*) => {
         #[allow(non_snake_case)]
-        impl<$($part:Insert),*> Insert for ($($part,)*)
+        impl<$($part:Bundle),*> Bundle for ($($part,)*)
         {
             fn build(builder: &mut InsertBuilder) {
                 $(
