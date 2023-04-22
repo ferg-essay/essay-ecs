@@ -42,6 +42,29 @@ impl RowId {
     pub fn gen(&self) -> u32 {
         self.1
     }
+
+    #[inline]
+    pub(crate) fn is_alloc(&self) -> bool {
+        self.1 & Self::FREE_MASK == 0
+    }
+
+    pub(crate) fn next_free(&self) -> RowId {
+        assert!(self.1 & Self::FREE_MASK == 0);
+
+        RowId(self.0, (self.1 + 1) | Self::FREE_MASK)
+    }
+
+    pub(crate) fn next(&self) -> RowId {
+        assert!(self.1 & Self::FREE_MASK == 0);
+
+        RowId(self.0, (self.1 + 1) & !Self::FREE_MASK)
+    }
+
+    pub(crate) fn allocate(&self) -> RowId {
+        assert!(self.1 & Self::FREE_MASK != 0);
+
+        RowId(self.0, self.1 & !Self::FREE_MASK)
+    }
 }
 
 impl Column {

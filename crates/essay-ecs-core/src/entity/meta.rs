@@ -33,7 +33,7 @@ pub struct ColumnType {
 }
 
 #[derive(Clone)]
-pub struct TableType {
+pub struct TableMeta {
     id: TableId,
 
     columns: Vec<ColumnId>,
@@ -60,7 +60,7 @@ pub(crate) struct StoreMeta {
     columns: Vec<ColumnType>,
 
     table_map: HashMap<Vec<ColumnId>,TableId>,
-    tables: Vec<TableType>,
+    tables: Vec<TableMeta>,
 
     view_map: HashMap<Vec<ColumnId>,ViewId>,
     views: Vec<ViewType>,
@@ -137,7 +137,7 @@ impl TableId {
     }
 }
 
-impl TableType {
+impl TableMeta {
     pub(crate) fn id(&self) -> TableId {
         self.id
     }
@@ -169,7 +169,7 @@ impl TableType {
     }
 }
 
-impl fmt::Debug for TableType {
+impl fmt::Debug for TableMeta {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TableType")
          .field("id", &self.id)
@@ -224,7 +224,7 @@ impl ViewTableId {
 impl ViewTableType {
     pub fn new(
         id: ViewTableId, 
-        table: &TableType, 
+        table: &TableMeta, 
         view: &ViewType
     ) -> ViewTableType {
         let mut index_map = Vec::<usize>::new();
@@ -343,11 +343,11 @@ impl StoreMeta {
     // Table
     //
 
-    pub fn table(&self, id: TableId) -> &TableType {
+    pub fn table(&self, id: TableId) -> &TableMeta {
         &self.tables[id.index()]
     }
 
-    pub(crate) fn _table_mut(&mut self, id: TableId) -> &mut TableType {
+    pub(crate) fn _table_mut(&mut self, id: TableId) -> &mut TableMeta {
         self.tables.get_mut(id.index()).unwrap()
     }
 
@@ -364,7 +364,7 @@ impl StoreMeta {
             return table_id;
         }
 
-        self.tables.push(TableType {
+        self.tables.push(TableMeta {
             id: table_id,
             columns,
         });

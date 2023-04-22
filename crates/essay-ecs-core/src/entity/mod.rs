@@ -1,5 +1,4 @@
 mod table;
-mod entity;
 mod view;
 mod bundle;
 mod store;

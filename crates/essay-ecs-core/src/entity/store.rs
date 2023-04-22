@@ -136,7 +136,9 @@ impl Store {
     pub(crate) fn add_table(&mut self, cols: Vec<ColumnId>) -> TableId {
         let table_id = self.meta.add_table(cols);
 
-        assert!(self.tables.len() == table_id.index());
+        if table_id.index() < self.tables.len() {
+            return table_id;
+        }
 
         let meta = self.meta.table(table_id);
 
@@ -349,32 +351,6 @@ mod tests {
         assert_eq!(values.join(","), "(TestA(1), TestB(2)),(TestA(4), TestB(3))");
     }
 
-    #[test]
-    fn eval() {
-        //let mut table = Table::new();
-        //let row_id = table.push_column(TestA(1)).row_id();
-
-    }
-
-    /*
-    #[test]
-    fn test_table() {
-        let mut table = TestTable::new();
-        table.push(TestA(1));
-        table.push((TestA(2),TestB(3)));
-        table.push((TestB(4),TestA(5)));
-        table.push(TestB(6));
-
-        let mut values : Vec<String> = table.query::<&TestA>()
-            .map(|t: &TestA| format!("{:?}", t))
-            .collect();
-        assert_eq!(values.join(","), "TestA(1),TestA(2),TestA(5)");
-
-        values = table.query::<&TestB>().map(|t: &TestB| format!("{:?}", t)).collect();
-        assert_eq!(values.join(","), "TestB(3),TestB(4),TestB(6)");
-    }
-    */
-
     #[derive(Debug, PartialEq)]
     struct TestA(u32);
 
@@ -398,30 +374,4 @@ mod tests {
             cursor.insert(value);
         }
     }
-
-    /*
-    struct TestTable<'t> {
-        table: Table<'t>,
-    }
-
-    impl<'t> TestTable<'t> {
-        fn new() -> Self {
-            Self {
-                table: Table::new(),
-            }
-        }
-
-        fn push<T:Insert>(&mut self, value: T)
-        {
-             self.table.spawn::<T>(value);
-        }
-
-        fn query<'a,T>(&mut self) -> ViewIterator<T>
-        //where T:Query<IsTest,Item<'a>=T>
-        where T:View<Item<'t>=T> // <'a>=T>
-        {
-            self.table.iter_view()
-        }
-    }
-    */
 }
