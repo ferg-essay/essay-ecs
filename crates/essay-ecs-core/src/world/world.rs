@@ -2,10 +2,10 @@ use std::mem;
 
 use crate::{
     entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan}, 
-    schedule::{ScheduleLabel, Schedules, SystemMeta}, prelude::Param
+    schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId},
 };
 
-use super::{resource::Resources, Ptr, ResourceId};
+use super::{Ptr};
 
 pub struct World {
     ptr: Ptr,
@@ -147,7 +147,7 @@ impl<T:Default> FromWorld for T {
 mod tests {
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{param::{Res, ResMut}, entity::Component};
+    use crate::{entity::Component};
 
     use super::World;
 
@@ -227,9 +227,9 @@ mod tests {
         let mut world = World::new();
         assert_eq!(world.len(), 0);
 
-        let values = Rc::new(RefCell::new(Vec::<String>::new()));
+        //let values = Rc::new(RefCell::new(Vec::<String>::new()));
 
-        let ptr = values.clone();
+        //let ptr = values.clone();
         
         assert_eq!(world.query::<&TestA>()
             .map(|v| format!("{:?}", v))
@@ -265,11 +265,11 @@ mod tests {
             "TestA(1002), TestA(2003)");
     }
 
-    fn push(ptr: &Rc<RefCell<Vec<String>>>, value: String) {
+    fn _push(ptr: &Rc<RefCell<Vec<String>>>, value: String) {
         ptr.borrow_mut().push(value);
     }
 
-    fn take(ptr: &Rc<RefCell<Vec<String>>>) -> String {
+    fn _take(ptr: &Rc<RefCell<Vec<String>>>) -> String {
         ptr.borrow_mut().drain(..).collect::<Vec<String>>().join(", ")
     }
 

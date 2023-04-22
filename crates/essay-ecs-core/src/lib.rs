@@ -5,6 +5,7 @@ pub mod schedule;
 pub mod entity;
 pub mod system;
 mod world;
+mod resource;
 
 pub use essay_ecs_macros::{
     Component, ScheduleLabel, Phase
@@ -21,7 +22,7 @@ pub use system::{
 
 pub use param::{
     Local,
-    Commands, Res, ResMut, 
+    Commands, Res, ResMut, Query, 
 };
 
 pub use world::{

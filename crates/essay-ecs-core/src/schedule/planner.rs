@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{collections::{HashMap, HashSet}, hash};
 
-use crate::{world::ResourceId, entity::ComponentId, system::SystemId};
+use crate::{resource::ResourceId, entity::ComponentId, system::SystemId};
 
 use super::{preorder::{Preorder, NodeId}, plan::Plan};
 

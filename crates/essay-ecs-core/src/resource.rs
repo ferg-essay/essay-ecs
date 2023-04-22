@@ -1,23 +1,18 @@
-use std::{collections::HashMap, any::TypeId, cell::UnsafeCell};
-
-use crate::{entity::{Store}};
-
-use super::{World, world::FromWorld, Ptr};
-
-struct IsResource;
+use std::{collections::HashMap, any::{TypeId, type_name}, ptr::NonNull, alloc::Layout, mem::{ManuallyDrop, self}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ResourceId(usize);
 
 struct Resource {
-    id: ResourceId,
-    value: Ptr,
+    _id: ResourceId,
+    _name: String,
+    //value: Ptr,
+    data: NonNull<u8>,
 }
 
 pub struct Resources {
     resource_map: HashMap<TypeId,ResourceId>,
     resources: Vec<Resource>,
-    store: Store,
 }
 
 impl ResourceId {
@@ -31,19 +26,44 @@ impl ResourceId {
 }
 
 impl Resource {
-    fn new<T>(id: ResourceId, value: T) -> Self {
-        Resource {
-            id: id,
-            value: Ptr::new(value),
+    pub(crate) fn new<T>(id: ResourceId, value: T) -> Self {
+        let layout = Layout::new::<T>();
+        let data = unsafe { std::alloc::alloc(layout) };
+        let data = NonNull::new(data).unwrap();
+
+        let mut resource = Self {
+            _id: id,
+            _name: type_name::<Self>().to_string(),
+            data: data,
+
+            // marker: Default::default(),
+        };
+
+        unsafe {
+            resource.write(value);
         }
+
+        resource
     }
 
-    unsafe fn deref<T>(&self) -> &T {
-        self.value.deref()
+    unsafe fn write<T>(&mut self, value: T) {
+        let mut value = ManuallyDrop::new(value);
+        let source: NonNull<u8> = NonNull::from(&mut *value).cast();
+
+        let src = source.as_ptr();
+        let dst = self.data.as_ptr();
+
+        let count = mem::size_of::<T>();
+
+        std::ptr::copy_nonoverlapping::<u8>(src, dst, count);
     }
 
-    unsafe fn deref_mut<T>(&self) -> &mut T {
-        self.value.deref_mut()
+    pub unsafe fn deref<T>(&self) -> &T {
+        &*self.data.as_ptr().cast::<T>()
+    }
+    
+    pub unsafe fn deref_mut<T>(&self) -> &mut T {
+        &mut *self.data.as_ptr().cast::<T>()
     }
 }
 
@@ -52,8 +72,6 @@ impl Resources {
         Self {
             resource_map: HashMap::new(),
             resources: Vec::new(),
-            store: Store::new(),
-            //resources: Vec::new(),
         }
     }
 
@@ -72,7 +90,6 @@ impl Resources {
     }
 
     pub(crate) fn get_resource_id<T:'static>(&self) -> ResourceId {
-        let id = ResourceId::new(self.resources.len());
         let type_id = TypeId::of::<T>();
 
         *self.resource_map.get(&type_id).unwrap()
@@ -94,7 +111,7 @@ impl Resources {
         unsafe { Some(self.resources[id.index()].deref_mut()) }
     }
 
-    pub fn insert_non_send<T:'static>(&mut self, value: T) {
+    pub fn _insert_non_send<T:'static>(&mut self, value: T) {
         let id = ResourceId::new(self.resources.len());
         let type_id = TypeId::of::<T>();
 

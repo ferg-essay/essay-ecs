@@ -35,7 +35,7 @@ pub struct SystemConfig {
     pub(crate) phase: Option<Box<dyn Phase>>,
 }
 
-pub struct SystemConfigs {
+pub struct _SystemConfigs {
     sets: Vec<SystemConfig>,
 }
 
