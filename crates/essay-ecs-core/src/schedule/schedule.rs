@@ -27,7 +27,7 @@ pub struct Schedules {
     default_executor: Box<dyn ExecutorFactory>,
 }
 
-pub trait ScheduleLabel : DynLabel + fmt::Debug {
+pub trait ScheduleLabel : Send + DynLabel + fmt::Debug {
     fn box_clone(&self) -> BoxedLabel;
 }
 
@@ -36,7 +36,7 @@ pub struct Schedule {
     executor: Option<Box<dyn Executor>>,
 }
 
-pub trait Executor {
+pub trait Executor: Send {
     fn run(
         &mut self, 
         schedule: Schedule, 
@@ -44,7 +44,7 @@ pub trait Executor {
     ) -> Result<(Schedule, World), ScheduleErr>;
 }
 
-pub trait ExecutorFactory {
+pub trait ExecutorFactory: Send + 'static {
     fn create(&self, plan: Plan) -> Box<dyn Executor>;
 
     fn box_clone(&self) -> Box<dyn ExecutorFactory>;

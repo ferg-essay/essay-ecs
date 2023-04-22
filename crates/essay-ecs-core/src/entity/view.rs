@@ -1,12 +1,10 @@
 
 use std::{marker::PhantomData, collections::HashSet};
 
-use crate::schedule::SystemMeta;
-
 use super::{
     {Store, ViewId}, 
     meta::{TableType, ViewTableType, ColumnId}, 
-    store::{Component}, entity::Entity, ComponentId
+    store::{Component}, entity::Entity,
 };
 
 pub trait View : Send + Sync {
@@ -267,7 +265,7 @@ macro_rules! impl_query_tuple {
     }
 }
 
-impl_query_tuple!();
+//impl_query_tuple!();
 impl_query_tuple!(P1,P2);
 impl_query_tuple!(P1,P2,P3);
 impl_query_tuple!(P1,P2,P3,P4);

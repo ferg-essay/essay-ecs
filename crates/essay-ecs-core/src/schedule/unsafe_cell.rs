@@ -46,7 +46,7 @@ impl<T> UnsafeSendCell<T> {
         &mut *self.0.get()
     }
 
-    fn take(self) -> T {
+    pub(crate) fn take(self) -> T {
         self.0.into_inner()
     }
 }

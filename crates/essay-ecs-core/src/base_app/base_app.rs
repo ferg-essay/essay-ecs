@@ -50,23 +50,23 @@ impl BaseApp {
         self
     }
 
-    pub fn get_resource<T:'static>(&mut self) -> Option<&T> {
+    pub fn get_resource<T:Send + 'static>(&mut self) -> Option<&T> {
         self.world.get_resource::<T>()
     }
 
-    pub fn get_mut_resource<T:'static>(&mut self) -> Option<&mut T> {
+    pub fn get_mut_resource<T:Send + 'static>(&mut self) -> Option<&mut T> {
         self.world.get_resource_mut::<T>()
     }
 
-    pub fn resource<T:'static>(&mut self) -> &T {
+    pub fn resource<T:Send + 'static>(&mut self) -> &T {
         self.world.get_resource::<T>().expect("unassigned resource")
     }
 
-    pub fn resource_mut<T:'static>(&mut self) -> &mut T {
+    pub fn resource_mut<T:Send + 'static>(&mut self) -> &mut T {
         self.world.get_resource_mut::<T>().expect("unassigned resource")
     }
 
-    pub fn insert_resource<T:'static>(&mut self, value: T) {
+    pub fn insert_resource<T:Send + 'static>(&mut self, value: T) {
         self.world.insert_resource(value);
     }
 

@@ -1,6 +1,6 @@
 use std::{marker::PhantomData};
 
-use crate::{world::World, entity::{View, ViewBuilder, ComponentId}, 
+use crate::{world::World, entity::{View, ComponentId}, 
     schedule::{System, IntoSystem, SystemMeta}
 };
 

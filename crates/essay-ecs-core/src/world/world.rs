@@ -57,24 +57,24 @@ impl World {
     // Resources
     //
     
-    pub fn get_resource<T:'static>(&self) -> Option<&T> {
+    pub fn get_resource<T:Send + 'static>(&self) -> Option<&T> {
         self.deref().resources.get::<T>()
     }
     
-    pub fn get_resource_mut<T:'static>(&self) -> Option<&mut T> {
+    pub fn get_resource_mut<T:Send + 'static>(&self) -> Option<&mut T> {
         // TODO!
         self.deref_mut().resources.get_mut::<T>()
     }
     
-    pub fn resource<T:'static>(&self) -> &T {
+    pub fn resource<T:Send + 'static>(&self) -> &T {
         self.get_resource::<T>().unwrap()
     }
     
-    pub fn resource_mut<T:'static>(&mut self) -> &mut T {
+    pub fn resource_mut<T:Send + 'static>(&mut self) -> &mut T {
         self.get_resource_mut::<T>().unwrap()
     }
 
-    pub fn init_resource<T:FromWorld+'static>(&mut self) {
+    pub fn init_resource<T:FromWorld + Send +'static>(&mut self) {
         if ! self.deref().resources.get::<T>().is_none() {
             return;
         }
@@ -84,7 +84,7 @@ impl World {
         self.insert_resource::<T>(value);
     }
 
-    pub fn insert_resource<T:'static>(&mut self, value: T) {
+    pub fn insert_resource<T:Send + 'static>(&mut self, value: T) {
         self.deref_mut().resources.insert::<T>(value)
     }
 

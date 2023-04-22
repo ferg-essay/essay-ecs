@@ -13,10 +13,9 @@ use super::{preorder::{Preorder, NodeId}, system::{SystemId}};
 pub struct PhaseId(usize);
 
 impl PhaseId {
-    const UNSET : PhaseId = PhaseId(usize::MAX);
 }
 
-pub trait Phase : DynLabel + fmt::Debug {
+pub trait Phase : Send + DynLabel + fmt::Debug {
     fn name(&self) -> String {
         type_name::<Self>().to_string()
     }
@@ -26,10 +25,8 @@ pub trait Phase : DynLabel + fmt::Debug {
 
 pub struct PhaseItem {
     id: PhaseId,
-    phase: Box<dyn Phase>,
 
     system_id: Option<SystemId>,
-    prev: Option<PhaseId>,
 }
 
 pub(crate) struct PhasePreorder {
@@ -134,8 +131,6 @@ impl PhasePreorder {
             let id = PhaseId::from(node_id);
             self.phases.push(PhaseItem {
                 id,
-                phase,
-                prev: None,
                 system_id: None,
             });
             id
@@ -276,7 +271,7 @@ macro_rules! impl_task_set_tuple {
     }
 }
 
-impl_task_set_tuple!();
+//impl_task_set_tuple!();
 impl_task_set_tuple!(P1);
 impl_task_set_tuple!(P1, P2);
 impl_task_set_tuple!(P1, P2, P3);

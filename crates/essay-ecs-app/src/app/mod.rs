@@ -21,6 +21,8 @@ pub enum CoreTaskSet {
     Last,
 }
 
+pub use app::App;
+
 pub(crate) mod prelude {
     pub use super::app::{App, Tick};
 }

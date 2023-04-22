@@ -57,7 +57,7 @@ impl Resources {
         }
     }
 
-    pub fn insert<T:'static>(&mut self, value: T) {
+    pub fn insert<T:Send + 'static>(&mut self, value: T) {
         let id = ResourceId::new(self.resources.len());
         let type_id = TypeId::of::<T>();
 
@@ -78,7 +78,7 @@ impl Resources {
         *self.resource_map.get(&type_id).unwrap()
     }
 
-    pub fn get<T:'static>(&self) -> Option<&T> {
+    pub fn get<T:Send + 'static>(&self) -> Option<&T> {
         let type_id = TypeId::of::<T>();
 
         let id = self.resource_map.get(&type_id)?;
@@ -86,12 +86,26 @@ impl Resources {
         unsafe { Some(self.resources[id.index()].deref()) }
     }
 
-    pub fn get_mut<T:'static>(&mut self) -> Option<&mut T> {
+    pub fn get_mut<T:Send + 'static>(&mut self) -> Option<&mut T> {
         let type_id = TypeId::of::<T>();
 
         let id = self.resource_map.get(&type_id)?;
 
         unsafe { Some(self.resources[id.index()].deref_mut()) }
+    }
+
+    pub fn insert_non_send<T:'static>(&mut self, value: T) {
+        let id = ResourceId::new(self.resources.len());
+        let type_id = TypeId::of::<T>();
+
+        let id = *self.resource_map.entry(type_id).or_insert(id);
+
+        if id.index() == self.resources.len() {
+            self.resources.push(Resource::new(id, value));
+        } else {
+            // TODO: drop
+            self.resources[id.index()] = Resource::new(id, value);
+        }
     }
 }
 

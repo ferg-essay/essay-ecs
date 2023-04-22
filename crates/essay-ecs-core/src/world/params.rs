@@ -16,7 +16,7 @@ impl<'a, T:'static> Res<'a, T> {
     }
 }
 
-impl<T:'static> Param for Res<'_, T> {
+impl<T:Send+'static> Param for Res<'_, T> {
     type Arg<'w, 's> = Res<'w, T>;
     type State = ();
 
@@ -72,7 +72,7 @@ impl<'a, T:'static> DerefMut for ResMut<'_, T> {
     }
 }
 
-impl<T:'static> Param for ResMut<'_, T> {
+impl<T:Send+'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
     type State = ();
 

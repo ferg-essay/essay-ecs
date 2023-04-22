@@ -1,11 +1,8 @@
 mod command;
-mod unsafe_world;
 mod params;
 mod resource;
 mod world;
 mod cell;
-mod eval_function;
-mod map_function;
 
 pub use command::Commands;
 pub use world::{World,FromWorld};
