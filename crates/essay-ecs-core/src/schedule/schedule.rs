@@ -24,6 +24,7 @@ pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
 pub struct Schedules {
     schedule_map: HashMap<Box<dyn ScheduleLabel>, Schedule>,
+    default_executor: Box<dyn ExecutorFactory>,
 }
 
 pub trait ScheduleLabel : DynLabel + fmt::Debug {
@@ -45,22 +46,35 @@ pub trait Executor {
 
 pub trait ExecutorFactory {
     fn create(&self, plan: Plan) -> Box<dyn Executor>;
+
+    fn box_clone(&self) -> Box<dyn ExecutorFactory>;
 }
 
-pub enum ExecutorType {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Executors {
     Single,
     Multithreaded,
 }
 
-impl ExecutorFactory for ExecutorType {
+impl Default for Executors {
+    fn default() -> Self {
+        Executors::Multithreaded
+    }
+}
+
+impl ExecutorFactory for Executors {
     fn create(&self, plan: Plan) -> Box<dyn Executor> {
         match self {
-            ExecutorType::Single => Box::new(SingleExecutor(plan)),
-            ExecutorType::Multithreaded => {
+            Executors::Single => Box::new(SingleExecutor(plan)),
+            Executors::Multithreaded => {
                 Box::new(MultithreadedExecutor::new(plan))
             },
         }
-    }   
+    }
+
+    fn box_clone(&self) -> Box<dyn ExecutorFactory> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +116,14 @@ impl Schedules {
             .add_system::<M>(config);
     }
 
+    pub fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) {
+        self.default_executor = Box::new(executor);
+
+        for schedule in self.schedule_map.values_mut() {
+            schedule.set_executor_factory(self.default_executor.box_clone());
+        }
+    }
+
     pub fn tick(
         &mut self, 
         label: &dyn ScheduleLabel, 
@@ -131,6 +153,7 @@ impl Default for Schedules {
     fn default() -> Self {
         Self { 
             schedule_map: HashMap::new(),
+            default_executor: Default::default(),
          }
     }
 }
@@ -316,8 +339,12 @@ impl Schedule {
         self.inner().planner.meta(id)
     }
 
-    pub(crate) fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) {
+    pub fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) {
         self.inner_mut().set_executor_factory(Box::new(executor));
+    }
+
+    fn set_executor_factory(&mut self, factory: Box<dyn ExecutorFactory>) {
+        self.inner_mut().set_executor_factory(factory);
     }
 }
 
@@ -374,17 +401,9 @@ impl ScheduleInner {
     }
 }
 
-struct SingleExecutorFactory;
-
-impl ExecutorFactory for SingleExecutorFactory {
-    fn create(&self, plan: Plan) -> Box<dyn Executor> {
-        Box::new(SingleExecutor(plan))
-    }
-}
-
 impl Default for Box<dyn ExecutorFactory> {
     fn default() -> Self {
-        Box::new(SingleExecutorFactory {})
+        Executors::default().box_clone()
     }
 }
 struct SingleExecutor(Plan);

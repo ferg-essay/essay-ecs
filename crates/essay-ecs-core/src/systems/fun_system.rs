@@ -147,7 +147,7 @@ mod tests {
         set_global("init".to_string());
         let mut schedule = Schedule::new();
         schedule.add_system(fun);
-        schedule.tick(world);
+        schedule.tick(world).unwrap();
 
         get_global()
     }

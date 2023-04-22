@@ -16,6 +16,16 @@ type ArcSchedule = Arc<UnsafeSendCell<Option<Schedule>>>;
 
 pub struct MultithreadedExecutorFactory;
 
+impl ExecutorFactory for MultithreadedExecutorFactory {
+    fn create(&self, plan: Plan) -> Box<dyn Executor> {
+        Box::new(MultithreadedExecutor::new(plan))
+    }
+
+    fn box_clone(&self) -> Box<dyn ExecutorFactory> {
+        Box::new(MultithreadedExecutorFactory {})
+    }
+}
+
 pub struct MultithreadedExecutor {
     thread_pool: Option<ThreadPool>,
     
@@ -33,12 +43,6 @@ struct ParentTask {
 struct ChildTask {
     world: ArcWorld,
     schedule: ArcSchedule,
-}
-
-impl ExecutorFactory for MultithreadedExecutorFactory {
-    fn create(&self, plan: Plan) -> Box<dyn Executor> {
-        Box::new(MultithreadedExecutor::new(plan))
-    }
 }
 
 impl MultithreadedExecutor {
@@ -64,7 +68,7 @@ impl MultithreadedExecutor {
                 Arc::clone(&arc_world_child),
             );
 
-            Box::new(move |s| { child_task.run(s); })
+            Box::new(move |s| { child_task.run(s).unwrap(); })
         }).build();
 
         Self {

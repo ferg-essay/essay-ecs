@@ -1,6 +1,6 @@
 use crate::{
     World, Schedule, IntoSystemConfig, 
-    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, System, SystemMeta}, 
+    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, System, SystemMeta, ExecutorFactory}, 
     entity::{View, ViewIterator}, 
     Schedules, IntoSystem,
 };
@@ -92,6 +92,12 @@ impl BaseApp {
     pub fn tick(&mut self) -> &mut Self {
         self.world.run_schedule(BaseSchedule::Main);
 
+        self
+    }
+
+    pub fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) -> &mut Self {
+        self.resource_mut::<Schedules>().set_executor(executor);
+        
         self
     }
 }

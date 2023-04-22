@@ -158,16 +158,6 @@ impl Column {
         }
     }
 
-    pub(crate) fn reserve_exact(&mut self, len: usize) {
-        let avail = self.capacity - self.len;
-
-        if len < avail {
-            let delta = len - avail;
-
-            self.extend(self.len + delta);
-        }
-    }
-
     fn extend(&mut self, new_capacity: usize) {
         assert!(self.pad_size > 0, "zero sized column items can't be pushed");
         assert!(self.capacity < new_capacity);

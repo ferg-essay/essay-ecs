@@ -631,9 +631,9 @@ mod test {
     use std::{sync::{Arc, Mutex}, thread, time::Duration};
 
     use crate::{
-        base_app::{BaseApp, BaseSchedule, BasePhases}, 
+        base_app::{BaseApp, BasePhases}, 
         entity::Component, 
-        schedule::{schedule::ExecutorType, IntoSystemConfig}, 
+        schedule::{schedule::Executors, IntoSystemConfig}, 
         Res, ResMut, Commands, World
     };
 
@@ -641,7 +641,7 @@ mod test {
     fn phase_groups() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -697,7 +697,7 @@ mod test {
     fn world_mut_sequential() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -739,7 +739,7 @@ mod test {
     fn res_parallel() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -768,7 +768,7 @@ mod test {
     fn resmut_sequential() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -796,7 +796,7 @@ mod test {
     fn resmut_disjoint_parallel() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
         app.insert_resource(10 as u32);
 
@@ -826,7 +826,7 @@ mod test {
     fn res_resmut_parallel_sequential() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -868,7 +868,7 @@ mod test {
     fn comp_parallel() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -897,7 +897,7 @@ mod test {
     fn comp_sequential() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -926,7 +926,7 @@ mod test {
     fn comp_mut_disjoint() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
         app.run_system(|mut c: Commands| c.spawn(TestB(200)));
 
@@ -956,7 +956,7 @@ mod test {
     fn comp_sequential_parallel() {
         let mut app = BaseApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(ExecutorType::Multithreaded);
+        app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));

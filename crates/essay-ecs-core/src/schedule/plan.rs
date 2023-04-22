@@ -9,7 +9,6 @@ pub struct Plan {
 
 #[derive(Debug)]
 pub struct PlanSystem {
-    id: SystemId,
     n_incoming: usize,
     outgoing: Vec<usize>,
 }
@@ -67,7 +66,6 @@ impl PlanSystem {
         id: NodeId,
         order: &Vec<NodeId>) -> Self {
         Self {
-            id: SystemId::from(id),
             n_incoming: preorder.incoming(NodeId::from(id)).len(),
             outgoing: preorder.outgoing(NodeId::from(id)).iter()
                 .map(|n|

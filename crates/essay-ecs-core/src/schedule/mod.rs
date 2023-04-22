@@ -18,7 +18,7 @@ pub use planner::{
 };
 
 pub use schedule::{
-    Schedules, Schedule, ScheduleLabel, BoxedLabel, ExecutorType, Executor, ExecutorFactory,
+    Schedules, Schedule, ScheduleLabel, BoxedLabel, Executors, Executor, ExecutorFactory,
 };
 
 pub use phase::{
