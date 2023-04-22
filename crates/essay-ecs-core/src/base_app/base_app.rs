@@ -1,8 +1,9 @@
 use crate::{
     World, Schedule, IntoSystemConfig, 
-    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, System, SystemMeta, ExecutorFactory}, 
+    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, SystemMeta, ExecutorFactory}, 
     entity::{View, ViewIterator}, 
-    Schedules, IntoSystem,
+    Schedules, IntoSystem, 
+    system::System,
 };
 
 

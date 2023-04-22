@@ -2,10 +2,11 @@ use std::marker::PhantomData;
 
 use crate::{
     world::World, 
-    schedule::{SystemMeta, IntoSystem, System}
+    schedule::{SystemMeta},
+    system::{IntoSystem, System},
 };
 
-use crate::params::{Param, Arg};
+use crate::param::{Param, Arg};
 
 // IsFun prevents collision
 pub struct IsFun;
@@ -113,7 +114,10 @@ mod tests {
     use std::any::type_name;
     use std::marker::PhantomData;
 
-    use crate::{world::World, schedule::{IntoSystem, SystemMeta, Schedule}};
+    use crate::{world::World, 
+        system::{IntoSystem},
+        schedule::{Schedule, SystemMeta},
+    };
 
     use super::Param;
 

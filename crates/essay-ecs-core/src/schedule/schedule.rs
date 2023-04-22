@@ -2,17 +2,20 @@ use core::fmt;
 
 use std::{hash::{Hash, Hasher}, collections::HashMap};
 
-use crate::{world::World, util::DynLabel};
+use crate::{
+    system::{SystemId, System, IntoSystemConfig, SystemConfig}, 
+    world::World, 
+    util::DynLabel};
 
 use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
     preorder::{NodeId}, 
-    System, IntoSystemConfig, SystemConfig, SystemMeta, 
+    SystemMeta, 
     plan::{Plan}, 
     unsafe_cell::UnsafeSyncCell, 
     planner::{Planner}, 
-    system::SystemId, multithreaded::MultithreadedExecutor
+    multithreaded::MultithreadedExecutor
 };
 
 ///

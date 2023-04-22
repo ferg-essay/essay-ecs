@@ -6,7 +6,7 @@ use std::{
 
 use concurrent_queue::{ConcurrentQueue, PopError};
 
-use super::system::SystemId;
+use crate::system::SystemId;
 
 
 pub struct ThreadPoolBuilder {
@@ -332,7 +332,7 @@ impl fmt::Debug for TaskMessage {
 mod tests {
     use std::{thread, time::Duration, sync::{Arc, Mutex}};
 
-    use crate::schedule::system::SystemId;
+    use crate::system::SystemId;
 
     use super::ThreadPoolBuilder;
 

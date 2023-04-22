@@ -2,12 +2,15 @@ use std::{sync::{Arc}};
 
 use fixedbitset::FixedBitSet;
 
-use crate::{Schedule, World, schedule::{system::SystemId}};
+use crate::{
+    Schedule, World,
+    system::SystemId,
+};    
 
 use super::{
     thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, 
     plan::{Plan}, 
-    schedule::{Executor, ExecutorFactory, ScheduleErr}, 
+    schedule::{Executor, ExecutorFactory, ScheduleErr},
     unsafe_cell::{UnsafeSendCell}
 };
 
@@ -266,8 +269,9 @@ mod tests {
     use std::{thread, time::Duration, sync::{Arc, Mutex}};
 
     use crate::{World, Schedule, 
-        schedule::{Phase, IntoSystemConfig, IntoPhaseConfigs, 
-            Executor, ExecutorFactory}
+        schedule::{Phase,IntoPhaseConfigs, 
+            Executor, ExecutorFactory},
+        system::{IntoSystemConfig},
     };
 
     use super::{MultithreadedExecutor, MultithreadedExecutorFactory};

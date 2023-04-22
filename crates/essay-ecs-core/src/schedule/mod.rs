@@ -6,12 +6,8 @@ mod thread_pool;
 mod phase;
 mod preorder;
 mod schedule;
-mod system;
 
 use essay_ecs_macros::Phase;
-pub use system::{
-    System, IntoSystem, SystemConfig, IntoSystemConfig,
-};
 
 pub use planner::{
     SystemMeta,
@@ -22,5 +18,5 @@ pub use schedule::{
 };
 
 pub use phase::{
-    Phase, IntoPhaseConfig, IntoPhaseConfigs,
+    DefaultPhase, Phase, IntoPhaseConfig, IntoPhaseConfigs,
 };

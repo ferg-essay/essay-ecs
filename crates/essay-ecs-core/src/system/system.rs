@@ -1,9 +1,6 @@
-use core::fmt;
-use std::{any::type_name, collections::{HashMap, HashSet}};
+use std::{any::type_name};
 
-use crate::{world::{World, ResourceId}};
-
-use super::{Phase, phase::{DefaultPhase}, preorder::{Preorder, NodeId}, planner::SystemMeta};
+use crate::{world::{World}, schedule::{SystemMeta, Phase, DefaultPhase}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);

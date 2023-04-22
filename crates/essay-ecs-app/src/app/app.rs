@@ -5,9 +5,10 @@ use essay_ecs_core::{
     Schedule, Schedules,
     IntoSystem, IntoSystemConfig,
     schedule::{
-        System, SystemMeta, ScheduleLabel
+        SystemMeta, ScheduleLabel
     }, 
     World,
+    system::System,
     entity::{Bundle, EntityId}, 
     Local,
 };

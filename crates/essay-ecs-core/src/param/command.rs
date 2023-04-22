@@ -166,7 +166,7 @@ mod tests {
     use core::fmt;
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{params::{Res, ResMut}, world::World, entity::Component, Schedule};
+    use crate::{param::{Res, ResMut}, world::World, entity::Component, Schedule};
 
     use super::Commands;
 

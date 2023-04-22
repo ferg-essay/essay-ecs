@@ -50,7 +50,7 @@ impl<'a, T:FromWorld+Send+Sync+'static> Param for Local<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{world::{World}, schedule::Schedule, params::ResMut};
+    use crate::{world::{World}, schedule::Schedule, param::ResMut};
 
     use super::Local;
 

@@ -1,9 +1,9 @@
 use core::fmt;
 use std::{collections::{HashMap, HashSet}, hash};
 
-use crate::{world::ResourceId, entity::ComponentId};
+use crate::{world::ResourceId, entity::ComponentId, system::SystemId};
 
-use super::{preorder::{Preorder, NodeId}, plan::Plan, system::SystemId};
+use super::{preorder::{Preorder, NodeId}, plan::Plan};
 
 
 pub struct Planner {
@@ -633,7 +633,8 @@ mod test {
     use crate::{
         base_app::{BaseApp, BasePhases}, 
         entity::Component, 
-        schedule::{schedule::Executors, IntoSystemConfig}, 
+        schedule::{schedule::Executors}, 
+        system::{IntoSystemConfig}, 
         Res, ResMut, Commands, World
     };
 
