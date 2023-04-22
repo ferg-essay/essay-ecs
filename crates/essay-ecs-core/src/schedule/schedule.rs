@@ -137,14 +137,14 @@ impl Schedules {
         schedule.tick(world)
     }
 
-    pub(crate) fn remove(
+    pub fn remove(
         &mut self, 
         label: &dyn ScheduleLabel
     ) -> Option<Schedule> {
         self.schedule_map.remove(label)
     }
 
-    pub(crate) fn remove_entry(
+    pub fn remove_entry(
         &mut self, 
         label: &dyn ScheduleLabel
     ) -> Option<(BoxedLabel, Schedule)> {
@@ -378,12 +378,6 @@ impl ScheduleInner {
         }
     }
 
-    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
-        let system = &self.systems[id.index()];
-
-        system.as_mut().run_unsafe(world)
-    }
-
     pub(crate) fn flush(&mut self, world: &mut World) {
         for system in &mut self.systems {
             //if ! system.meta.is_flush() {
@@ -550,7 +544,7 @@ mod tests {
             push(&ptr, "b"); 
         });
 
-        schedule.tick(&mut world);
+        schedule.tick(&mut world).unwrap();
         assert_eq!(take(&values), "b, c");
 
         // default, A
@@ -566,7 +560,7 @@ mod tests {
             push(&ptr, "a"); 
         }).phase(TestPhase::A));
 
-        schedule.tick(&mut world);
+        schedule.tick(&mut world).unwrap();
         assert_eq!(take(&values), "a, b");
 
         // default, C
@@ -582,7 +576,7 @@ mod tests {
             push(&ptr, "c"); 
         }).phase(TestPhase::C));
 
-        schedule.tick(&mut world);
+        schedule.tick(&mut world).unwrap();
         assert_eq!(take(&values), "b, c");
     }
 
@@ -596,14 +590,6 @@ mod tests {
         schedule.set_default_phase(TestPhase::B);
 
         schedule
-    }
-
-    fn test_a() {
-        println!("a");
-    }
-
-    fn test_b() {
-        println!("b");
     }
 
     fn take(values: &Arc<Mutex<Vec<String>>>) -> String {
