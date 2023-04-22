@@ -32,6 +32,7 @@ pub struct ColumnType {
     views: Vec<ViewId>,
 }
 
+#[derive(Clone)]
 pub struct TableType {
     id: TableId,
 

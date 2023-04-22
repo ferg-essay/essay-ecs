@@ -3,7 +3,7 @@
 // Insert
 //
 
-use super::{meta::{TableId, ColumnId}, Store, column::RowId, Component, entity::EntityId};
+use super::{meta::{TableId, ColumnId}, Store, column::RowId, Component, store::EntityId};
 
 pub trait Bundle:'static {
     fn build(builder: &mut InsertBuilder);

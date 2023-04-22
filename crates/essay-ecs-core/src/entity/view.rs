@@ -4,7 +4,7 @@ use std::{marker::PhantomData, collections::HashSet};
 use super::{
     {Store, ViewId}, 
     meta::{TableType, ViewTableType, ColumnId}, 
-    store::{Component}, entity::Entity,
+    store::{Component}, table::TableRow,
 };
 
 pub trait View : Send + Sync {
@@ -19,7 +19,7 @@ pub struct ViewCursor<'a, 't> {
     store: &'t Store,
     table: &'a TableType,
     view_table: &'a ViewTableType,
-    row: &'a Entity,
+    row: &'a TableRow,
     cols: &'a Vec<usize>,
     index: usize,
 }
@@ -47,7 +47,7 @@ impl ViewPlan {
         store: &'t Store,
         table: &'a TableType,
         view_row: &'a ViewTableType,
-        row: &'a Entity
+        row: &'a TableRow
     ) -> ViewCursor<'a, 't> {
         ViewCursor {
             store,
