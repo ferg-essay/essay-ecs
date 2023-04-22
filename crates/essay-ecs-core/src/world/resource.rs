@@ -2,7 +2,7 @@ use std::{collections::HashMap, any::TypeId, cell::UnsafeCell};
 
 use crate::{entity::{Store}};
 
-use super::{cell::Ptr, World, world::FromWorld};
+use super::{World, world::FromWorld, Ptr};
 
 struct IsResource;
 

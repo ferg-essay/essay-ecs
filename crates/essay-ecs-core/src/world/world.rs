@@ -132,21 +132,6 @@ impl World {
     }
 }
 
-impl Param for &World {
-    type Arg<'w, 's> = &'w World;
-    type State = ();
-
-    fn arg<'w, 's>(
-        world: &'w World,
-        _state: &'s mut Self::State,
-    ) -> Self::Arg<'w, 's> {
-        world
-    }
-
-    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
-    }
-}
-
 pub struct WorldInner {
     pub(crate) table: Store,
     pub(crate) resources: Resources,

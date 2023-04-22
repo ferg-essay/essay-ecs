@@ -21,6 +21,8 @@ pub(crate) struct Column {
     len: usize,
     capacity: usize,
 
+    free_list: Vec<u32>,
+
     drop: Option<Box<dyn Fn(&mut Column, usize)>>,
 }
 
@@ -77,6 +79,8 @@ impl Column {
             len: length,
             capacity: capacity,
 
+            free_list: Default::default(),
+
             drop: Some(drop),
         }
     }
@@ -125,33 +129,65 @@ impl Column {
     }
 
     pub(crate) unsafe fn push<T>(&mut self, value: T) -> RowId {
-        self.reserve(1);
+        if let Some(index) = self.free_list.pop() {
+            let mut gen = self.row_gen[index as usize];
+            assert!(gen & RowId::FREE_MASK != 0);
+            gen = gen & !RowId::FREE_MASK;
+            self.row_gen[index as usize] = gen;
 
-        let index = self.len;
+            self.write(index as usize, value);
 
-        self.write(index, value);
-        self.row_gen.push(0);
+            RowId(index, gen)
+        } else {
+            self.reserve(1);
+
+            let index = self.len;
+
+            self.write(index, value);
+            self.row_gen.push(0);
         
-        self.len += 1;
+            self.len += 1;
 
-        RowId::new(index)
+            RowId::new(index)
+        }
     }
 
-    pub(crate) unsafe fn remove<T>(&mut self, row: RowId) -> Option<T> {
+    pub(crate) unsafe fn remove<T>(&mut self, row: RowId) {
         let index = row.index();
 
         if index < self.len() && self.row_gen[index] == row.gen() {
             self.row_gen[index] = self.row_gen[index] + 1 | RowId::FREE_MASK;
+            self.free_list.push(row.0);
 
             unsafe {
                 let offset = self.offset(index);
 
-                Some(self.data.as_ptr()
+                self.data.as_ptr()
                     .add(offset)
                     .cast::<T>()
-                    .read())
+                    .drop_in_place();
+            }
+        }
+    }
+
+    pub(crate) unsafe fn insert<T>(&mut self, row: RowId, value: T) -> Option<RowId> {
+        let index = row.index();
+
+        if index < self.len() && self.row_gen[index] == row.gen() {
+            self.row_gen[index] = (self.row_gen[index] + 1) & ! RowId::FREE_MASK;
+
+            unsafe {
+                let offset = self.offset(index);
+
+                self.data.as_ptr()
+                    .add(offset)
+                    .cast::<T>()
+                    .drop_in_place();
+
+                self.write(index, value);
             }
 
+            Some(RowId(row.0, self.row_gen[index]))
         } else {
             None
         }
@@ -399,14 +435,40 @@ mod tests {
             assert_eq!(take(&value), "");
 
             unsafe {
-                let value = col.remove::<TestDrop>(RowId::new(0));
-                assert!(! value.is_none());
+                col.remove::<TestDrop>(RowId::new(0));
             }
         
             assert_eq!(take(&value), "drop[10]");
         }
 
         assert_eq!(take(&value), "drop[20]");
+    }
+
+    #[test]
+    fn insert_drop() {
+        let mut metas = StoreMeta::new();
+
+        let value = Rc::new(RefCell::new(Vec::<String>::new()));
+        
+        {
+            let mut col = Column::new::<TestDrop>(&mut metas);
+
+            unsafe {
+                assert_eq!(col.push::<TestDrop>(TestDrop(value.clone(), 10)), RowId::new(0));
+                assert_eq!(col.push::<TestDrop>(TestDrop(value.clone(), 20)), RowId::new(1));
+            }
+
+            assert_eq!(take(&value), "");
+
+            unsafe {
+                assert_eq!(col.insert::<TestDrop>(RowId::new(0), TestDrop(value.clone(), 110)),
+                    Some(RowId(0, 1)));
+            }
+        
+            assert_eq!(take(&value), "drop[10]");
+        }
+
+        assert_eq!(take(&value), "drop[110], drop[20]");
     }
 
     fn take(value: &Rc<RefCell<Vec<String>>>) -> String {
