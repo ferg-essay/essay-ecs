@@ -15,32 +15,32 @@ pub struct IsFun;
 // FunctionSystem - a system implemented by a function
 // 
 
-pub struct FunctionSystem<F, R, M>
+pub struct FunctionSystem<F, M>
 where
-    F: Fun<R, M>
+    F: Fun<M>
 {
     fun: F,
     state: Option<<F::Param as Param>::State>,
-    marker: PhantomData<(R, M)>,
+    marker: PhantomData<fn() -> M>,
 }
 
-pub trait Fun<R, M>: Send + Sync + 'static {
+pub trait Fun<M>: Send + Sync + 'static {
     type Param: Param;
+    type Out;
 
-    fn run(&mut self, arg: Arg<Self::Param>) -> R;
+    fn run(&mut self, arg: Arg<Self::Param>) -> Self::Out;
 }
 
 //
 // Implementation
 //
 
-impl<F, R:'static, M> System for FunctionSystem<F, R, M>
+impl<F, M> System for FunctionSystem<F, M>
 where
-    M: Send + Sync + 'static,
-    R: Send + Sync,
-    F: Fun<R, M> + Send + Sync + 'static
+    M: 'static,
+    F: Fun<M> + Send + Sync + 'static
 {
-    type Out = R;
+    type Out = F::Out;
 
     fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
         self.state = Some(F::Param::init(meta, world));
@@ -61,13 +61,12 @@ where
 }    
 
 // struct IsFun;
-impl<F, R:'static, M:'static> IntoSystem<R, fn(M,IsFun)> for F
+impl<F, M:'static> IntoSystem<F::Out, fn(M,IsFun)> for F
 where
-    F: Fun<R, M> + Send + Sync + 'static,
+    F: Fun<M> + Send + Sync + 'static,
     M: Send + Sync,
-    R: Send + Sync,
 {
-    type System = FunctionSystem<F, R, M>;
+    type System = FunctionSystem<F, M>;
 
     fn into_system(this: Self) -> Self::System {
         FunctionSystem {
@@ -85,11 +84,11 @@ where
 macro_rules! impl_system_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
-        impl<F, R, $($param: Param,)*> Fun<R, fn($($param,)*)> for F
+        impl<F, R, $($param: Param,)*> Fun<fn($($param,)*) -> R> for F
         where F:FnMut($($param,)*) -> R + Send + Sync + 'static +
             FnMut($(Arg<$param>,)*) -> R,
-            R: 'static
         {
+            type Out = R;
             type Param = ($($param,)*);
 
             fn run(&mut self, arg: Arg<($($param,)*)>) -> R {

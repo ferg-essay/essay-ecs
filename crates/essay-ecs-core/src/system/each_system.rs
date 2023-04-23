@@ -16,7 +16,7 @@ where
 {
     fun: F,
     state: Option<<F::Params as Param>::State>,
-    marker: PhantomData<M>,
+    marker: PhantomData<fn() -> M>,
 }
 
 pub trait EachFun<M> : Send + Sync {
@@ -52,7 +52,7 @@ where
 
 impl<M, F> System for EachSystem<M, F>
 where
-    M: Send + Sync + 'static,
+    M: 'static,
     F: EachFun<M> + Send + Sync + 'static
 {
     type Out = ();
@@ -90,7 +90,6 @@ where
 
 impl<F:'static, M:'static> IntoSystem<(), fn(M,IsEach)> for F
 where
-    M: Send + Sync,
     F: EachFun<M>
 {
     type System = EachSystem<M, F>;

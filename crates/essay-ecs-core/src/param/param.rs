@@ -7,7 +7,7 @@ use crate::{world::{World, FromWorld}, schedule::{SystemMeta, UnsafeWorld}};
 //
  
 pub trait Param {
-    type Arg<'w, 's>: Param<State=Self::State>;
+    type Arg<'w, 's>: Param<State = Self::State>;
     type State: Send + Sync + 'static;
 
     fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;

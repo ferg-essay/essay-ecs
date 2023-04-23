@@ -23,14 +23,14 @@ pub trait System: Send + Sync + 'static {
     fn flush(&mut self, world: &mut World);
 }
 
-pub trait IntoSystem<Out,M>: Sized {
-    type System:System<Out=Out>;
+pub trait IntoSystem<Out, M>: Sized {
+    type System: System<Out = Out>;
 
     fn into_system(this: Self) -> Self::System;
 }
 
 pub struct SystemConfig {
-    pub(crate) system: Box<dyn System<Out=()>>,
+    pub(crate) system: Box<dyn System<Out = ()>>,
 
     pub(crate) phase: Option<Box<dyn Phase>>,
 }
@@ -61,9 +61,9 @@ impl SystemId {
     }
 }
 
-impl<S,Out> IntoSystem<Out,()> for S
+impl<S, Out> IntoSystem<Out, ()> for S
 where
-    S: System<Out=Out>
+    S: System<Out = Out>
 {
     type System = S;
 
