@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{world::{World, FromWorld}, schedule::SystemMeta};
+use crate::{world::{World, FromWorld}, schedule::{SystemMeta, UnsafeWorld}};
 
 //
 // Param
@@ -13,7 +13,7 @@ pub trait Param {
     fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;
 
     fn arg<'w, 's>(
-        world: &'w World,
+        world: &'w UnsafeWorld,
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's>;
 
@@ -43,7 +43,7 @@ macro_rules! impl_param_tuple {
             }
 
             fn arg<'w, 's>(
-                world: &'w World,
+                world: &'w UnsafeWorld,
                 state: &'s mut Self::State,
             ) -> Self::Arg<'w, 's> {
                 let ($($param,)*) = state;

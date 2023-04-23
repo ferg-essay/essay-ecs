@@ -17,6 +17,8 @@ pub use schedule::{
     Schedules, Schedule, ScheduleLabel, BoxedLabel, Executors, Executor, ExecutorFactory,
 };
 
+pub use unsafe_cell::{ UnsafeWorld };
+
 pub use phase::{
     DefaultPhase, Phase, IntoPhaseConfig, IntoPhaseConfigs,
 };

@@ -1,6 +1,6 @@
 use std::{any::type_name};
 
-use crate::{world::{World}, schedule::{SystemMeta, Phase, DefaultPhase}};
+use crate::{world::{World}, schedule::{SystemMeta, Phase, DefaultPhase, UnsafeWorld}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);
@@ -14,10 +14,19 @@ pub trait System: Send + Sync + 'static {
 
     fn init(&mut self, meta: &mut SystemMeta, world: &mut World);
 
-    unsafe fn run_unsafe(&mut self, world: &World) -> Self::Out;
+    unsafe fn run_unsafe(&mut self, world: &UnsafeWorld) -> Self::Out;
 
     fn run(&mut self, world: &mut World) -> Self::Out {
-        unsafe { self.run_unsafe(world) }
+        unsafe { 
+            let world_inner = world.take();
+            let unsafe_world = UnsafeWorld::new(world_inner);
+
+            let out = self.run_unsafe(&unsafe_world);
+
+            world.replace(unsafe_world.take());
+
+            out
+        }
     }
 
     fn flush(&mut self, world: &mut World);

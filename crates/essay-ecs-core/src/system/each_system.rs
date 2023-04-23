@@ -1,7 +1,7 @@
 use std::{marker::PhantomData};
 
 use crate::{world::World, entity::{View, ComponentId}, 
-    schedule::{SystemMeta},
+    schedule::{SystemMeta, UnsafeWorld},
     system::{System, IntoSystem},
 };
 
@@ -72,8 +72,8 @@ where
         self.state = Some(F::Params::init(meta, world))
     }
     
-    unsafe fn run_unsafe<'w>(&mut self, world: &World) {
-        for entity in world.view::<F::Item<'_>>() {
+    unsafe fn run_unsafe<'w>(&mut self, world: &UnsafeWorld) {
+        for entity in world.as_mut().view::<F::Item<'_>>() {
             let args = F::Params::arg(
                 world,
                 self.state.as_mut().unwrap(),

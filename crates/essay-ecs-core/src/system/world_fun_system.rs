@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{world::World, 
-    schedule::{SystemMeta},
+    schedule::{SystemMeta, UnsafeWorld},
     system::{IntoSystem, System},
 };
 
@@ -78,7 +78,7 @@ where
         self.fun.run(world, arg)
     }
 
-    unsafe fn run_unsafe(&mut self, _world: &World) -> Self::Out {
+    unsafe fn run_unsafe(&mut self, _world: &UnsafeWorld) -> Self::Out {
         panic!("can't run exclusive system in unsafe mode");
     }
 

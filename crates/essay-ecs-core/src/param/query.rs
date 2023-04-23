@@ -1,19 +1,19 @@
 use std::marker::PhantomData;
 
-use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::SystemMeta, World};
+use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::{SystemMeta, UnsafeWorld}, World};
 
 use super::Param;
 
 
 pub struct Query<'w, 's, Q:View> {
-    world: &'w World,
+    world: &'w UnsafeWorld,
     plan: &'s ViewPlan,
     marker: PhantomData<Q>,
 }
 
 //impl<'w, 's, Q: View> Query<'w, 's, Q> {
 impl<'w, 's, Q:View> Query<'w, 's, Q> {
-    fn new(world: &'w World, plan: &'s ViewPlan) -> Self {
+    fn new(world: &'w UnsafeWorld, plan: &'s ViewPlan) -> Self {
         Self {
             world,
             plan,
@@ -22,13 +22,12 @@ impl<'w, 's, Q:View> Query<'w, 's, Q> {
     }
 
     pub fn iter(&self) -> ViewIterator<Q> {
-        unsafe { self.world.view_iter_from_plan(&self.plan) }
+        unsafe { self.world.as_mut().view_iter_from_plan(&self.plan) }
     }
 }
 
 impl<Q:View> Param for Query<'_, '_, Q>
 {
-    //type Arg<'w, 's> = Query<'w, 's, Q>;
     type Arg<'w, 's> = Query<'w, 's, Q>;
     type State = ViewPlan;
 
@@ -47,7 +46,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
     }
 
     fn arg<'w, 's>(
-        world: &'w World,
+        world: &'w UnsafeWorld,
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
         Query::new(world, state)

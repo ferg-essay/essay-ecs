@@ -1,15 +1,9 @@
-use std::mem;
-
 use crate::{
     entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan}, 
     schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId},
 };
 
-use super::{Ptr};
-
-pub struct World {
-    ptr: Ptr,
-}
+pub struct World(Option<WorldInner>);
 
 pub trait FromWorld {
     fn init(world: &mut World) -> Self;
@@ -17,20 +11,18 @@ pub trait FromWorld {
 
 impl World {
     pub fn new() -> Self {
-        Self {
-            ptr: Ptr::new(WorldInner {
+        Self(Some(WorldInner {
                 table: Store::new(),
                 resources: Resources::new(),
-            }),
-        }
+            }))
     }
 
     fn deref(&self) -> &WorldInner {
-        unsafe { self.ptr.deref::<WorldInner>() }
+        self.0.as_ref().unwrap() 
     }
 
-    fn deref_mut(&self) -> &mut WorldInner {
-        unsafe { self.ptr.deref_mut::<WorldInner>() }
+    fn deref_mut(&mut self) -> &mut WorldInner {
+        self.0.as_mut().unwrap()
     }
 
     pub fn len(&self) -> usize {
@@ -49,7 +41,7 @@ impl World {
         self.deref_mut().table.get_mut::<T>(id)
     }
 
-    pub fn view<V:View>(&self) -> ViewIterator<'_,V> {
+    pub fn view<V:View>(&mut self) -> ViewIterator<'_,V> {
         self.deref_mut().table.iter_view::<V>()
     }
 
@@ -61,7 +53,7 @@ impl World {
         self.deref().resources.get::<T>()
     }
     
-    pub fn get_resource_mut<T:Send + 'static>(&self) -> Option<&mut T> {
+    pub fn get_resource_mut<T:Send + 'static>(&mut self) -> Option<&mut T> {
         // TODO!
         self.deref_mut().resources.get_mut::<T>()
     }
@@ -96,11 +88,11 @@ impl World {
         self.deref_mut().table.iter_view()
     }
 
-    pub(crate) fn view_build<Q:View>(&self) -> ViewPlan {
+    pub(crate) fn view_build<Q:View>(&mut self) -> ViewPlan {
         self.deref_mut().table.view_plan::<Q>()
     }
 
-    pub(crate) unsafe fn view_iter_from_plan<Q: View>(&self, plan: &ViewPlan) -> ViewIterator<Q> {
+    pub(crate) unsafe fn view_iter_from_plan<Q: View>(&mut self, plan: &ViewPlan) -> ViewIterator<Q> {
         self.deref_mut().table.iter_view_with_plan::<Q>(plan.clone())
     }
 
@@ -117,18 +109,13 @@ impl World {
     }
 
     pub(crate) fn take(&mut self) -> Self {
-        let ptr = mem::replace(&mut self.ptr, Ptr::new(WorldInner {
-            table: Store::new(),
-            resources: Resources::new(),
-        }));
+        let inner = self.0.take();
 
-        Self {
-            ptr,
-        }
+        Self(inner)
     }
 
     pub(crate) fn replace(&mut self, world: World) {
-        self.ptr = world.ptr
+        self.0 = world.0
     }
 }
 

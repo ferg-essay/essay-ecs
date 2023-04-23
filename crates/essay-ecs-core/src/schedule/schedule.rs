@@ -15,7 +15,7 @@ use super::{
     plan::{Plan}, 
     unsafe_cell::UnsafeSyncCell, 
     planner::{Planner}, 
-    multithreaded::MultithreadedExecutor
+    multithreaded::MultithreadedExecutor, UnsafeWorld
 };
 
 ///
@@ -316,7 +316,7 @@ impl Schedule {
         self.inner().systems[id.index()].as_mut().run(world);
     }
 
-    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &World) {
+    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeWorld) {
         self.inner().systems[id.index()].as_mut().run_unsafe(world);
     }
 
@@ -443,7 +443,7 @@ impl System for SystemFlush {
         meta.set_flush();
     }
 
-    unsafe fn run_unsafe(&mut self, _world: &World) -> Self::Out {
+    unsafe fn run_unsafe(&mut self, _world: &UnsafeWorld) -> Self::Out {
         panic!("SystemFlush[{:?}] run_unsafe can't be called directly", self.0);
     }
 

@@ -11,10 +11,10 @@ use super::{
     thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, 
     plan::{Plan}, 
     schedule::{Executor, ExecutorFactory, ScheduleErr},
-    unsafe_cell::{UnsafeSendCell}
+    unsafe_cell::{UnsafeSendCell}, UnsafeWorld
 };
 
-type ArcWorld = Arc<UnsafeSendCell<Option<World>>>;
+type ArcWorld = Arc<UnsafeSendCell<Option<UnsafeWorld>>>;
 type ArcSchedule = Arc<UnsafeSendCell<Option<Schedule>>>;
 
 pub struct MultithreadedExecutorFactory;
@@ -97,7 +97,7 @@ impl Executor for MultithreadedExecutor {
         match &self.thread_pool {
             Some(thread_pool) => { 
                 unsafe {
-                    self.world.as_mut().replace(world);
+                    self.world.as_mut().replace(UnsafeWorld::new(world));
                     self.schedule.as_mut().replace(schedule);
                 }
 
@@ -106,7 +106,7 @@ impl Executor for MultithreadedExecutor {
                 let world = unsafe { self.world.as_mut().take() };
                 let schedule = unsafe { self.schedule.as_mut().take() };
     
-                Ok((schedule.unwrap(), world.unwrap()))
+                Ok((schedule.unwrap(), world.unwrap().take()))
             },
             None => { panic!("thread pool is closed"); }
         }
@@ -134,7 +134,7 @@ impl ParentTask {
         &self, 
         sender: &TaskSender,
         schedule: &mut Schedule,
-        world: &mut World
+        world: &mut UnsafeWorld
     ) -> Result<(), ScheduleErr> {
         let n = self.plan.len();
         let mut n_active: usize = 0;

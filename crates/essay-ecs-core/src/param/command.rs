@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, marker::PhantomData};
 
+use crate::schedule::UnsafeWorld;
 use crate::{entity::Component, schedule::SystemMeta};
 
 use crate::world::{World, FromWorld};
@@ -41,7 +42,7 @@ impl Param for Commands<'_> {
     }
 
     fn arg<'w,'s>(
-        _world: &'w World,
+        _world: &'w UnsafeWorld,
         queue: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
         Commands {

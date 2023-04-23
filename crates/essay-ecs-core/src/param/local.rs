@@ -5,7 +5,7 @@
 
 use std::ops::{Deref, DerefMut};
 
-use crate::{world::FromWorld, schedule::SystemMeta, World};
+use crate::{world::FromWorld, schedule::{SystemMeta, UnsafeWorld}, World};
 
 use super::Param;
 
@@ -37,7 +37,7 @@ impl<'a, T:FromWorld+Send+Sync+'static> Param for Local<'a, T> {
     }
 
     fn arg<'w, 's>(
-        _world: &'w World, 
+        _world: &'w UnsafeWorld, 
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
         Local(state)
