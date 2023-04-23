@@ -83,7 +83,7 @@ impl MultithreadedExecutor {
 
     fn close(&mut self) {
         if let Some(mut pool) = self.thread_pool.take() {
-            pool.close();
+            pool.close().unwrap();
         }
     }
 }
@@ -100,7 +100,8 @@ impl Executor for MultithreadedExecutor {
                     self.world.as_mut().replace(world);
                     self.schedule.as_mut().replace(schedule);
                 }
-                thread_pool.start(); 
+
+                thread_pool.start()?;
     
                 let world = unsafe { self.world.as_mut().take() };
                 let schedule = unsafe { self.schedule.as_mut().take() };
@@ -434,6 +435,41 @@ mod tests {
         assert_eq!(take(&value), "[B, B], [C, C]");
     }
 
+
+    #[test]
+    #[should_panic(expected="parent panic received by thread pool")]
+    fn system_panic() {
+        let mut schedule = Schedule::new();
+        let mut world = World::new();
+
+        let value = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = value.clone();
+        schedule.add_system(move || {
+            push(&ptr, format!("[P"));
+            panic!("system panic");
+        });
+
+        let ptr = value.clone();
+        schedule.add_system(move || {
+            push(&ptr, format!("[S"));
+            thread::sleep(Duration::from_millis(100));
+            push(&ptr, format!("S]"));
+        });
+
+        schedule.init(&mut world);
+
+        let factory = MultithreadedExecutorFactory;
+        let mut exec = factory.create(schedule.plan());        
+
+        (schedule, world) = exec.run(schedule, world).unwrap();
+
+        assert_eq!(take(&value), "[S, [S, S], S]");
+
+        exec.run(schedule, world).unwrap();
+
+        assert_eq!(take(&value), "[S, [S, S], S]");
+    }
 
     fn push(arc: &Arc<Mutex<Vec<String>>>, value: String) {
         arc.lock().unwrap().push(value);

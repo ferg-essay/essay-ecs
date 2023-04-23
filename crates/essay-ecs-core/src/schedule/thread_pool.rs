@@ -1,7 +1,7 @@
 use core::{fmt, panic};
 use std::{
     thread::{Thread, self, JoinHandle}, 
-    sync::{mpsc::{self, Receiver, Sender, SendError}, Arc}, 
+    sync::{mpsc::{self, Receiver, Sender}, Arc}, 
 };
 
 use concurrent_queue::{ConcurrentQueue, PopError};
@@ -19,7 +19,7 @@ pub struct ThreadPoolBuilder {
 }
 
 pub struct ThreadPool {
-    threads: Vec<Thread>,
+    //threads: Vec<Thread>,
     executive: Option<JoinHandle<()>>,
 
     executive_sender: Sender<MainMessage>,
@@ -54,7 +54,7 @@ enum MainMessage {
     Start,
     Complete,
     Exit,
-    Error,
+    _Error,
     Panic,
 }
 
@@ -180,7 +180,7 @@ impl ThreadPoolBuilder {
         });
 
         ThreadPool {
-            threads: Vec::new(),
+            //threads: Vec::new(),
 
             executive: Some(handle),
 
@@ -201,9 +201,6 @@ impl ThreadPool {
                 }
                 Ok(MainMessage::Complete) => {
                     return Ok(());
-                }
-                Ok(MainMessage::Error) => {
-                    return Err(ScheduleErr::Misc);
                 }
                 Ok(MainMessage::Panic) => {
                     panic!("parent panic received by thread pool");
@@ -417,7 +414,7 @@ impl<'a> TaskSender<'a> {
         self.thread.task_receiver.recv().unwrap().unwrap()
     }
 
-    pub fn try_read(&self) -> Option<SystemId> {
+    pub fn _try_read(&self) -> Option<SystemId> {
         match self.thread.task_receiver.try_recv() {
             Ok(id) => Some(id.unwrap()),
             Err(msg) => { panic!("msg {:?}", msg); }
@@ -482,12 +479,12 @@ mod tests {
         }).n_threads(2)
         .build();
 
-        pool.start();
+        pool.start().unwrap();
 
         let list: Vec<String> = values.lock().unwrap().drain(..).collect();
         assert_eq!(list.join(", "), "[P, [C, [C, C], C], P]");
 
-        pool.close();
+        pool.close().unwrap();
     }
 
     #[test]
@@ -512,7 +509,7 @@ mod tests {
         }).child(move || {
             let ptr3 = ptr2.clone();
 
-            Box::new(move |s| { 
+            Box::new(move |_| { 
                 ptr3.lock().unwrap().push(format!("[C"));
                 thread::sleep(Duration::from_millis(100));
                 ptr3.lock().unwrap().push(format!("C]"));
@@ -592,6 +589,6 @@ mod tests {
         let list: Vec<String> = values.lock().unwrap().drain(..).collect();
         assert_eq!(list.join(", "), "[P, [C, C], [C, C], P]");
 
-        pool.close();
+        pool.close().unwrap();
     }
 }

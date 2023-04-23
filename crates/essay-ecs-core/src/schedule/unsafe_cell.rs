@@ -26,7 +26,7 @@ impl<T> UnsafeSyncCell<T> {
         &mut *self.value.get()
     }
 
-    pub(crate) fn get(&self) -> *mut T {
+    pub(crate) fn _get(&self) -> *mut T {
         self.value.get()
     }
 }
@@ -46,7 +46,7 @@ impl<T> UnsafeSendCell<T> {
         &mut *self.0.get()
     }
 
-    pub(crate) fn take(self) -> T {
+    pub(crate) fn _take(self) -> T {
         self.0.into_inner()
     }
 }

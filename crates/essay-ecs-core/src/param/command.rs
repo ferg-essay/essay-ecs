@@ -6,7 +6,7 @@ use crate::world::{World, FromWorld};
 
 use super::Param;
 
-pub trait Command: Send + Sync + 'static {
+pub trait Command: Send + 'static {
     fn flush(self: Box<Self>, world: &mut World);
 }
 
@@ -19,6 +19,8 @@ type BoxCommand = Box<dyn Command>;
 pub struct CommandQueue {
     queue: VecDeque<BoxCommand>,
 }
+
+unsafe impl Sync for CommandQueue {}
 
 //
 // Commands/Queue Implementation
@@ -110,11 +112,11 @@ impl Commands<'_> {
 ///
 /// world.init_resource()
 /// 
-struct InitResource<T:FromWorld> {
+struct InitResource<T:FromWorld + Send> {
     marker: PhantomData<T>,
 }
 
-impl<T:FromWorld> InitResource<T> {
+impl<T:FromWorld + Send> InitResource<T> {
     fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -122,8 +124,9 @@ impl<T:FromWorld> InitResource<T> {
         
     }
 }
+
 /*
-impl<T:FromWorld> Command for InitResource<T> {
+impl<T:FromWorld + Send> Command for InitResource<T> {
     fn flush(self: Box<Self>, world: &mut World) {
         world.init_resource::<T>();
     }
