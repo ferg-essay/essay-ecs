@@ -182,11 +182,11 @@ impl<'a, T:View> Iterator for ViewIterator<'a, T>
             let view_table = self.store.meta().view_table(view_table_id);
             let table_id = view_table.table_id();
             let table = self.store.meta().table(table_id);
-            let row_index = self.row_index;
+            let mut row_index = self.row_index;
             self.row_index += 1;
 
-            match self.store.get_row_by_type_index(table_id, row_index) {
-                Some(row) => {
+            while let Some(row) = self.store.get_row_by_type_index(table_id, row_index) {
+                if row.is_alloc() {
                     return unsafe { 
                         let mut cursor = self.plan.new_cursor(
                             self.store,
@@ -197,8 +197,10 @@ impl<'a, T:View> Iterator for ViewIterator<'a, T>
                         
                         Some(T::deref(&mut cursor))
                     }
+                } else {
+                    row_index = self.row_index;
+                    self.row_index += 1;
                 }
-                None => {},
             };
 
             self.view_type_index += 1;

@@ -125,11 +125,29 @@ impl Store {
         plan: InsertPlan, 
         value: T
     ) -> EntityId {
-        let mut cursor = plan.cursor(self);
+        let mut cursor = plan.cursor(self, None);
 
         unsafe {
             T::insert(&mut cursor, value);
         }
+        cursor.complete()
+    }
+
+    pub fn extend<T:Bundle>(&mut self, id: EntityId, value: T) -> EntityId {
+        let mut builder = InsertBuilder::new(self);
+
+        builder.add_entity(id);
+
+        T::build(&mut builder);
+
+        let plan = builder.build();
+
+        let mut cursor = plan.cursor(self, Some(id));
+
+        unsafe {
+            T::insert(&mut cursor, value);
+        }
+        
         cursor.complete()
     }
 
@@ -145,6 +163,31 @@ impl Store {
         self.tables.push(Table::new(table_id, meta.clone()));
         
         table_id
+    }
+
+    pub(crate) fn replace(
+        &mut self, 
+        id: EntityId, 
+        table_id: TableId, 
+        columns: Vec<RowId>
+    ) -> EntityId {
+        let entity = &self.entities[id.index()];
+
+        let old_table = &mut self.tables[entity.table.index()];
+        old_table.remove(entity.row);
+
+        let table = &mut self.tables[table_id.index()];
+        let row = table.push(columns);
+
+        let entity = Entity { 
+            id,
+            table: table_id,
+            row,
+        };
+
+        self.entities[id.index()] = entity;
+        
+        id // TODO: next()
     }
 
     pub(crate) fn push_row(
@@ -223,6 +266,20 @@ impl Store {
     ) -> Option<&TableRow> {
         self.tables[table_id.index()].get_by_index(row_index)
     }
+
+    pub(crate) fn entity_column_ids(&self, id: EntityId) -> &Vec<ColumnId> {
+        let entity = &self.entities[id.index()];
+        let table = &self.tables[entity.table.index()];
+
+        table.meta().columns()
+    }
+
+    pub(crate) fn get_entity_columns(&self, id: EntityId) -> &Vec<RowId> {
+        let entity = &self.entities[id.index()];
+        let table = &self.tables[entity.table.index()];
+
+        table.get(entity.row).unwrap().columns()
+    }
 }
 
 impl EntityId {
@@ -241,7 +298,7 @@ impl From<ColumnId> for ComponentId {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::{bundle::InsertCursor, Component}};
+    use crate::{entity::{bundle::InsertCursor, Component, EntityId}};
 
     use super::{Store, InsertBuilder, Bundle};
 
@@ -349,6 +406,32 @@ mod tests {
 
         values = store.iter_view::<(&TestA,&TestB)>().map(|v| format!("{:?}", v)).collect();
         assert_eq!(values.join(","), "(TestA(1), TestB(2)),(TestA(4), TestB(3))");
+    }
+
+    #[test]
+    fn extend_entity() {
+        let mut store = Store::new();
+        assert_eq!(store.len(), 0);
+
+        let mut values : Vec<String> = Vec::new();
+
+        let id = store.spawn(TestA(1));
+        store.spawn(TestA(2));
+        store.spawn(TestA(3));
+
+        values = store.iter_view::<&TestA>().map(|t: &TestA| format!("{:?}", t)).collect();
+        assert_eq!(values.join(","), "TestA(1),TestA(2),TestA(3)");
+
+        store.extend(id, TestB(10));
+
+        values = store.iter_view::<&TestA>().map(|t: &TestA| format!("{:?}", t)).collect();
+        assert_eq!(values.join(","), "TestA(2),TestA(3),TestA(1)");
+
+        values = store.iter_view::<&TestB>().map(|t: &TestB| format!("{:?}", t)).collect();
+        assert_eq!(values.join(","), "TestB(10)");
+
+        values = store.iter_view::<(&TestA,&TestB)>().map(|v| format!("{:?}", v)).collect();
+        assert_eq!(values.join(","), "(TestA(1), TestB(10))");
     }
 
     #[derive(Debug, PartialEq)]

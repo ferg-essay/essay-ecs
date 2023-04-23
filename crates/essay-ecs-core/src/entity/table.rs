@@ -66,9 +66,7 @@ impl Table {
     }
 
     pub(crate) fn remove(&mut self, row_id: RowId) {
-        let id = RowId::new(self.rows.len());
-
-        let row = &mut self.rows[id.index()];
+        let row = &mut self.rows[row_id.index()];
 
         if row.id == row_id {
             row.id = row_id.next_free();
@@ -89,11 +87,23 @@ impl TableRow {
         self.id
     }
 
+    #[inline]
+    pub(crate) fn is_alloc(&self) -> bool {
+        self.id.is_alloc()
+    }
+
+    #[inline]
     pub(crate) fn column_row(&self, index: usize) -> RowId {
         self.columns[index]
     }
 
+    #[inline]
     pub(crate) fn column(&self, index: usize) -> RowId {
         self.columns[index]
+    }
+
+    #[inline]
+    pub(crate) fn columns(&self) -> &Vec<RowId> {
+        &self.columns
     }
 }

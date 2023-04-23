@@ -3,7 +3,7 @@
 // Insert
 //
 
-use super::{meta::{TableId, ColumnId}, Store, column::RowId, Component, store::EntityId};
+use super::{meta::{TableId, ColumnId, TableMeta}, Store, column::RowId, Component, store::EntityId};
 
 pub trait Bundle:'static {
     fn build(builder: &mut InsertBuilder);
@@ -23,6 +23,7 @@ pub struct InsertPlan {
 }
 
 pub struct InsertCursor<'a> {
+    id: Option<EntityId>,
     store: &'a mut Store,
     plan: &'a InsertPlan,
     index: usize,
@@ -34,6 +35,18 @@ impl<'a,'t> InsertBuilder<'a> {
         Self {
             store,
             columns: Vec::new(),
+        }
+    }
+
+    pub(crate) fn add_entity(&mut self, id: EntityId) {
+        for col_id in self.store.entity_column_ids(id) {
+            self.columns.push(*col_id);
+        }
+    }
+
+    pub(crate) fn add_table(&mut self, table: &TableMeta) {
+        for col_id in table.columns() {
+            self.columns.push(*col_id);
         }
     }
 
@@ -77,17 +90,35 @@ impl InsertPlan {
         }
     }
 
-    pub(crate) fn cursor<'a>(&'a self, store: &'a mut Store) -> InsertCursor<'a> {
-        InsertCursor {
+    pub(crate) fn cursor<'a>(
+        &'a self, 
+        store: &'a mut Store,
+        id: Option<EntityId>,
+    ) -> InsertCursor<'a> {
+        let mut cursor = InsertCursor {
+            id,
             plan: &self,
             store,
             index: 0, 
             rows: Vec::new(),
+        };
+
+        if let Some(id) = id {
+            cursor.add_entity(id);
         }
+
+        cursor
     }
 }
 
 impl<'a> InsertCursor<'a> {
+    pub(crate) fn add_entity(&mut self, id: EntityId) {
+        for row_id in self.store.get_entity_columns(id) {
+            self.rows.push(*row_id);
+            self.index += 1;
+        }
+    }
+
     pub unsafe fn insert<T:'static>(&mut self, value: T) {
         let index = self.index;
         self.index += 1;
@@ -104,7 +135,14 @@ impl<'a> InsertCursor<'a> {
             columns.push(self.rows[*index]);
         }
 
-        self.store.push_row(self.plan.table_id, columns)
+        match self.id {
+            Some(id) => {
+                self.store.replace(id, self.plan.table_id, columns)
+            }
+            None => {
+                self.store.push_row(self.plan.table_id, columns)
+            }
+        }
     }
 }
 
