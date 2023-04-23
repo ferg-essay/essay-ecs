@@ -312,7 +312,7 @@ impl Schedule {
         self.inner_mut().flush(world);
     }
 
-    pub(crate) unsafe fn run_system(&self, id: SystemId, world: &mut World) {
+    pub(crate) unsafe fn run_system(&self, id: SystemId, world: &mut UnsafeWorld) {
         self.inner().systems[id.index()].as_mut().run(world);
     }
 
@@ -418,6 +418,8 @@ impl Executor for SingleExecutor {
         mut schedule: Schedule, 
         mut world: World
     ) -> Result<(Schedule, World), ScheduleErr> {
+        let mut world = UnsafeWorld::new(world);
+
         for id in self.0.order() {
             let meta = schedule.meta(*id);
 
@@ -429,7 +431,7 @@ impl Executor for SingleExecutor {
             }
         }
 
-        Ok((schedule, world))
+        Ok((schedule, world.take()))
     }
 }
 
