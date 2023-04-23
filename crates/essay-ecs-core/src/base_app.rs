@@ -1,6 +1,6 @@
 use crate::{
     World, Schedule, IntoSystemConfig, 
-    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, SystemMeta, ExecutorFactory}, 
+    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeWorld}, 
     entity::{View, ViewIterator}, 
     Schedules, IntoSystem, 
     system::System,
@@ -83,9 +83,12 @@ impl BaseApp {
         let mut system = IntoSystem::into_system(into_system);
         
         let mut meta = SystemMeta::empty();
-        system.init(&mut meta, &mut self.world);
-        system.run(&mut self.world);
-        system.flush(&mut self.world);
+        let mut world = UnsafeWorld::new(self.world.take());
+        system.init(&mut meta, &mut world);
+        system.run(&mut world);
+        system.flush(&mut world);
+
+        self.world.replace(world.take());
 
         self
     }

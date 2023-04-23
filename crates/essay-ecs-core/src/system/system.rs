@@ -17,9 +17,7 @@ pub trait System: Send + Sync + 'static {
     unsafe fn run_unsafe(&mut self, world: &UnsafeWorld) -> Self::Out;
 
     fn run(&mut self, world: &mut UnsafeWorld) -> Self::Out {
-        unsafe { 
-            self.run_unsafe(&world)
-        }
+        unsafe { self.run_unsafe(&world) }
     }
 
     fn flush(&mut self, world: &mut World);
