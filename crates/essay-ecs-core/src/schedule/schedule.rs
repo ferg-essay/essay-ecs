@@ -1,6 +1,6 @@
 use core::fmt;
 
-use std::{hash::{Hash, Hasher}, collections::HashMap};
+use std::{hash::{Hash, Hasher}, collections::HashMap, any::Any, sync::mpsc};
 
 use crate::{
     system::{SystemId, System, IntoSystemConfig, SystemConfig}, 
@@ -80,8 +80,15 @@ impl ExecutorFactory for Executors {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ScheduleErr;
+#[derive(Debug)]
+pub enum ScheduleErr {
+    Misc,
+    Err(Box<dyn Any + Send>),
+    RecvErr(mpsc::RecvError),
+    SendError,
+    ParentPanic,
+    ChildPanic,
+}
 
 struct ScheduleInner {
     phases: PhasePreorder,

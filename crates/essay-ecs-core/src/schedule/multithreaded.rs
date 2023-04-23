@@ -64,7 +64,7 @@ impl MultithreadedExecutor {
 
         let pool = ThreadPoolBuilder::new().parent(
             move |sender| {
-                parent_task.run(&sender).unwrap();
+                parent_task.run(&sender).unwrap()
         }).child(move || {
             let child_task = ChildTask::new(
                 Arc::clone(&arc_schedule_child),
@@ -119,7 +119,7 @@ impl Drop for MultithreadedExecutor {
 }
 
 impl ParentTask {
-    fn run(&self, sender: &TaskSender) -> Result<(),String> {
+    fn run(&self, sender: &TaskSender) -> Result<(),ScheduleErr> {
         if let Some(schedule) = unsafe { self.schedule.as_mut() } {
             if let Some(world) = unsafe { self.world.as_mut() } {
                 return self.run_impl(sender, schedule, world)
@@ -134,7 +134,7 @@ impl ParentTask {
         sender: &TaskSender,
         schedule: &mut Schedule,
         world: &mut World
-    ) -> Result<(), String> {
+    ) -> Result<(), ScheduleErr> {
         let n = self.plan.len();
         let mut n_active: usize = 0;
         let mut n_remaining = self.plan.len();

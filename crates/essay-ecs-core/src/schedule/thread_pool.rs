@@ -1,12 +1,15 @@
-use core::fmt;
+use core::{fmt, panic};
 use std::{
     thread::{Thread, self, JoinHandle}, 
-    sync::{mpsc::{self, Receiver, Sender}, Arc}, 
+    sync::{mpsc::{self, Receiver, Sender, SendError}, Arc}, 
 };
 
 use concurrent_queue::{ConcurrentQueue, PopError};
+use log::info;
 
 use crate::system::SystemId;
+
+use super::schedule::ScheduleErr;
 
 
 pub struct ThreadPoolBuilder {
@@ -23,21 +26,6 @@ pub struct ThreadPool {
     executive_reader: Receiver<MainMessage>,
 }
 
-pub struct TaskSender<'a> {
-    thread: &'a ParentThread,
-}
-
-enum MainMessage {
-    Start,
-    Complete,
-    Exit,
-}
-
-enum TaskMessage {
-    Start(SystemId),
-    Exit,
-}
-
 pub struct ParentThread {
     task: Box<dyn Fn(&TaskSender) + Send>,
 
@@ -46,8 +34,33 @@ pub struct ParentThread {
 
     registry: Arc<Registry>,
 
-    task_receiver: Receiver<SystemId>,
+    task_receiver: Receiver<Result<SystemId, ScheduleErr>>,
     handles: Vec<JoinHandle<()>>,
+}
+
+struct ChildThread {
+    task: Box<dyn Fn(SystemId) + Send>,
+    registry: Arc<Registry>,
+    sender: Sender<Result<SystemId, ScheduleErr>>,
+    index: usize,
+}
+
+pub struct TaskSender<'a> {
+    thread: &'a ParentThread,
+}
+
+#[derive(Debug)]
+enum MainMessage {
+    Start,
+    Complete,
+    Exit,
+    Error,
+    Panic,
+}
+
+enum TaskMessage {
+    Start(SystemId),
+    Exit,
 }
 
 struct Registry {
@@ -65,13 +78,6 @@ impl TaskInfo {
             handle: None,
         }
     }
-}
-
-struct ChildThread {
-    task: Box<dyn Fn(SystemId) + Send>,
-    registry: Arc<Registry>,
-    sender: Sender<SystemId>,
-    index: usize,
 }
 
 //
@@ -170,7 +176,7 @@ impl ThreadPoolBuilder {
         };
 
         let handle = thread::spawn(move || {
-            executive.run();
+            executive.run().unwrap();
         });
 
         ThreadPool {
@@ -185,7 +191,7 @@ impl ThreadPoolBuilder {
 }
 
 impl ThreadPool {
-    pub fn start(&self) {
+    pub fn start(&self) -> Result<(), ScheduleErr> {
         self.executive_sender.send(MainMessage::Start).unwrap();
         
         loop {
@@ -194,51 +200,88 @@ impl ThreadPool {
                     panic!("unexpected exit");
                 }
                 Ok(MainMessage::Complete) => {
-                    return;
+                    return Ok(());
                 }
-                Ok(_) => {
-                    panic!("invalid executive message");
+                Ok(MainMessage::Error) => {
+                    return Err(ScheduleErr::Misc);
+                }
+                Ok(MainMessage::Panic) => {
+                    panic!("parent panic received by thread pool");
+                }
+                Ok(msg) => {
+                    panic!("invalid executive message {:?}", msg);
                 }
                 Err(err) => {
-                    panic!("executor receive error {:?}", err);
+                    println!("executor receive error {:?}", err);
+                    return Err(ScheduleErr::RecvErr(err));
                 }
             }
         }
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&mut self) -> Result<(), ScheduleErr> {
         match self.executive.take() {
             Some(handle) => {
-                self.executive_sender.send(MainMessage::Exit).unwrap();
+                match self.executive_sender.send(MainMessage::Exit) {
+                    Ok(_) => {},
+                    Err(err) => {
+                        info!("error sending exit {:#?}", err);
+                    },
+                };
+
                 // TODO: timed?
-                handle.join().unwrap();
+                match handle.join() {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(ScheduleErr::Err(err)),
+                }
             },
-            None => {},
+            None => Ok(()),
         }
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        self.close();
+        match self.close() {
+            Ok(_) => {},
+            Err(err) => { info!("error while closing {:#?}", err) }
+        };
     }
 }
 
 impl ParentThread {
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), ScheduleErr> {
+        let mut guard = ParentGuard::new(self);
+
         let sender = TaskSender { thread: &self };
+
         loop {
             match self.main_reader.recv() {
                 Ok(MainMessage::Start) => {
                     (self.task)(&sender);
 
-                    self.main_sender.send(MainMessage::Complete).unwrap();
+                    match self.main_sender.send(MainMessage::Complete) {
+                        Ok(_) => {},
+                        Err(err) => {
+                            info!("error sending MainMessage::Complete {:#?}", err);
+                            return Err(ScheduleErr::SendError);
+                        }
+                    }
                 }
                 Ok(MainMessage::Exit) => {
-                    self.main_sender.send(MainMessage::Exit).unwrap();
-                    return;
+                    sender.close();
+                    match self.main_sender.send(MainMessage::Complete) {
+                        Ok(_) => {},
+                        Err(err) => {
+                            info!("error sending MainMessage::Exit {:#?}", err);
+                            return Err(ScheduleErr::SendError);
+                        }
+                    }
+                    guard.close();
+                    return Ok(());
                 }
                 Ok(_) => {
+                    self.main_sender.send(MainMessage::Panic).unwrap();
                     panic!("invalid executor message");
                 }
                 Err(err) => {
@@ -255,11 +298,44 @@ impl ParentThread {
     }
 }
 
+struct ParentGuard<'a> {
+    parent: &'a ParentThread,
+    is_close: bool,
+}
+
+impl<'a> ParentGuard<'a> {
+    fn new(parent: &'a ParentThread) -> Self {
+        Self {
+            parent,
+            is_close: false,
+        }
+    }
+
+    fn close(&mut self) {
+        self.is_close = true;
+    }
+}
+
+impl Drop for ParentGuard<'_> {
+    fn drop(&mut self) {
+        if ! self.is_close {
+            self.parent.main_sender.send(MainMessage::Panic).unwrap();
+        }
+    }
+}
+/*
+impl<T> From<mpsc::SendError<T>> for ScheduleErr {
+    fn from(value: mpsc::SendError<T>) -> Self {
+        ScheduleErr::SendErr(value)
+    }
+}
+*/
+
 impl ChildThread {
     pub fn new(
         task: Box<dyn Fn(SystemId) + Send>,
         registry: Arc<Registry>, 
-        sender: Sender<SystemId>,
+        sender: Sender<Result<SystemId,ScheduleErr>>,
         index: usize
     ) -> Self {
         Self {
@@ -271,6 +347,8 @@ impl ChildThread {
     }
 
     pub fn run(&mut self) {
+        let mut guard = ChildGuard::new(self);
+
         let queue = &self.registry.queue;
 
         loop {
@@ -287,12 +365,40 @@ impl ChildThread {
                 TaskMessage::Start(id) => {
                     (self.task)(id);
 
-                    self.sender.send(id).unwrap();
+                    self.sender.send(Ok(id)).unwrap();
                 },
                 TaskMessage::Exit => {
+                    guard.close();
                     return;
                 }
             }
+        }
+    }
+}
+
+struct ChildGuard<'a> {
+    child: &'a ChildThread,
+    is_close: bool,
+}
+
+impl<'a> ChildGuard<'a> {
+    fn new(child: &'a ChildThread) -> Self {
+        Self {
+            child,
+            is_close: false,
+        }
+    }
+
+    fn close(&mut self) {
+        self.is_close = true;
+    }
+}
+
+impl Drop for ChildGuard<'_> {
+    fn drop(&mut self) {
+        if ! self.is_close {
+            self.child.sender.send(Err(ScheduleErr::ChildPanic)).unwrap();
+            self.child.registry.queue.close();
         }
     }
 }
@@ -308,14 +414,24 @@ impl<'a> TaskSender<'a> {
     }
 
     pub fn read(&self) -> SystemId {
-        self.thread.task_receiver.recv().unwrap()
+        self.thread.task_receiver.recv().unwrap().unwrap()
     }
 
     pub fn try_read(&self) -> Option<SystemId> {
         match self.thread.task_receiver.try_recv() {
-            Ok(id) => Some(id),
-            Err(msg) => { println!("msg {:?}", msg); None }
+            Ok(id) => Some(id.unwrap()),
+            Err(msg) => { panic!("msg {:?}", msg); }
         }
+    }
+
+    fn close(&self) {
+        self.thread.registry.queue.close();
+    }
+}
+
+impl<'a> Drop for TaskSender<'a> {
+    fn drop(&mut self) {
+        self.thread.registry.queue.close();
     }
 }
 
@@ -358,7 +474,7 @@ mod tests {
         }).child(move || {
             let ptr3 = ptr2.clone();
 
-            Box::new(move |s| { 
+            Box::new(move |_s| { 
                 ptr3.lock().unwrap().push(format!("[C"));
                 thread::sleep(Duration::from_millis(100));
                 ptr3.lock().unwrap().push(format!("C]"));
@@ -385,7 +501,6 @@ mod tests {
         move |sender| {
             ptr.lock().unwrap().push(format!("[P"));
 
-            let ptr2 = ptr.clone();
             sender.send(SystemId(0));
             sender.send(SystemId(1));
             sender.flush();
@@ -404,7 +519,75 @@ mod tests {
             })
         }).n_threads(1).build();
 
-        pool.start();
+        pool.start().unwrap();
+
+        let list: Vec<String> = values.lock().unwrap().drain(..).collect();
+        assert_eq!(list.join(", "), "[P, [C, C], [C, C], P]");
+
+        pool.close().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_in_parent() {
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        let ptr2 = values.clone();
+
+        let mut pool = ThreadPoolBuilder::new().parent(
+        move |_sender| {
+            ptr.lock().unwrap().push(format!("[P"));
+
+            panic!("test parent panic");
+        }).child(move || {
+            let ptr3 = ptr2.clone();
+
+            Box::new(move |_s| { 
+                ptr3.lock().unwrap().push(format!("[C"));
+                ptr3.lock().unwrap().push(format!("C]"));
+            })
+        }).build();
+
+        pool.start().unwrap();
+
+        let list: Vec<String> = values.lock().unwrap().drain(..).collect();
+        assert_eq!(list.join(", "), "[P, [C, C], [C, C], P]");
+
+        pool.close().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_in_child() {
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let ptr = values.clone();
+        let ptr2 = values.clone();
+
+        let mut pool = ThreadPoolBuilder::new().parent(
+        move |sender| {
+            ptr.lock().unwrap().push(format!("[P"));
+
+            sender.send(SystemId(0));
+            sender.send(SystemId(1));
+            sender.flush();
+
+            sender.read();
+            sender.read();
+
+            ptr.lock().unwrap().push(format!("P]"));
+        }).child(move || {
+            let ptr3 = ptr2.clone();
+
+            Box::new(move |_s| { 
+                ptr3.lock().unwrap().push(format!("[C"));
+
+                panic!("test child panic");
+            })
+        }).build();
+
+        pool.start().unwrap();
 
         let list: Vec<String> = values.lock().unwrap().drain(..).collect();
         assert_eq!(list.join(", "), "[P, [C, C], [C, C], P]");
