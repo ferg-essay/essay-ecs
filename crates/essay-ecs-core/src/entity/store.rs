@@ -298,7 +298,7 @@ impl From<ColumnId> for ComponentId {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::{bundle::InsertCursor, Component, EntityId}};
+    use crate::{entity::{bundle::InsertCursor, Component}};
 
     use super::{Store, InsertBuilder, Bundle};
 
@@ -413,13 +413,13 @@ mod tests {
         let mut store = Store::new();
         assert_eq!(store.len(), 0);
 
-        let mut values : Vec<String> = Vec::new();
-
         let id = store.spawn(TestA(1));
         store.spawn(TestA(2));
         store.spawn(TestA(3));
 
-        values = store.iter_view::<&TestA>().map(|t: &TestA| format!("{:?}", t)).collect();
+        let mut values : Vec<String> = store.iter_view::<&TestA>()
+            .map(|t: &TestA| format!("{:?}", t))
+            .collect();
         assert_eq!(values.join(","), "TestA(1),TestA(2),TestA(3)");
 
         store.extend(id, TestB(10));

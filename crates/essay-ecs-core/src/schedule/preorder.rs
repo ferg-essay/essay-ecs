@@ -101,7 +101,9 @@ impl Preorder {
             .filter(|n| self.is_cyclic(*n, &pending))
             .collect();
         
-        cycle_ids.sort_by(|&a, &b| self.compare_nodes(a, b));
+        cycle_ids.sort_by(|&a, &b| {
+            self.compare_nodes(a, b, pending)
+        });
 
         let node_id = cycle_ids[0];
 
@@ -110,6 +112,56 @@ impl Preorder {
         while self.remove_pending(node_id, pending) {
         }
         //panic!("preorder sort unable to make progress, possibly due to loops");
+    }
+
+    fn remove_pending(&mut self, node_id: NodeId, pending: &FixedBitSet) -> bool {
+        let node = &mut self.nodes[node_id.index()];
+
+        let incoming_id = match node.find_pending(&pending) {
+            Some(incoming_id) => incoming_id,
+            None => return false,
+        };
+
+        node.remove_incoming(incoming_id);
+        self.nodes[incoming_id.index()].remove_outgoing(node_id);
+        
+        return false;
+    }
+
+    fn compare_nodes(
+        &self, 
+        id_a: NodeId, 
+        id_b: NodeId, 
+        pending: &FixedBitSet
+    ) -> Ordering {
+        let node_a = &self.nodes[id_a.index()];
+        let node_b = &self.nodes[id_b.index()];
+
+        let is_path_a_to_b = self.is_path_to(id_a, id_b, pending);
+        let is_path_b_to_a = self.is_path_to(id_b, id_a, pending);
+
+        if is_path_a_to_b && ! is_path_b_to_a {
+            return Ordering::Less;
+        } else if is_path_b_to_a && ! is_path_a_to_b {
+            return Ordering::Greater;
+        }
+
+        let cmp = node_a.incoming.len().cmp(&node_b.incoming.len());
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+
+        let cmp = node_b.outgoing.len().cmp(&node_a.outgoing.len());
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+
+        let cmp = node_a.weight.cmp(&node_b.weight);
+        if cmp != Ordering::Equal {
+            return cmp;
+        }
+
+        id_a.cmp(&id_b)
     }
 
     fn is_cyclic(&self, id: NodeId, pending: &FixedBitSet) -> bool {
@@ -143,40 +195,40 @@ impl Preorder {
         false
     }
 
-    fn remove_pending(&mut self, node_id: NodeId, pending: &FixedBitSet) -> bool {
-        let node = &mut self.nodes[node_id.index()];
-
-        let incoming_id = match node.find_pending(&pending) {
-            Some(incoming_id) => incoming_id,
-            None => return false,
-        };
-
-        node.remove_incoming(incoming_id);
-        self.nodes[incoming_id.index()].remove_outgoing(node_id);
-        
-        return false;
+    fn is_path_to(
+        &self, 
+        id_a: NodeId, 
+        id_b: NodeId,
+        pending: &FixedBitSet
+    ) -> bool {
+        self.is_path_to_rec(id_a, id_b, id_a, pending, &mut HashSet::new())
     }
 
-    fn compare_nodes(&self, id_a: NodeId, id_b: NodeId) -> Ordering {
-        let node_a = &self.nodes[id_a.index()];
-        let node_b = &self.nodes[id_b.index()];
+    fn is_path_to_rec(
+        &self, 
+        id_a: NodeId, 
+        id_b: NodeId,
+        id: NodeId,
+        pending: &FixedBitSet,
+        visited: &mut HashSet<NodeId>,
+    ) -> bool {
+        if id == id_b {
+            return true;
+        } else if visited.contains(&id) {
+            return false;
+        } else {
+            visited.insert(id);
 
-        let cmp = node_a.incoming.len().cmp(&node_b.incoming.len());
-        if cmp != Ordering::Equal {
-            return cmp;
+            let node = &self.nodes[id.index()];
+            for id_out in &node.outgoing {
+                if self.is_path_to_rec(id_a, id_b, *id_out, pending, visited) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
-        let cmp = node_b.outgoing.len().cmp(&node_a.outgoing.len());
-        if cmp != Ordering::Equal {
-            return cmp;
-        }
-
-        let cmp = node_a.weight.cmp(&node_b.weight);
-        if cmp != Ordering::Equal {
-            return cmp;
-        }
-
-        id_a.cmp(&id_b)
     }
 }
 
@@ -369,6 +421,54 @@ mod tests {
 
         let mut g = graph_w(&[2, 1, 0], &[(1, 0)]);
         assert_eq!(as_vec(g.sort()).as_slice(), [1, 2, 0]);
+    }
+
+    #[test]
+    fn weights_dual_cycle() {
+        let mut g = graph(4, &[
+            (0, 1),
+            (1, 0),
+            (2, 3),
+            (3, 2),
+            (2, 0),
+        ]);
+        assert_eq!(as_vec(g.sort()).as_slice(), [2, 3, 1, 0]);
+
+        let mut g = graph(4, &[
+            (0, 1),
+            (1, 0),
+            (2, 3),
+            (3, 2),
+            (0, 2),
+        ]);
+        assert_eq!(as_vec(g.sort()).as_slice(), [0, 1, 3, 2]);
+
+        let mut g = graph(6, &[
+            (1, 0),
+            (1, 2),
+            (2, 1),
+
+            (3, 2),
+
+            (3, 4),
+            (4, 3),
+            (5, 3)
+        ]);
+        assert_eq!(as_vec(g.sort()).as_slice(), [5, 4, 3, 1, 0, 2]);
+
+        let mut g = graph(6, &[
+            (0, 1),
+            (1, 2),
+            (2, 1),
+
+            (2, 3),
+
+            (3, 4),
+            (4, 3),
+            (4, 5)
+        ]);
+        assert_eq!(as_vec(g.sort()).as_slice(), [0, 2, 1, 4, 3, 5]);
+
     }
 
     fn graph(n: usize, arrows: &[(usize, usize)]) -> Preorder {
