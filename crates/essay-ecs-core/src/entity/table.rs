@@ -83,10 +83,6 @@ impl TableRow {
         }
     }
 
-    pub(crate) fn id(&self) -> RowId {
-        self.id
-    }
-
     #[inline]
     pub(crate) fn is_alloc(&self) -> bool {
         self.id.is_alloc()

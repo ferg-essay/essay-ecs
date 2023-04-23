@@ -422,6 +422,52 @@ mod tests {
     }
 
     #[test]
+    fn remove_push() {
+        let mut metas = StoreMeta::new();
+
+        let mut col = Column::new::<TestA>(&mut metas);
+
+        unsafe {
+            let id_0 = col.push::<TestA>(TestA(0));
+            assert_eq!(id_0, RowId::new(0));
+
+            let id_1 = col.push::<TestA>(TestA(1));
+            assert_eq!(id_1, RowId::new(1));
+
+            let id_2 = col.push::<TestA>(TestA(2));
+            assert_eq!(id_2, RowId::new(2));
+
+            let id_3 = col.push::<TestA>(TestA(3));
+            assert_eq!(id_3, RowId::new(3));
+
+            col.remove::<TestA>(id_0);
+            col.remove::<TestA>(id_1);
+
+            assert_eq!(col.get::<TestA>(id_0), None);
+            assert_eq!(col.get::<TestA>(id_1), None);
+            assert_eq!(col.get::<TestA>(id_2), Some(&TestA(2)));
+            assert_eq!(col.get::<TestA>(id_3), Some(&TestA(3)));
+
+            let id_4 = col.push::<TestA>(TestA(4));
+            assert_eq!(id_4, RowId(1, 1));
+
+            let id_5 = col.push::<TestA>(TestA(5));
+            assert_eq!(id_5, RowId(0, 1));
+
+            let id_6 = col.push::<TestA>(TestA(6));
+            assert_eq!(id_6, RowId(4, 0));
+
+            assert_eq!(col.get::<TestA>(id_0), None);
+            assert_eq!(col.get::<TestA>(id_1), None);
+            assert_eq!(col.get::<TestA>(id_2), Some(&TestA(2)));
+            assert_eq!(col.get::<TestA>(id_3), Some(&TestA(3)));
+            assert_eq!(col.get::<TestA>(id_4), Some(&TestA(4)));
+            assert_eq!(col.get::<TestA>(id_5), Some(&TestA(5)));
+            assert_eq!(col.get::<TestA>(id_6), Some(&TestA(6)));
+        }
+    }
+
+    #[test]
     fn column_drop() {
         let mut metas = StoreMeta::new();
 
