@@ -293,14 +293,6 @@ mod tests {
             "TestA(1002), TestA(2003)");
     }
 
-    fn _push(ptr: &Rc<RefCell<Vec<String>>>, value: String) {
-        ptr.borrow_mut().push(value);
-    }
-
-    fn _take(ptr: &Rc<RefCell<Vec<String>>>) -> String {
-        ptr.borrow_mut().drain(..).collect::<Vec<String>>().join(", ")
-    }
-
     #[derive(Clone, Debug, PartialEq)]
     struct TestA(u32);
 

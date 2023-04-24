@@ -110,6 +110,7 @@ impl<F> Command for F
 ///
 /// world.init_resource()
 /// 
+/*
 struct InitResource<T:FromWorld + Send> {
     marker: PhantomData<T>,
 }
@@ -122,6 +123,7 @@ impl<T:FromWorld + Send> InitResource<T> {
         
     }
 }
+*/
 
 /*
 impl<T:FromWorld + Send> Command for InitResource<T> {

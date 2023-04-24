@@ -33,6 +33,8 @@ pub struct SystemConfig {
     pub(crate) system: Box<dyn System<Out = ()>>,
 
     pub(crate) phase: Option<Box<dyn Phase>>,
+
+    pub(crate) conditions: Vec<Box<dyn System<Out = bool>>>,
 }
 
 pub struct _SystemConfigs {
@@ -51,6 +53,12 @@ pub trait IntoSystemConfig<M>: Sized {
     fn no_phase(self) -> SystemConfig {
         let mut config = self.into_config();
         config.phase = None;
+        config
+    }
+
+    fn run_if<N>(self, condition: impl IntoSystem<bool, N>) -> SystemConfig {
+        let mut config = self.into_config();
+        config.conditions.push(Box::new(IntoSystem::into_system(condition)));
         config
     }
 }
@@ -77,6 +85,7 @@ impl SystemConfig {
         Self {
             system,
             phase: Some(Box::new(DefaultPhase)),
+            conditions: Vec::new(),
         }
     }
 }

@@ -23,6 +23,7 @@ use super::{
 /// 
 
 pub type BoxedSystem<Out=()> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
+pub type BoxedCondition<Out=bool> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
 pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
 pub struct Schedules {
@@ -94,6 +95,7 @@ struct ScheduleInner {
     phases: PhasePreorder,
 
     systems: Vec<BoxedSystem>,
+    conditions: Vec<Vec<BoxedCondition>>,
     uninit_systems: Vec<SystemId>,
 
     planner: Planner,
@@ -176,6 +178,7 @@ impl Default for Schedule {
 
                 systems: Default::default(),
                 uninit_systems: Default::default(),
+                conditions: Default::default(),
 
                 planner: Planner::new(),
 
@@ -209,6 +212,7 @@ impl Schedule {
         let SystemConfig {
             system,
             phase,
+            mut conditions,
         } = config.into_config();
 
         let phase_id = match phase {
@@ -230,7 +234,13 @@ impl Schedule {
 
         self.inner_mut().is_changed = true;
 
-        self.inner_mut().add_system(UnsafeSyncCell::new(system), phase_id)
+        self.inner_mut().add_system(
+            UnsafeSyncCell::new(system), 
+            phase_id, 
+            conditions.drain(..)
+                .map(|s| UnsafeSyncCell::new(s))
+                .collect(),
+        )
     }
 
     pub fn set_default_phase(&mut self, phase: impl Phase) {
@@ -317,7 +327,8 @@ impl Schedule {
     }
 
     pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeWorld) {
-        self.inner().systems[id.index()].as_mut().run_unsafe(world);
+        // self.inner().systems[id.index()].as_mut().run_unsafe(world);
+        self.inner().run_unsafe(id, world)
     }
 
     fn inner(&self) -> &ScheduleInner {
@@ -362,12 +373,14 @@ impl ScheduleInner {
     fn add_system(
         &mut self, 
         system: UnsafeSyncCell<Box<dyn System<Out = ()>>>, 
-        phase_id: Option<SystemId>
+        phase_id: Option<SystemId>,
+        conditions: Vec<BoxedCondition>,
     ) -> SystemId {
         let id = SystemId(self.systems.len());
         let type_name = system.get_ref().type_name().to_string();
 
         self.systems.push(system);
+        self.conditions.push(conditions);
         self.uninit_systems.push(id);
         self.planner.add(id, type_name, phase_id);
         self.is_changed = true;
@@ -382,6 +395,10 @@ impl ScheduleInner {
             
             system.get_mut().init(&mut meta, world);
             //println!("Meta-init {:#?}", meta);
+
+            for cond in &mut self.conditions[id.index()] {
+                cond.get_mut().init(&mut meta, world);
+            }
         }
     }
 
@@ -402,6 +419,15 @@ impl ScheduleInner {
         self.phases.set_system_id(phase_id, system_id);
 
         self.planner.meta_mut(system_id).set_phase(system_id);
+    }
+
+    unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeWorld) {
+        if self.conditions[id.index()].iter()
+            .fold(true, |v, cond| {
+            cond.as_mut().run_unsafe(world) && v
+        }) {
+            self.systems[id.index()].as_mut().run_unsafe(world);
+        }
     }
 }
 
