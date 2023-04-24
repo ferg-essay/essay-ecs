@@ -53,8 +53,8 @@ impl World {
         }
     }
 
-    pub fn get<T:'static>(&mut self, id: EntityId) -> Option<&T> {
-        self.deref_mut().store.get::<T>(id)
+    pub fn get<T:'static>(&self, id: EntityId) -> Option<&T> {
+        self.deref().store.get::<T>(id)
     }
 
     pub fn get_mut<T:'static>(&mut self, id: EntityId) -> Option<&mut T> {

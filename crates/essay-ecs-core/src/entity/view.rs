@@ -246,7 +246,7 @@ impl<T:Component> View for &mut T {
 impl View for EntityId {
     type Item<'t> = EntityId;
 
-    fn build(builder: &mut ViewBuilder) {
+    fn build(_builder: &mut ViewBuilder) {
     }
 
     unsafe fn deref<'a, 't>(cursor: &mut ViewCursor<'a, 't>) -> Self::Item<'t> { //<'a> {

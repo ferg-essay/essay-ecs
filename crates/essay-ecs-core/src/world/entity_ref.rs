@@ -1,4 +1,4 @@
-use crate::{World, entity::EntityId};
+use crate::{World, entity::{EntityId, Component}};
 
 pub struct EntityRef<'a> {
     id: EntityId,
@@ -18,6 +18,10 @@ impl<'a> EntityRef<'a> {
             id,
             world,
         }
+    }
+
+    pub fn get<T:Component>(&self) -> Option<&T> {
+        self.world.get::<T>(self.id)
     }
 }
 

@@ -119,9 +119,11 @@ impl<'a> InsertCursor<'a> {
             Some(store_id) => {
                 assert_eq!(id, store_id);
 
-                for row_id in self.store.get_entity_columns(id) {
-                    self.rows.push(*row_id);
-                    self.index += 1;
+                if let Some(columns) = self.store.get_entity_columns(id) {
+                    for row_id in columns {
+                        self.rows.push(*row_id);
+                        self.index += 1;
+                    }
                 }
             },
             None => {}
@@ -144,14 +146,7 @@ impl<'a> InsertCursor<'a> {
             columns.push(self.rows[*index]);
         }
 
-        match self.store.get_entity(self.id) {
-            Some(_) => {
-                self.store.insert(self.id, self.plan.table_id, columns)
-            },
-            None => {
-                self.store.push_row(self.id, self.plan.table_id, columns)
-            }
-        }
+        self.store.insert_or_spawn(self.id, self.plan.table_id, columns)
     }
 }
 

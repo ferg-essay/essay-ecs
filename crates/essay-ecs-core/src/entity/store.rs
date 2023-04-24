@@ -1,7 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use concurrent_queue::ConcurrentQueue;
-
 use super::column::{Column, RowId};
 use super::bundle::{InsertBuilder, Bundle, InsertPlan};
 use super::ViewId;
@@ -41,6 +39,10 @@ impl Entity {
             table: TableId::UNSET,
             row: RowId::UNSET,
         }
+    }
+
+    fn is_alloc(&self) -> bool {
+        self.table != TableId::UNSET
     }
 }
 
@@ -109,16 +111,20 @@ impl Store {
     // row (entity)
     //
 
-    pub fn get<T:'static>(&mut self, id: EntityId) -> Option<&T> {
-        let column_id = self.meta().get_column::<T>()?;
-        let entity = self.entities.get(id.index())?;
-        let table = &self.tables[entity.table.index()];
-        let row = table.get(entity.row)?;
+    pub fn get<T:'static>(&self, id: EntityId) -> Option<&T> {
+        match self.meta().get_column::<T>() {
+            Some(column_id) => {
+                let entity = self.entities.get(id.index())?;
+                let table = &self.tables[entity.table.index()];
+                let row = table.get(entity.row)?;
 
-        let index = table.position(column_id)?;
+                let index = table.position(column_id)?;
 
-        unsafe {
-            self.get_by_id(column_id, row.column(index))
+                unsafe {
+                    self.get_by_id(column_id, row.column(index))
+                }
+            },
+            None => None,
         }
     }
 
@@ -180,6 +186,7 @@ impl Store {
         unsafe {
             T::insert(&mut cursor, value);
         }
+
         cursor.complete()
     }
 
@@ -215,18 +222,26 @@ impl Store {
         table_id
     }
 
+    pub(crate) fn insert_or_spawn(
+        &mut self, 
+        id: EntityId, 
+        table_id: TableId, 
+        columns: Vec<RowId>
+    ) -> EntityId {
+        if id.index() < self.entities.len() && self.entities[id.index()].is_alloc()  {
+            self.insert(id, table_id, columns)
+        } else {
+            self.push_row(id, table_id, columns)
+        }
+    }
+
     pub(crate) fn insert(
         &mut self, 
         id: EntityId, 
         table_id: TableId, 
         columns: Vec<RowId>
     ) -> EntityId {
-        let entity = &self.entities[id.index()];
-
-        assert_eq!(entity.id, id);
-
-        let old_table = &mut self.tables[entity.table.index()];
-        old_table.remove(entity.row);
+        self.remove_table_row(id);
 
         let table = &mut self.tables[table_id.index()];
         let row = table.push(id, columns);
@@ -242,17 +257,46 @@ impl Store {
         id // TODO: next()
     }
 
+    fn remove_table_row(&mut self, id: EntityId) {
+        let entity = &self.entities[id.index()];
+
+        assert_eq!(entity.id, id);
+
+        let table = &mut self.tables[entity.table.index()];
+
+        table.remove(entity.row);
+
+    }
+
     pub(crate) fn despawn(&mut self, id: EntityId) {
+        self.remove_table_row_and_columns(id);
+
         let entity = &mut self.entities[id.index()];
 
         assert_eq!(entity.id, id);
 
         entity.id = id.free();
-
-        let table = &mut self.tables[entity.table.index()];
-        table.remove(entity.row);
+        entity.table = TableId::UNSET;
+        entity.row = RowId::UNSET;
 
         self.free_list.lock().unwrap().free(entity.id);
+    }
+
+    fn remove_table_row_and_columns(&mut self, id: EntityId) {
+        let entity = &self.entities[id.index()];
+
+        assert_eq!(entity.id, id);
+
+        let table = &mut self.tables[entity.table.index()];
+        let table_row = table.get(entity.row).unwrap();
+
+        for (col_id, col_row) in 
+            table.meta().columns().iter().zip(table_row.columns()) {
+            let col = &mut self.columns[col_id.index()];
+            col.remove(*col_row);
+        }
+
+        table.remove(entity.row);
     }
 
     pub(crate) fn push_row(
@@ -376,11 +420,24 @@ impl Store {
         table.meta().columns()
     }
 
-    pub(crate) fn get_entity_columns(&self, id: EntityId) -> &Vec<RowId> {
-        let entity = &self.entities[id.index()];
-        let table = &self.tables[entity.table.index()];
+    pub(crate) fn get_table(&self, id: TableId) -> Option<&Table> {
+        if id == TableId::UNSET {
+            None
+        } else {
+            Some(&self.tables[id.index()])
+        }
+    }
 
-        table.get(entity.row).unwrap().columns()
+    pub(crate) fn get_entity_columns(&self, id: EntityId) -> Option<&Vec<RowId>> {
+        assert!(id.is_alloc());
+        let entity = &self.entities[id.index()];
+
+        match self.get_table(entity.table) {
+            Some(table) => {
+                Some(table.get(entity.row).unwrap().columns())
+            },
+            None => None
+        }
     }
 
     pub(crate) fn get_entity(&self, id: EntityId) -> Option<EntityId> {
@@ -420,7 +477,6 @@ impl EntityAlloc {
 
 impl EntityId {
     const FREE_MASK : u32 = 0x8000_0000;
-    const UNSET : EntityId = EntityId(u32::MAX, Self::FREE_MASK);
 
     pub(crate) fn new(index: usize) -> Self {
         Self(index as u32, 0)
@@ -430,7 +486,7 @@ impl EntityId {
         self.0 as usize
     }
 
-    pub(crate) fn gen(&self) -> u32 {
+    pub(crate) fn _gen(&self) -> u32 {
         self.1
     }
 
@@ -450,10 +506,9 @@ impl EntityId {
         EntityId(self.0, self.1 & !Self::FREE_MASK)
     }
 
-    pub(crate) fn is_next_alloc(&self, id: EntityId) -> bool {
-        self == &EntityId::UNSET
-        || (self.1 & Self::FREE_MASK) != 0
-            && (self.1 & !Self::FREE_MASK) == id.1
+    pub(crate) fn _is_next_alloc(&self, id: EntityId) -> bool {
+        (self.1 & Self::FREE_MASK) != 0
+        && (self.1 & !Self::FREE_MASK) == id.1
     }
 }
 

@@ -48,7 +48,7 @@ impl<'w, 's> Commands<'w, 's> {
         EntityCommands::new(self, id)
     }
 
-    pub(crate) fn spawn_empty<'a>(&'a mut self) -> EntityCommands<'a, 'w, 's> {
+    pub fn spawn_empty<'a>(&'a mut self) -> EntityCommands<'a, 'w, 's> {
         let id = self.world.alloc_entity_id();
 
         self.add(SpawnEmpty::new(id));
@@ -164,9 +164,6 @@ impl Commands<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use core::fmt;
-    use std::{sync::{Mutex, Arc}};
-
     use crate::{world::World, entity::Component, Schedule, base_app::BaseApp};
 
     use super::Commands;
@@ -215,8 +212,8 @@ mod tests {
 
     #[test]
     fn init_resource() {
-        let mut world = World::new();
         /*
+        let mut world = World::new();
         world.eval(|mut c: Commands| c.init_resource::<TestA>());
         assert_eq!(world.eval(|r: Res<TestA>| r.clone()), TestA(0));
 
@@ -234,13 +231,13 @@ mod tests {
 
         let mut schedule = Schedule::new();
         schedule.add_system(|mut c: Commands| c.insert_resource(TestA(100)));
-        schedule.tick(&mut world);
+        schedule.tick(&mut world).unwrap();
 
         assert_eq!(world.resource::<TestA>(), &TestA(100));
 
         let mut schedule = Schedule::new();
         schedule.add_system(|mut c: Commands| c.insert_resource(TestA(1000)));
-        schedule.tick(&mut world);
+        schedule.tick(&mut world).unwrap();
 
         assert_eq!(world.resource::<TestA>(), &TestA(1000));
     }
@@ -249,18 +246,6 @@ mod tests {
     pub struct TestA(usize);
 
     impl Component for TestA {}
-
-    fn push<T:fmt::Debug>(queue: &Arc<Mutex<Vec<T>>>, value: T) {
-        queue.lock().unwrap().push(value);
-    }
-
-    fn take<T:fmt::Debug>(queue: &Arc<Mutex<Vec<T>>>) -> String {
-        let values : Vec<String> = queue.lock().unwrap().drain(..)
-            .map(|v| format!("{:?}", v))
-            .collect();
-
-        values.join(", ")
-    }
 }
 
 

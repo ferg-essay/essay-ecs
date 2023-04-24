@@ -21,9 +21,10 @@ pub(crate) struct Column {
     len: usize,
     capacity: usize,
 
-    free_list: Vec<u32>,
+    free_list: Vec<RowId>,
 
-    drop: Option<Box<dyn Fn(&mut Column, usize)>>,
+    //drop: Option<Box<dyn Fn(&mut Column, usize)>>,
+    drop: Option<Box<dyn Fn(&mut Column, usize) -> bool>>,
 }
 
 impl RowId {
@@ -82,14 +83,14 @@ impl Column {
         } else {
             1
         };
-            
+
         // zero-length items are pre-allocated
         let length = if pad_size == 0 { 1 } else { 0 };
         let capacity = length;
 
         let data = dangling_data(meta.layout_padded().align());
         
-        let drop = Box::new(|c: &mut Column, i: usize| c.drop_row::<T>(i));
+        let drop = Box::new(|c: &mut Column, i: usize| c.drop_index::<T>(i));
 
         Self {
             meta: meta.clone(),
@@ -153,15 +154,15 @@ impl Column {
     }
 
     pub(crate) unsafe fn push<T>(&mut self, value: T) -> RowId {
-        if let Some(index) = self.free_list.pop() {
-            let mut gen = self.row_gen[index as usize];
-            assert!(gen & RowId::FREE_MASK != 0);
-            gen = gen & !RowId::FREE_MASK;
-            self.row_gen[index as usize] = gen;
+        if let Some(id) = self.free_list.pop() {
+            assert_eq!(id.gen(), self.row_gen[id.index()]);
+            let id = id.allocate();
 
-            self.write(index as usize, value);
+            self.row_gen[id.index() as usize] = id.gen();
 
-            RowId(index, gen)
+            self.write(id.index(), value);
+
+            id
         } else {
             self.reserve(1);
 
@@ -176,22 +177,16 @@ impl Column {
         }
     }
 
-    pub(crate) unsafe fn remove<T>(&mut self, row: RowId) {
-        let index = row.index();
+    pub(crate) fn remove(&mut self, row: RowId) {
+        assert!(row.is_alloc());
 
-        if index < self.len() && self.row_gen[index] == row.gen() {
-            self.row_gen[index] = self.row_gen[index] + 1 | RowId::FREE_MASK;
-            self.free_list.push(row.0);
+        let drop = self.drop.take().unwrap();
 
-            unsafe {
-                let offset = self.offset(index);
-
-                self.data.as_ptr()
-                    .add(offset)
-                    .cast::<T>()
-                    .drop_in_place();
-            }
+        if drop(self, row.index()) {
+            self.free_list.push(row.next_free());
         }
+
+        self.drop.replace(drop);
     }
 
     pub(crate) unsafe fn insert<T>(&mut self, row: RowId, value: T) -> Option<RowId> {
@@ -232,22 +227,26 @@ impl Column {
 
         std::ptr::copy_nonoverlapping::<u8>(src, dst, count);
     }
-
-    fn drop_row<T>(&mut self, index: usize) {
-        if index < self.len && self.row_gen[index] & RowId::FREE_MASK == 0 {
-            self.row_gen[index] |= RowId::FREE_MASK;
-
-            let offset = self.offset(index);
+ 
+    fn drop_index<T>(&mut self, index: usize) -> bool {
+        if index < self.len() && self.row_gen[index] & RowId::FREE_MASK == 0 {
+            self.row_gen[index] = self.row_gen[index] + 1 | RowId::FREE_MASK;
 
             unsafe {
+                let offset = self.offset(index);
+
                 self.data.as_ptr()
                     .add(offset)
                     .cast::<T>()
                     .drop_in_place();
             }
+
+            true
+        } else {
+            false
         }
     }
-    
+   
     #[inline]
     fn offset(&self, index: usize) -> usize {
         self.pad_size * index
@@ -300,13 +299,12 @@ impl Column {
 impl Drop for Column {
     fn drop(&mut self) {
         let len = self.len();
-        let drop = self.drop.take();
+        let drop = self.drop.take().unwrap();
 
-        if let Some(drop) = drop {
-            for i in 0..len {
-                drop(self, i);
-            }
+        for i in 0..len {
+            drop(self, i);
         }
+        self.drop.replace(drop);
     }
 }
 
@@ -441,8 +439,8 @@ mod tests {
             let id_3 = col.push::<TestA>(TestA(3));
             assert_eq!(id_3, RowId::new(3));
 
-            col.remove::<TestA>(id_0);
-            col.remove::<TestA>(id_1);
+            col.remove(id_0);
+            col.remove(id_1);
 
             assert_eq!(col.get::<TestA>(id_0), None);
             assert_eq!(col.get::<TestA>(id_1), None);
@@ -504,9 +502,7 @@ mod tests {
 
             assert_eq!(take(&value), "");
 
-            unsafe {
-                col.remove::<TestDrop>(RowId::new(0));
-            }
+            col.remove(RowId::new(0));
         
             assert_eq!(take(&value), "drop[10]");
         }
