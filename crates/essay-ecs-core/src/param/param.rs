@@ -1,6 +1,7 @@
-use std::ops::{Deref, DerefMut};
-
-use crate::{world::{World, FromWorld}, schedule::{SystemMeta, UnsafeWorld}};
+use crate::{
+    world::{World}, 
+    schedule::{SystemMeta, UnsafeWorld}
+};
 
 //
 // Param

@@ -4,7 +4,7 @@ use std::{marker::PhantomData, collections::HashSet};
 use super::{
     {Store, ViewId}, 
     meta::{TableMeta, ViewTableType, ColumnId}, 
-    store::{Component}, table::TableRow,
+    store::{Component}, table::TableRow, EntityId,
 };
 
 pub trait View : Send + Sync {
@@ -91,6 +91,10 @@ impl<'a, 't> ViewCursor<'a, 't> {
         let row_id = self.row.column_row(index);
 
         self.store.get_mut_by_id(column_id, row_id).unwrap()
+    }
+
+    fn entity_id(&self) -> EntityId {
+        self.row.entity_id()
     }
 }
 
@@ -236,6 +240,17 @@ impl<T:Component> View for &mut T {
 
     unsafe fn deref<'a, 't>(cursor: &mut ViewCursor<'a, 't>) -> Self::Item<'t> { //<'a> {
         cursor.deref_mut::<T>()
+    }
+}
+
+impl View for EntityId {
+    type Item<'t> = EntityId;
+
+    fn build(builder: &mut ViewBuilder) {
+    }
+
+    unsafe fn deref<'a, 't>(cursor: &mut ViewCursor<'a, 't>) -> Self::Item<'t> { //<'a> {
+        cursor.entity_id()
     }
 }
 

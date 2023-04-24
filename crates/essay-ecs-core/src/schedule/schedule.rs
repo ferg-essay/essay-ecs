@@ -416,7 +416,7 @@ impl Executor for SingleExecutor {
     fn run(
         &mut self, 
         mut schedule: Schedule, 
-        mut world: World
+        world: World
     ) -> Result<(Schedule, World), ScheduleErr> {
         let mut world = UnsafeWorld::new(world);
 

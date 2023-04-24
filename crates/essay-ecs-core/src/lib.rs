@@ -22,16 +22,16 @@ pub use system::{
 
 pub use param::{
     Local,
-    Commands, Res, ResMut, Query, 
+    Res, ResMut, Query, 
 };
 
 pub use world::{
-    World
+    World, Commands
 };
 
 pub mod prelude {
     pub use crate::world::{World};
-    pub use crate::param::{Commands, Param, Res, ResMut};
+    pub use crate::param::{Param, Res, ResMut};
     pub use essay_ecs_macros::{Component, ScheduleLabel, Phase};
 
     pub use crate::schedule::{

@@ -21,7 +21,7 @@ pub trait Component: Send + Sync + 'static {}
 pub struct ComponentId(usize);
 
 #[derive(Debug,Clone,Copy,PartialEq,Hash,PartialOrd,Eq)]
-pub struct EntityId(usize);
+pub struct EntityId(u32, u32);
 
 #[derive(Debug)]
 pub struct Entity {
@@ -173,11 +173,13 @@ impl Store {
     ) -> EntityId {
         let entity = &self.entities[id.index()];
 
+        assert_eq!(entity.id, id);
+
         let old_table = &mut self.tables[entity.table.index()];
         old_table.remove(entity.row);
 
         let table = &mut self.tables[table_id.index()];
-        let row = table.push(columns);
+        let row = table.push(id, columns);
 
         let entity = Entity { 
             id,
@@ -190,15 +192,27 @@ impl Store {
         id // TODO: next()
     }
 
+    pub(crate) fn despawn(&mut self, id: EntityId) {
+        let entity = &mut self.entities[id.index()];
+
+        assert_eq!(entity.id, id);
+
+        entity.id = id.free();
+
+        let table = &mut self.tables[entity.table.index()];
+        table.remove(entity.row);
+    }
+
     pub(crate) fn push_row(
         &mut self, 
         table_id: TableId, 
         columns: Vec<RowId>
     ) -> EntityId {
         let table = &mut self.tables[table_id.index()];
-        let row = table.push(columns);
+        let id = EntityId::new(self.entities.len());
+
+        let row = table.push(id, columns);
         
-        let id = EntityId(self.entities.len());
         let entity = Entity { 
             id,
             table: table_id,
@@ -280,13 +294,45 @@ impl Store {
 
         table.get(entity.row).unwrap().columns()
     }
+
+    pub(crate) fn get_entity(&self, id: EntityId) -> Option<EntityId> {
+        if id.index() < self.entities.len() {
+            Some(id)
+        } else {
+            None
+        }
+    }
 }
 
 impl EntityId {
-    const FREE : EntityId = EntityId(usize::MAX);
+    const FREE_MASK : u32 = 0x8000_0000;
+
+    pub(crate) fn new(index: usize) -> Self {
+        Self(index as u32, 0)
+    }
 
     pub(crate) fn index(&self) -> usize {
-        self.0
+        self.0 as usize
+    }
+
+    pub(crate) fn gen(&self) -> u32 {
+        self.1
+    }
+
+    pub(crate) fn is_alloc(&self) -> bool {
+        self.1 & Self::FREE_MASK == 0
+    }
+
+    pub(crate) fn free(&self) -> EntityId {
+        assert!(self.is_alloc());
+
+        EntityId(self.0, (self.1 + 1) | Self::FREE_MASK)
+    }
+
+    pub(crate) fn alloc(&self) -> EntityId {
+        assert!(! self.is_alloc());
+
+        EntityId(self.0, self.1 & !Self::FREE_MASK)
     }
 }
 

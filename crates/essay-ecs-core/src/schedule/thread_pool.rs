@@ -1,6 +1,6 @@
 use core::{fmt, panic};
 use std::{
-    thread::{Thread, self, JoinHandle}, 
+    thread::{self, JoinHandle}, 
     sync::{mpsc::{self, Receiver, Sender}, Arc}, 
 };
 
@@ -42,7 +42,6 @@ struct ChildThread {
     task: Box<dyn Fn(SystemId) + Send>,
     registry: Arc<Registry>,
     sender: Sender<Result<SystemId, ScheduleErr>>,
-    index: usize,
 }
 
 pub struct TaskSender<'a> {
@@ -60,7 +59,7 @@ enum MainMessage {
 
 enum TaskMessage {
     Start(SystemId),
-    Exit,
+    _Exit,
 }
 
 struct Registry {
@@ -69,13 +68,13 @@ struct Registry {
 }
 
 struct TaskInfo {
-    handle: Option<JoinHandle<()>>,
+    _handle: Option<JoinHandle<()>>,
 }
 
 impl TaskInfo {
     pub fn new() -> Self {
         TaskInfo {
-            handle: None,
+            _handle: None,
         }
     }
 }
@@ -111,7 +110,7 @@ impl ThreadPoolBuilder {
         self
     }
 
-    pub fn n_threads(mut self, n_threads: usize) -> Self {
+    pub fn _n_threads(mut self, n_threads: usize) -> Self {
         assert!(n_threads > 0);
 
         self.n_threads = Some(n_threads);
@@ -148,12 +147,11 @@ impl ThreadPoolBuilder {
 
         let builder = self.child_task_builder.unwrap();
 
-        for i in 0..n_threads {
+        for _ in 0..n_threads {
             let mut task_thread = ChildThread::new(
                 builder(),
                 Arc::clone(&registry), 
                 task_sender.clone(),
-                i
             );
 
             let handle = thread::spawn(move || {
@@ -333,13 +331,11 @@ impl ChildThread {
         task: Box<dyn Fn(SystemId) + Send>,
         registry: Arc<Registry>, 
         sender: Sender<Result<SystemId,ScheduleErr>>,
-        index: usize
     ) -> Self {
         Self {
             task,
             registry,
             sender,
-            index,
         }
     }
 
@@ -364,7 +360,7 @@ impl ChildThread {
 
                     self.sender.send(Ok(id)).unwrap();
                 },
-                TaskMessage::Exit => {
+                TaskMessage::_Exit => {
                     guard.close();
                     return;
                 }
@@ -436,7 +432,7 @@ impl fmt::Debug for TaskMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Start(_arg0) => f.debug_tuple("Start").finish(),
-            Self::Exit => write!(f, "Exit"),
+            Self::_Exit => write!(f, "Exit"),
         }
     }
 }
@@ -476,7 +472,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
                 ptr3.lock().unwrap().push(format!("C]"));
             })
-        }).n_threads(2)
+        })._n_threads(2)
         .build();
 
         pool.start().unwrap();
@@ -514,7 +510,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
                 ptr3.lock().unwrap().push(format!("C]"));
             })
-        }).n_threads(1).build();
+        })._n_threads(1).build();
 
         pool.start().unwrap();
 
