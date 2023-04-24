@@ -28,6 +28,7 @@ pub(crate) struct Column {
 
 impl RowId {
     pub const FREE_MASK: u32 = 0x8000_0000;
+    pub const UNSET: RowId = RowId(u32::MAX, RowId::FREE_MASK);
 
     pub fn new(index: usize) -> RowId {
         RowId(index as u32, 0)
@@ -54,7 +55,7 @@ impl RowId {
         RowId(self.0, (self.1 + 1) | Self::FREE_MASK)
     }
 
-    pub(crate) fn next(&self) -> RowId {
+    pub(crate) fn _next(&self) -> RowId {
         assert!(self.1 & Self::FREE_MASK == 0);
 
         RowId(self.0, (self.1 + 1) & !Self::FREE_MASK)

@@ -1,3 +1,7 @@
+use std::sync::{Arc, Mutex};
+
+use concurrent_queue::ConcurrentQueue;
+
 use super::column::{Column, RowId};
 use super::bundle::{InsertBuilder, Bundle, InsertPlan};
 use super::ViewId;
@@ -5,23 +9,23 @@ use super::table::{Table, TableRow};
 use super::view::{View, ViewIterator, ViewBuilder, ViewPlan};
 use super::meta::{StoreMeta, ColumnId, TableId, ViewType};
 
-pub struct Store {
-    meta: StoreMeta,
-
-    columns: Vec<Column>,
-
-    entities: Vec<Entity>,
-
-    tables: Vec<Table>,
-}
-
-pub trait Component: Send + Sync + 'static {}
-
 #[derive (Debug, Copy, Clone, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct ComponentId(usize);
 
 #[derive(Debug,Clone,Copy,PartialEq,Hash,PartialOrd,Eq)]
 pub struct EntityId(u32, u32);
+
+pub struct Store {
+    meta: StoreMeta,
+
+    columns: Vec<Column>,
+
+    tables: Vec<Table>,
+
+    entities: Vec<Entity>,
+
+    free_list: Arc<Mutex<EntityAlloc>>,
+}
 
 #[derive(Debug)]
 pub struct Entity {
@@ -29,6 +33,24 @@ pub struct Entity {
     table: TableId,
     row: RowId,
 }
+
+impl Entity {
+    fn empty(len: usize) -> Entity {
+        Self {
+            id: EntityId(len as u32, EntityId::FREE_MASK),
+            table: TableId::UNSET,
+            row: RowId::UNSET,
+        }
+    }
+}
+
+struct EntityAlloc {
+    capacity: usize,
+
+    free_list: Vec<EntityId>, 
+}
+
+pub trait Component: Send + Sync + 'static {}
 
 //
 // implementation
@@ -41,8 +63,11 @@ impl Store {
 
             columns: Vec::new(),
             
-            entities: Vec::new(),
             tables: Vec::new(),
+
+            entities: Vec::new(),
+
+            free_list: Arc::new(Mutex::new(EntityAlloc::new())),
         }
     }
 
@@ -106,10 +131,16 @@ impl Store {
         }
     }
 
+    pub(crate) fn alloc_entity_id(&mut self) -> EntityId {
+        self.free_list.lock().unwrap().alloc()
+    }
+
     pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
         let plan = self.insert_plan::<T>();
 
-        self.spawn_with_plan(plan, value)
+        let id = self.alloc_entity_id();
+
+        self.spawn_with_plan(plan, id, value)
     }
 
     pub(crate) fn insert_plan<T:Bundle>(&mut self) -> InsertPlan {
@@ -123,9 +154,10 @@ impl Store {
     pub(crate) fn spawn_with_plan<T:Bundle>(
         &mut self, 
         plan: InsertPlan, 
+        id: EntityId,
         value: T
     ) -> EntityId {
-        let mut cursor = plan.cursor(self, None);
+        let mut cursor = plan.cursor(self, id);
 
         unsafe {
             T::insert(&mut cursor, value);
@@ -142,7 +174,7 @@ impl Store {
 
         let plan = builder.build();
 
-        let mut cursor = plan.cursor(self, Some(id));
+        let mut cursor = plan.cursor(self, id);
 
         unsafe {
             T::insert(&mut cursor, value);
@@ -165,7 +197,7 @@ impl Store {
         table_id
     }
 
-    pub(crate) fn replace(
+    pub(crate) fn insert(
         &mut self, 
         id: EntityId, 
         table_id: TableId, 
@@ -201,15 +233,17 @@ impl Store {
 
         let table = &mut self.tables[entity.table.index()];
         table.remove(entity.row);
+
+        self.free_list.lock().unwrap().free(entity.id);
     }
 
     pub(crate) fn push_row(
-        &mut self, 
+        &mut self,
+        id: EntityId, 
         table_id: TableId, 
         columns: Vec<RowId>
     ) -> EntityId {
         let table = &mut self.tables[table_id.index()];
-        let id = EntityId::new(self.entities.len());
 
         let row = table.push(id, columns);
         
@@ -219,9 +253,26 @@ impl Store {
             row,
         };
 
-        self.entities.push(entity);
+        self.set_entity(entity);
 
         id
+    }
+
+    fn set_entity(&mut self, entity: Entity) {
+        let id = entity.id;
+
+        if id.index() < self.entities.len() {
+            // TODO:
+            // assert_eq!(self.entities[id.index()].id.alloc(), id);
+
+            self.entities[id.index()] = entity;
+        } else {
+            while self.entities.len() < id.index() {
+                self.entities.push(Entity::empty(self.entities.len()));
+            }
+
+            self.entities.push(entity);
+        }
     }
 
     //
@@ -304,8 +355,35 @@ impl Store {
     }
 }
 
+impl EntityAlloc {
+    fn new() -> Self {
+        Self {
+            capacity: 0,
+            free_list: Default::default(),
+        }
+    }
+
+    pub fn alloc(&mut self) -> EntityId {
+        if let Some(entity) = self.free_list.pop() {
+            entity.alloc()
+        } else {
+            let index = self.capacity;
+            self.capacity = index + 1;
+
+            EntityId::new(index)
+        }
+    }
+
+    fn free(&mut self, id: EntityId) {
+        assert!(! id.is_alloc());
+
+        self.free_list.push(id);
+    } 
+}
+
 impl EntityId {
     const FREE_MASK : u32 = 0x8000_0000;
+    const UNSET : EntityId = EntityId(u32::MAX, Self::FREE_MASK);
 
     pub(crate) fn new(index: usize) -> Self {
         Self(index as u32, 0)
@@ -333,6 +411,12 @@ impl EntityId {
         assert!(! self.is_alloc());
 
         EntityId(self.0, self.1 & !Self::FREE_MASK)
+    }
+
+    pub(crate) fn is_next_alloc(&self, id: EntityId) -> bool {
+        self == &EntityId::UNSET
+        || (self.1 & Self::FREE_MASK) != 0
+            && (self.1 & !Self::FREE_MASK) == id.1
     }
 }
 
@@ -455,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn extend_entity() {
+    fn insert_extend() {
         let mut store = Store::new();
         assert_eq!(store.len(), 0);
 
@@ -478,6 +562,31 @@ mod tests {
 
         values = store.iter_view::<(&TestA,&TestB)>().map(|v| format!("{:?}", v)).collect();
         assert_eq!(values.join(","), "(TestA(1), TestB(10))");
+    }
+
+    #[test]
+    fn despawn() {
+        let mut store = Store::new();
+        assert_eq!(store.len(), 0);
+
+        let id_0 = store.spawn::<TestA>(TestA(1));
+        store.spawn::<TestA>(TestA(2));
+        store.spawn::<TestA>(TestA(3));
+
+        store.despawn(id_0);
+
+        let values : Vec<String> = store.iter_view::<&TestA>()
+            .map(|t| format!("{:?}", t))
+            .collect();
+        assert_eq!(values.join(","), "TestA(2),TestA(3)");
+
+        store.spawn::<TestA>(TestA(4));
+        store.spawn::<TestA>(TestA(5));
+
+        let values : Vec<String> = store.iter_view::<&TestA>()
+            .map(|t| format!("{:?}", t))
+            .collect();
+        assert_eq!(values.join(","), "TestA(4),TestA(2),TestA(3),TestA(5)");
     }
 
     #[derive(Debug, PartialEq)]

@@ -23,7 +23,7 @@ pub struct InsertPlan {
 }
 
 pub struct InsertCursor<'a> {
-    id: Option<EntityId>,
+    id: EntityId,
     store: &'a mut Store,
     plan: &'a InsertPlan,
     index: usize,
@@ -44,7 +44,7 @@ impl<'a,'t> InsertBuilder<'a> {
         }
     }
 
-    pub(crate) fn add_table(&mut self, table: &TableMeta) {
+    pub(crate) fn _add_table(&mut self, table: &TableMeta) {
         for col_id in table.columns() {
             self.columns.push(*col_id);
         }
@@ -93,7 +93,7 @@ impl InsertPlan {
     pub(crate) fn cursor<'a>(
         &'a self, 
         store: &'a mut Store,
-        id: Option<EntityId>,
+        id: EntityId,
     ) -> InsertCursor<'a> {
         let mut cursor = InsertCursor {
             id,
@@ -102,10 +102,12 @@ impl InsertPlan {
             index: 0, 
             rows: Vec::new(),
         };
-
+        /*
         if let Some(id) = id {
             cursor.add_entity(id);
         }
+        */
+        cursor.add_entity(id);
 
         cursor
     }
@@ -113,9 +115,16 @@ impl InsertPlan {
 
 impl<'a> InsertCursor<'a> {
     pub(crate) fn add_entity(&mut self, id: EntityId) {
-        for row_id in self.store.get_entity_columns(id) {
-            self.rows.push(*row_id);
-            self.index += 1;
+        match self.store.get_entity(id) {
+            Some(store_id) => {
+                assert_eq!(id, store_id);
+
+                for row_id in self.store.get_entity_columns(id) {
+                    self.rows.push(*row_id);
+                    self.index += 1;
+                }
+                    },
+            None => {}
         }
     }
 
@@ -135,12 +144,12 @@ impl<'a> InsertCursor<'a> {
             columns.push(self.rows[*index]);
         }
 
-        match self.id {
-            Some(id) => {
-                self.store.replace(id, self.plan.table_id, columns)
-            }
+        match self.store.get_entity(self.id) {
+            Some(_) => {
+                self.store.insert(self.id, self.plan.table_id, columns)
+            },
             None => {
-                self.store.push_row(self.plan.table_id, columns)
+                self.store.push_row(self.id, self.plan.table_id, columns)
             }
         }
     }

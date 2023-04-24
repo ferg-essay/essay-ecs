@@ -129,7 +129,7 @@ impl fmt::Debug for ColumnType {
 //
 
 impl TableId {
-    pub const INVALID: TableId = TableId(usize::MAX);
+    pub const UNSET: TableId = TableId(usize::MAX);
 
     #[inline]
     pub fn index(&self) -> usize {
@@ -676,7 +676,7 @@ mod tests {
         let type_b = single_row_type::<TestB>(&mut meta);
         assert_eq!(type_b, TableId(1));
 
-        let col_b = meta.add_column::<TestB>();
+        let _col_b = meta.add_column::<TestB>();
 
         /*
         let type_ba = meta.push_row_by_type::<TestA>(type_b);
