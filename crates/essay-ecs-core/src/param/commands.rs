@@ -2,8 +2,8 @@ use crate::{world::{CommandQueue, Commands}, schedule::{SystemMeta, UnsafeWorld}
 
 use super::Param;
 
-impl Param for Commands<'_> {
-    type Arg<'w, 's> = Commands<'s>;
+impl Param for Commands<'_, '_> {
+    type Arg<'w, 's> = Commands<'w, 's>;
     type State = CommandQueue;
 
     fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
@@ -11,10 +11,10 @@ impl Param for Commands<'_> {
     }
 
     fn arg<'w,'s>(
-        _world: &'w UnsafeWorld,
+        world: &'w UnsafeWorld,
         queue: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
-        Commands::new(queue)
+        unsafe { Commands::new(world.as_mut(), queue) }
     }
 
     fn flush(world: &mut World, queue: &mut Self::State) {

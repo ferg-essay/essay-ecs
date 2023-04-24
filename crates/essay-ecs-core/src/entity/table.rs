@@ -1,7 +1,7 @@
 use super::{meta::{TableId, TableMeta, ColumnId}, column::RowId, EntityId};
 
 pub struct Table {
-    _id: TableId,
+    id: TableId,
 
     meta: TableMeta,
 
@@ -21,11 +21,15 @@ pub struct TableRow {
 impl Table {
     pub(crate) fn new(id: TableId, meta: TableMeta) -> Self {
         Self {
-            _id: id,
+            id,
             meta,
             rows: Default::default(),
             free_list: Default::default(),
         }
+    }
+
+    pub(crate) fn id(&self) -> TableId {
+        self.id
     }
 
     pub(crate) fn meta(&self) -> &TableMeta {
@@ -56,9 +60,11 @@ impl Table {
         columns: Vec<RowId>
     ) -> RowId {
         if let Some(row_id) = self.free_list.pop() {
+            let row_id = row_id.allocate();
+
             self.rows[row_id.index()] = TableRow::new(
                 entity_id, 
-                row_id.allocate(), 
+                row_id,
                 columns
             );
 

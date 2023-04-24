@@ -1,5 +1,5 @@
 use crate::{
-    entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan}, 
+    entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan, Component}, 
     schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId},
 };
 
@@ -14,7 +14,7 @@ pub trait FromWorld {
 impl World {
     pub fn new() -> Self {
         Self(Some(WorldInner {
-                table: Store::new(),
+                store: Store::new(),
                 resources: Resources::new(),
             }))
     }
@@ -40,37 +40,59 @@ impl World {
     }
 
     pub fn get_entity(&self, id: EntityId) -> Option<EntityRef> {
-        match self.deref().table.get_entity(id) {
+        match self.deref().store.get_entity(id) {
             Some(id) => Some(EntityRef::new(id, self)),
             None => None,
         }
     }
 
     pub fn get_entity_mut(&mut self, id: EntityId) -> Option<EntityMut> {
-        match self.deref_mut().table.get_entity(id) {
+        match self.deref_mut().store.get_entity(id) {
             Some(id) => Some(EntityMut::new(id, self)),
             None => None,
         }
     }
 
     pub fn get<T:'static>(&mut self, id: EntityId) -> Option<&T> {
-        self.deref_mut().table.get::<T>(id)
+        self.deref_mut().store.get::<T>(id)
     }
 
     pub fn get_mut<T:'static>(&mut self, id: EntityId) -> Option<&mut T> {
-        self.deref_mut().table.get_mut::<T>(id)
+        self.deref_mut().store.get_mut::<T>(id)
+    }
+
+    pub(crate) fn alloc_entity_id(&mut self) -> EntityId {
+        self.deref_mut().store.alloc_entity_id()
     }
 
     pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
-        self.deref_mut().table.spawn::<T>(value)
+        let id = self.alloc_entity_id();
+
+        self.spawn_id::<T>(id, value)
+    }
+
+    pub(crate) fn spawn_id<T:Bundle>(&mut self, id: EntityId, value: T) -> EntityId {
+        self.deref_mut().store.spawn_id::<T>(id, value)
+    }
+
+    pub(crate) fn spawn_empty_id(&mut self, id: EntityId) -> EntityId {
+        self.deref_mut().store.spawn_empty_id(id)
+    }
+
+    pub(crate) fn insert<T:Component + 'static>(
+        &mut self, 
+        id: EntityId, 
+        value: T
+    ) -> EntityId {
+        self.deref_mut().store.extend(id, value)
     }
 
     pub(crate) fn despawn(&mut self, id: EntityId) {
-        self.deref_mut().table.despawn(id)
+        self.deref_mut().store.despawn(id)
     }
 
     pub fn view<V:View>(&mut self) -> ViewIterator<'_,V> {
-        self.deref_mut().table.iter_view::<V>()
+        self.deref_mut().store.iter_view::<V>()
     }
 
     //
@@ -113,15 +135,15 @@ impl World {
     }
 
     pub fn query<Q:View>(&mut self) -> ViewIterator<Q> {
-        self.deref_mut().table.iter_view()
+        self.deref_mut().store.iter_view()
     }
 
     pub(crate) fn view_build<Q:View>(&mut self) -> ViewPlan {
-        self.deref_mut().table.view_plan::<Q>()
+        self.deref_mut().store.view_plan::<Q>()
     }
 
     pub(crate) unsafe fn view_iter_from_plan<Q: View>(&mut self, plan: &ViewPlan) -> ViewIterator<Q> {
-        self.deref_mut().table.iter_view_with_plan::<Q>(plan.clone())
+        self.deref_mut().store.iter_view_with_plan::<Q>(plan.clone())
     }
 
     //
@@ -148,7 +170,7 @@ impl World {
 }
 
 pub struct WorldInner {
-    pub(crate) table: Store,
+    pub(crate) store: Store,
     pub(crate) resources: Resources,
 }
 

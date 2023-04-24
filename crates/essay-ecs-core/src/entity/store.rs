@@ -58,7 +58,7 @@ pub trait Component: Send + Sync + 'static {}
 
 impl Store {
     pub fn new() -> Self {
-        Self {
+        let mut store = Self {
             meta: StoreMeta::new(),
 
             columns: Vec::new(),
@@ -68,7 +68,11 @@ impl Store {
             entities: Vec::new(),
 
             free_list: Arc::new(Mutex::new(EntityAlloc::new())),
-        }
+        };
+
+        store.add_table(Vec::new());
+
+        store
     }
 
     pub(crate) fn meta(&self) -> &StoreMeta {
@@ -135,10 +139,24 @@ impl Store {
         self.free_list.lock().unwrap().alloc()
     }
 
+    pub fn spawn_empty(&mut self) -> EntityId {
+        let id = self.alloc_entity_id();
+
+        self.spawn_empty_id(id);
+
+        id
+    }
+
     pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
         let plan = self.insert_plan::<T>();
 
         let id = self.alloc_entity_id();
+
+        self.spawn_with_plan(plan, id, value)
+    }
+
+    pub(crate) fn spawn_id<T:Bundle>(&mut self, id: EntityId, value: T) -> EntityId {
+        let plan = self.insert_plan::<T>();
 
         self.spawn_with_plan(plan, id, value)
     }
@@ -165,7 +183,7 @@ impl Store {
         cursor.complete()
     }
 
-    pub fn extend<T:Bundle>(&mut self, id: EntityId, value: T) -> EntityId {
+    pub(crate) fn extend<T:Bundle>(&mut self, id: EntityId, value: T) -> EntityId {
         let mut builder = InsertBuilder::new(self);
 
         builder.add_entity(id);
@@ -258,13 +276,32 @@ impl Store {
         id
     }
 
+    pub(crate) fn spawn_empty_id(
+        &mut self,
+        id: EntityId,
+    ) -> EntityId {
+        let table = &mut self.tables[0];
+
+        let row = table.push(id, Vec::new());
+        
+        let entity = Entity { 
+            id,
+            table: table.id(),
+            row,
+        };
+
+        self.set_entity(entity);
+
+        id
+    }
+
     fn set_entity(&mut self, entity: Entity) {
         let id = entity.id;
+        assert!(id.is_alloc());
 
         if id.index() < self.entities.len() {
             // TODO:
             // assert_eq!(self.entities[id.index()].id.alloc(), id);
-
             self.entities[id.index()] = entity;
         } else {
             while self.entities.len() < id.index() {

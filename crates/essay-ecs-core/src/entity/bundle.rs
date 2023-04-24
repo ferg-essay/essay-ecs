@@ -123,7 +123,7 @@ impl<'a> InsertCursor<'a> {
                     self.rows.push(*row_id);
                     self.index += 1;
                 }
-                    },
+            },
             None => {}
         }
     }

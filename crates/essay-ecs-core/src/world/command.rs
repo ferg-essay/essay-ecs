@@ -5,14 +5,15 @@ use crate::{entity::Component};
 
 use crate::world::{World, FromWorld};
 
-use super::entity_command::{Spawn, EntityCommands};
+use super::entity_command::{Spawn, EntityCommands, SpawnEmpty};
 
 pub trait Command: Send + 'static {
     fn flush(self: Box<Self>, world: &mut World);
 }
 
-pub struct Commands<'a> {
-    queue: &'a mut CommandQueue,
+pub struct Commands<'w, 's> {
+    world: &'w mut World,
+    queue: &'s mut CommandQueue,
 }
 
 type BoxCommand = Box<dyn Command>;
@@ -23,23 +24,35 @@ pub struct CommandQueue {
 
 unsafe impl Sync for CommandQueue {}
 
-impl<'a> Commands<'a> {
+impl<'w, 's> Commands<'w, 's> {
     pub fn add(&mut self, command: impl Command + 'static) {
         self.queue.add(command);
     }
 
-    pub(crate) fn new(queue: &'a mut CommandQueue) -> Self {
+    pub(crate) fn new(
+        world: &'w mut World,
+        queue: &'s mut CommandQueue
+    ) -> Self {
         Self {
+            world,
             queue,
         }
     }
 }
 
-impl<'c> Commands<'c> {
+impl<'w, 's> Commands<'w, 's> {
     ///
     /// Reference to an entity
     ///
-    pub fn entity<'a>(&'a mut self, id: EntityId) -> EntityCommands<'a, 'c> {
+    pub fn entity<'a>(&'a mut self, id: EntityId) -> EntityCommands<'a, 'w, 's> {
+        EntityCommands::new(self, id)
+    }
+
+    pub(crate) fn spawn_empty<'a>(&'a mut self) -> EntityCommands<'a, 'w, 's> {
+        let id = self.world.alloc_entity_id();
+
+        self.add(SpawnEmpty::new(id));
+
         EntityCommands::new(self, id)
     }
 
@@ -47,7 +60,9 @@ impl<'c> Commands<'c> {
     /// Spawn an entity
     ///
     pub fn spawn<T:Component+'static>(&mut self, value: T) {
-        self.add(Spawn::new(value));
+        let id = self.world.alloc_entity_id();
+
+        self.add(Spawn::new(id, value));
     }
 }
 
@@ -138,7 +153,7 @@ impl<T:Send+Sync+'static> Command for InsertResource<T> {
     }
 }
 
-impl Commands<'_> {
+impl Commands<'_, '_> {
     ///
     /// insert a resource value, overwriting any old value.
     ///
@@ -150,9 +165,9 @@ impl Commands<'_> {
 #[cfg(test)]
 mod tests {
     use core::fmt;
-    use std::{rc::Rc, cell::RefCell, sync::{Mutex, Arc}};
+    use std::{sync::{Mutex, Arc}};
 
-    use crate::{param::{Res, ResMut}, world::World, entity::Component, Schedule, base_app::BaseApp};
+    use crate::{world::World, entity::Component, Schedule, base_app::BaseApp};
 
     use super::Commands;
 
