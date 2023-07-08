@@ -83,7 +83,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs"
-version = "0.1.1"
+version = "0.1.1-dev"
 dependencies = [
  "env_logger",
  "essay-ecs-app",

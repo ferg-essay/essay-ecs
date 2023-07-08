@@ -1,11 +1,11 @@
-mod param;
+pub mod param;
 pub mod core_app;
-mod util;
+pub mod util;
 pub mod schedule;
 pub mod entity;
 pub mod system;
-mod world;
-mod resource;
+pub mod world;
+pub mod resource;
 
 pub use essay_ecs_macros::{
     Component, ScheduleLabel, Phase
@@ -30,15 +30,21 @@ pub use world::{
 };
 
 pub mod prelude {
-    pub use crate::world::{World};
-    pub use crate::param::{Param, Res, ResMut};
     pub use essay_ecs_macros::{Component, ScheduleLabel, Phase};
 
-    pub use crate::schedule::{
-        IntoPhaseConfig, IntoPhaseConfigs,
-    };
+    pub use crate::{
+        param::{Param, Res, ResMut},
 
-    pub use crate::system::{
-        IntoSystem, IntoSystemConfig,
+        schedule::{
+            IntoPhaseConfig, IntoPhaseConfigs,
+        },
+
+        system::{
+            IntoSystem, IntoSystemConfig,
+        },
+
+        world::{
+            World, Commands,
+        }
     };
 }

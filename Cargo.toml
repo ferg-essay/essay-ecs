@@ -1,6 +1,6 @@
 [package]
 name = "essay-ecs"
-version = "0.1.1"
+version = "0.1.1-dev"
 edition = "2021"
 publish=false
 
