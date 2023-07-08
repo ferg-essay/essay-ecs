@@ -51,6 +51,7 @@ impl Resource {
         let source: NonNull<u8> = NonNull::from(&mut *value).cast();
 
         let src = source.as_ptr();
+        // TODO: drop prev
         let dst = self.data.as_ptr();
 
         let count = mem::size_of::<T>();

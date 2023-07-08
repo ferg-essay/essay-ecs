@@ -1,11 +1,13 @@
 //use essay_ecs_macros::ScheduleLabel;
 
+use std::mem;
+
 use essay_ecs_core::{
     IntoPhaseConfigs,
     Schedule, Schedules,
     IntoSystem, IntoSystemConfig,
     schedule::{
-        SystemMeta, ScheduleLabel
+        SystemMeta, ScheduleLabel, UnsafeWorld
     }, 
     World,
     system::System,
@@ -149,13 +151,16 @@ impl App {
 
     pub fn eval<R, M>(&mut self, fun: impl IntoSystem<R, M>) -> R
     {
+        todo!();
+        /*
         let mut system = IntoSystem::into_system(fun);
 
         system.init(&mut SystemMeta::empty(), &mut self.world);
-        let value = system.run(&mut self.world);
+        let value = system.run(&mut unsafe_world);
         system.flush(&mut self.world);
 
         value
+        */
     }
 }
 
