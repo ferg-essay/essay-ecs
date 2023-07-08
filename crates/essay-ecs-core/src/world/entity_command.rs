@@ -116,11 +116,11 @@ impl Command for EntityDespawn {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::{Component, EntityId}, base_app::BaseApp, Commands};
+    use crate::{entity::{Component, EntityId}, core_app::CoreApp, Commands};
 
     #[test]
     fn spawn() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
 
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn spawn_empty_insert() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.run_system(|mut c: Commands| {
             c.spawn_empty().insert(TestA(100));
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn despawn() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
 

@@ -139,7 +139,7 @@ impl_each_function!(P1, P2, P3, P4, P5, P6, P7);
 mod tests {
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{World, entity::Component};
+    use crate::{World, entity::Component, Schedule};
 
     #[test]
     fn test_each() {
@@ -149,7 +149,9 @@ mod tests {
 
         let values = Rc::new(RefCell::new(Vec::<String>::new()));
 
-        //app.add_system(system_each_ref);
+        let mut schedule = Schedule::new();
+        schedule.add_system(system_each_ref);
+        //schedule.update();
         /*
         let ptr = values.clone();
         world.eval(move |t :&mut TestA| {
@@ -380,11 +382,11 @@ mod tests {
         println!("system-each-in {:?} {:?}", test, Deref::deref(&input));
     }
     */
-    /*
+
     fn system_each_ref(test: &mut TestA) {
         println!("system-each {:?}", test);
     }
-    */
+
 
     fn take(values: &Rc<RefCell<Vec<String>>>) -> String {
         let v : Vec<String> = values.borrow_mut().drain(..).collect();

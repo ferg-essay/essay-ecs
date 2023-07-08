@@ -1,5 +1,5 @@
 mod param;
-pub mod base_app;
+pub mod core_app;
 mod util;
 pub mod schedule;
 pub mod entity;

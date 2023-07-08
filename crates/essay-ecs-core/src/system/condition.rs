@@ -2,12 +2,12 @@
 mod test {
     use std::sync::{Arc, Mutex};
 
-    use crate::base_app::BaseApp;
+    use crate::core_app::CoreApp;
     use crate::IntoSystemConfig;
 
     #[test]
     fn run_if() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
         

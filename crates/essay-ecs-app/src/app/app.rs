@@ -151,6 +151,8 @@ impl App {
 
     pub fn eval<R, M>(&mut self, fun: impl IntoSystem<R, M>) -> R
     {
+        let mut schedule = Schedule::new();
+        //schedule.add_system(fun);
         todo!();
         /*
         let mut system = IntoSystem::into_system(fun);
@@ -185,7 +187,7 @@ impl CoreSchedule {
         let mut schedule = Schedule::new();
 
         todo!();
-        //schedule.add_system(Self::outer_system);
+        // schedule.add_system(Self::outer_system);
 
         schedule
     }
@@ -224,7 +226,7 @@ impl CoreTaskSet {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, rc::Rc, sync::{Mutex, Arc}};
 
     use essay_ecs_core::Res;
 
@@ -234,17 +236,16 @@ mod tests {
     fn app_system() {
         let mut app = App::new();
         let value = Vec::<String>::new();
-        let value = Rc::new(RefCell::new(value));
-        /*
-        let ptr = Rc::clone(&value);
-        app.add_system(move || ptr.borrow_mut().push("update".to_string()));
+        let value = Arc::new(Mutex::new(value));
+        
+        let ptr = Arc::clone(&value);
+        app.add_system(move || ptr.lock().unwrap().push("update".to_string()));
         assert_eq!(take(&value), "");
         app.update();
         assert_eq!(take(&value), "update");
         app.update();
         app.update();
         assert_eq!(take(&value), "update, update");
-        */
     }
 
     #[test]
@@ -297,8 +298,8 @@ mod tests {
     #[derive(Debug, Clone, PartialEq)]
     struct TestB(u32);
 
-    fn take(ptr: &Rc<RefCell<Vec<String>>>) -> String {
-        ptr.borrow_mut().drain(..).collect::<Vec<String>>().join(", ")
+    fn take(ptr: &Arc<Mutex<Vec<String>>>) -> String {
+        ptr.lock().unwrap().drain(..).collect::<Vec<String>>().join(", ")
     }
 
     fn test_system() {

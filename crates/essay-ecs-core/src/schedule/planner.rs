@@ -631,7 +631,7 @@ mod test {
     use std::{sync::{Arc, Mutex}, thread, time::Duration};
 
     use crate::{
-        base_app::{BaseApp, BasePhases}, 
+        core_app::{CoreApp, CorePhases}, 
         entity::Component, 
         schedule::{schedule::Executors}, 
         system::{IntoSystemConfig}, 
@@ -640,7 +640,7 @@ mod test {
 
     #[test]
     fn phase_groups() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
@@ -652,14 +652,14 @@ mod test {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
-        }).phase(BasePhases::Last));
+        }).phase(CorePhases::Last));
         
         let ptr = values.clone();
         app.add_system((move || {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
-        }).phase(BasePhases::Last));
+        }).phase(CorePhases::Last));
         
         let ptr = values.clone();
         app.add_system(move || {
@@ -680,14 +680,14 @@ mod test {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
-        }).phase(BasePhases::First));
+        }).phase(CorePhases::First));
         
         let ptr = values.clone();
         app.add_system((move || {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
-        }).phase(BasePhases::First));
+        }).phase(CorePhases::First));
 
         app.tick();
 
@@ -696,7 +696,7 @@ mod test {
 
     #[test]
     fn world_mut_sequential() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
@@ -738,7 +738,7 @@ mod test {
 
     #[test]
     fn res_parallel() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
@@ -767,7 +767,7 @@ mod test {
 
     #[test]
     fn resmut_sequential() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
@@ -795,7 +795,7 @@ mod test {
 
     #[test]
     fn resmut_disjoint_parallel() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
@@ -825,7 +825,7 @@ mod test {
 
     #[test]
     fn res_resmut_parallel_sequential() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
@@ -867,7 +867,7 @@ mod test {
 
     #[test]
     fn comp_parallel() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
@@ -896,7 +896,7 @@ mod test {
 
     #[test]
     fn comp_sequential() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
@@ -925,7 +925,7 @@ mod test {
 
     #[test]
     fn comp_mut_disjoint() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
@@ -955,7 +955,7 @@ mod test {
 
     #[test]
     fn comp_sequential_parallel() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
@@ -998,7 +998,7 @@ mod test {
 
     #[test]
     fn resmut_cycle() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());

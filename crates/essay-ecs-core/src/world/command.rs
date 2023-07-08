@@ -1,9 +1,9 @@
-use std::{collections::VecDeque, marker::PhantomData};
+use std::{collections::VecDeque};
 
 use crate::entity::EntityId;
 use crate::{entity::Component};
 
-use crate::world::{World, FromWorld};
+use crate::world::{World};
 
 use super::entity_command::{Spawn, EntityCommands, SpawnEmpty};
 
@@ -166,13 +166,13 @@ impl Commands<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{world::World, entity::Component, Schedule, base_app::BaseApp};
+    use crate::{world::World, entity::Component, Schedule, core_app::CoreApp};
 
     use super::Commands;
 
     #[test]
     fn add_closure() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
         
         app.run_system(|mut c: Commands| c.add(|w: &mut World| {
             w.spawn(TestA(100)); 
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn spawn() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         app.run_system(|mut c: Commands| c.spawn(TestA(100)));
 

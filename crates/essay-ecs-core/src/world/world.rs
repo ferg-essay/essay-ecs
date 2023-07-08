@@ -182,8 +182,6 @@ impl<T:Default> FromWorld for T {
 
 #[cfg(test)]
 mod tests {
-    use std::{rc::Rc, cell::RefCell};
-
     use crate::{entity::Component};
 
     use super::World;

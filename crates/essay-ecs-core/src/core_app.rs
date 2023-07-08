@@ -7,25 +7,25 @@ use crate::{
 };
 
 
-pub struct BaseApp {
+pub struct CoreApp {
     world: World,
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
-pub enum BaseSchedule {
+pub enum CoreSchedule {
     Main,
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
-pub enum BasePhases {
+pub enum CorePhases {
     First,
     Main,
     Last,
 }
 
-impl BaseApp {
+impl CoreApp {
     pub fn new() -> Self {
-        BaseApp::default()
+        CoreApp::default()
     }
 
     pub fn empty() -> Self {
@@ -33,7 +33,7 @@ impl BaseApp {
 
         world.init_resource::<Schedules>();
 
-        BaseApp {
+        CoreApp {
             world: world,
         }
     }
@@ -44,7 +44,7 @@ impl BaseApp {
     ) -> &mut Self
     {
         self.resource_mut::<Schedules>().add_system(
-            &BaseSchedule::Main,
+            &CoreSchedule::Main,
             into_system
         );
     
@@ -94,7 +94,7 @@ impl BaseApp {
     }
 
     pub fn tick(&mut self) -> &mut Self {
-        self.world.run_schedule(BaseSchedule::Main);
+        self.world.run_schedule(CoreSchedule::Main);
 
         self
     }
@@ -106,19 +106,19 @@ impl BaseApp {
     }
 }
 
-impl Default for BaseApp {
+impl Default for CoreApp {
     fn default() -> Self {
-        let mut app = BaseApp::empty();
+        let mut app = CoreApp::empty();
 
         app.insert_resource(Schedules::default());
         app.resource_mut::<Schedules>()
-            .insert(BaseSchedule::Main, BasePhases::main_schedule());
+            .insert(CoreSchedule::Main, CorePhases::main_schedule());
 
         app
     }
 }
 
-impl BasePhases {
+impl CorePhases {
     fn main_schedule() -> Schedule {
         let mut schedule = Schedule::new();
 
@@ -134,13 +134,13 @@ impl BasePhases {
     }
 }
 
-impl Phase for BasePhases {
+impl Phase for CorePhases {
     fn box_clone(&self) -> Box<dyn Phase> {
         Box::new(Clone::clone(self))
     }
 }
 
-impl ScheduleLabel for BaseSchedule {
+impl ScheduleLabel for CoreSchedule {
     fn box_clone(&self) -> Box<dyn ScheduleLabel> {
         Box::new(Clone::clone(self))
     }

@@ -203,7 +203,7 @@ mod tests {
 
     use crate::{world::World, 
         schedule::{SystemMeta},
-        system::{IntoSystem, System}
+        system::{IntoSystem, System}, Local, Schedule
     };
 
     use super::ParamExcl;
@@ -213,6 +213,7 @@ mod tests {
     #[test]
     fn arg_tuples() {
         let mut world = World::new();
+        let mut schedule = Schedule::new();
 
         /*
         world.eval(|w: &mut World, l: Local<bool>| println!("world!"));

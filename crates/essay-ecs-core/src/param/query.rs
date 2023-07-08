@@ -57,13 +57,13 @@ impl<Q:View> Param for Query<'_, '_, Q>
 mod test {
     use std::{sync::{Arc, Mutex}, time::Duration, thread};
 
-    use crate::{base_app::{BaseApp, BaseSchedule}, entity::Component, Commands, schedule::Executors};
+    use crate::{core_app::{CoreApp, CoreSchedule}, entity::Component, Commands, schedule::Executors};
 
     use super::{Query};
 
     #[test]
     fn query_component() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
         let ptr = values.clone();
@@ -97,9 +97,9 @@ mod test {
 
     #[test]
     fn query_parallel_sequential() {
-        let mut app = BaseApp::new();
+        let mut app = CoreApp::new();
 
-        app.get_mut_schedule(&BaseSchedule::Main).unwrap().set_executor(Executors::Multithreaded);
+        app.get_mut_schedule(&CoreSchedule::Main).unwrap().set_executor(Executors::Multithreaded);
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
