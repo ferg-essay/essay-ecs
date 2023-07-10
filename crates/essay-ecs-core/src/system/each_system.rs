@@ -242,12 +242,12 @@ mod tests {
     #[test]
     fn test_each_tuple_rev() {
         let mut world = World::new();
-        /*
+        
         world.spawn(TestA(1));
         world.spawn(TestB(2));
         world.spawn((TestA(3),TestB(4)));
         world.spawn((TestB(5),TestA(6)));
-
+        /*
         let values = Rc::new(RefCell::new(Vec::<String>::new()));
         let ptr = values.clone();
 

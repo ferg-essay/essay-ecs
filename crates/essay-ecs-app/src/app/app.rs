@@ -19,6 +19,7 @@ pub struct App {
     world: World,
     plugins: Plugins,
     main_schedule: Box<dyn ScheduleLabel>,
+    runner: Box<dyn FnOnce(App) + Send>,
 }
 
 impl App {
@@ -35,6 +36,7 @@ impl App {
             world: world,
             plugins: Plugins::default(),
             main_schedule: Box::new(Main),
+            runner: Box::new(run_once),
         }
     }
 
@@ -96,7 +98,7 @@ impl App {
         self.world.spawn(value)
     }
 
-    pub fn add_plugin<P:Plugin+'static>(&mut self, plugin: P) -> &mut Self {
+    pub fn add_plugin<P: Plugin + 'static>(&mut self, plugin: P) -> &mut Self {
         let plugin: Box<dyn Plugin> = Box::new(plugin);
 
         self.plugins.add_name(&plugin);
@@ -110,10 +112,33 @@ impl App {
         self.plugins.is_plugin_added::<P>()
     }
 
+    pub fn set_runner(&mut self, runner: impl FnOnce(App) + 'static + Send) -> &mut Self {
+        self.runner = Box::new(runner);
+
+        self
+    }
+
     pub fn setup(&mut self) -> &mut Self {
-        for plugin in self.plugins.drain() {
-            plugin.setup(self);
-        }
+        self
+    }
+
+    pub fn finish(&mut self) -> &mut Self {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        plugins.finish(self);
+
+        self.plugins = plugins;
+
+        self
+    }
+
+    pub fn cleanup(&mut self) -> &mut Self {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        plugins.cleanup(self);
+
+        self.plugins = plugins;
+
 
         self
     }
@@ -122,6 +147,14 @@ impl App {
         self.world.run_schedule(&self.main_schedule);
 
         self
+    }
+
+    pub fn run(&mut self) {
+        let mut app = std::mem::replace(self, App::empty());
+
+        let runner = std::mem::replace(&mut app.runner, Box::new(run_once));
+
+        runner(app);
     }
 }
 
@@ -136,6 +169,14 @@ impl Default for App {
         app
     }
 }
+
+fn run_once(mut app: App) {
+    app.finish();
+    app.cleanup();
+
+    app.update();
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -176,6 +217,46 @@ mod tests {
         app.update();
         app.update();
         assert_eq!(take(&value), "update, update");
+    }
+
+    #[test]
+    fn default_run_once() {
+        let mut app = App::new();
+        let value = Vec::<String>::new();
+        let value = Arc::new(Mutex::new(value));
+
+        let ptr = Arc::clone(&value);
+        app.add_system(Startup, move || push(&ptr, "startup"));
+      
+        let ptr = Arc::clone(&value);
+        app.add_system(Update, move || push(&ptr, "update"));
+        assert_eq!(take(&value), "");
+
+        app.run();
+        assert_eq!(take(&value), "startup, update");
+    }
+
+    #[test]
+    fn run_3() {
+        let mut app = App::new();
+        let value = Vec::<String>::new();
+        let value = Arc::new(Mutex::new(value));
+
+        let ptr = Arc::clone(&value);
+        app.add_system(Startup, move || push(&ptr, "startup"));
+      
+        let ptr = Arc::clone(&value);
+        app.add_system(Update, move || push(&ptr, "update"));
+        assert_eq!(take(&value), "");
+
+        app.set_runner(|mut app| {
+            for _ in 0..3 {
+                app.update();
+            }
+        });
+
+        app.run();
+        assert_eq!(take(&value), "startup, update, update, update");
     }
 
     #[test]

@@ -8,15 +8,18 @@ use super::app::App;
 pub trait Plugin {
     fn build(&self, app: &mut App);
 
-    fn setup(&self, _app: &mut App) {
-    }
-
     fn name(&self) -> &str {
         std::any::type_name::<Self>()
     }
 
     fn is_unique(&self) -> bool {
         true
+    }
+
+    fn finish(&self, _app: &mut App) {
+    }
+
+    fn cleanup(&self, _app: &mut App) {
     }
 }
 
@@ -40,8 +43,16 @@ impl Plugins {
         self.names.contains(type_name::<T>())
     }
 
-    pub(crate) fn drain(&mut self) -> Vec<Box<dyn Plugin>> {
-        self.plugins.drain(..).collect::<Vec<Box<dyn Plugin>>>()
+    pub(crate) fn finish(&self, app: &mut App) {
+        for plugin in &self.plugins {
+            plugin.finish(app);
+        }
+    }
+
+    pub(crate) fn cleanup(&self, app: &mut App) {
+        for plugin in &self.plugins {
+            plugin.cleanup(app);
+        }
     }
 }
 

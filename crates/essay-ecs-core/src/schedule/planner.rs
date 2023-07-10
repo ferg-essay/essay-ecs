@@ -1048,7 +1048,6 @@ mod test {
     #[derive(Phase, Clone, Copy, Debug, PartialEq, Eq, Hash)]
     enum CorePhases {
         First,
-        Main,
         Last,
     }
 }
