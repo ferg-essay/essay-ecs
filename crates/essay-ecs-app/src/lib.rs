@@ -1,12 +1,15 @@
 mod channel;
-pub mod app;
+mod app;
+
+pub use crate::app::*;
 
 pub mod prelude {
     pub use crate::{
         app::{
             App,
-            Main, Update,
-            Startup,
+            PreStartup, Startup, PostStartup,
+            Main, 
+            First, PreUpdate, Update, PostUpdate, Last,
 
             Plugin, 
         }

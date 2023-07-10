@@ -3,16 +3,9 @@ use std::{collections::HashMap, any::{TypeId, type_name}, ptr::NonNull, alloc::L
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ResourceId(usize);
 
-struct Resource {
-    _id: ResourceId,
-    _name: String,
-    //value: Ptr,
-    data: NonNull<u8>,
-}
-
 pub struct Resources {
     resource_map: HashMap<TypeId,ResourceId>,
-    resources: Vec<Resource>,
+    resources: Vec<Option<Resource>>,
 }
 
 impl ResourceId {
@@ -23,6 +16,95 @@ impl ResourceId {
     pub fn index(&self) -> usize {
         self.0
     }
+}
+
+impl Resources {
+    pub fn new() -> Self {
+        Self {
+            resource_map: HashMap::new(),
+            resources: Vec::new(),
+        }
+    }
+
+    pub fn insert<T:Send + 'static>(&mut self, value: T) {
+        let id = ResourceId::new(self.resources.len());
+        let type_id = TypeId::of::<T>();
+
+        let id = *self.resource_map.entry(type_id).or_insert(id);
+
+        if id.index() == self.resources.len() {
+            self.resources.push(Some(Resource::new(id, value)));
+        } else {
+            // TODO: drop
+            self.resources[id.index()] = Some(Resource::new(id, value));
+        }
+    }
+
+    pub(crate) fn get_resource_id<T:'static>(&self) -> ResourceId {
+        let type_id = TypeId::of::<T>();
+
+        *self.resource_map.get(&type_id).unwrap()
+    }
+
+    pub fn get<T:Send + 'static>(&self) -> Option<&T> {
+        let type_id = TypeId::of::<T>();
+
+        let id = self.resource_map.get(&type_id)?;
+
+        unsafe { 
+            match &self.resources[id.index()] {
+                Some(resource) => Some(resource.deref()),
+                None => None,
+            }
+        }
+    }
+
+    pub fn get_mut<T: Send + 'static>(&mut self) -> Option<&mut T> {
+        let type_id = TypeId::of::<T>();
+
+        let id = self.resource_map.get(&type_id)?;
+
+        unsafe { 
+            match &self.resources[id.index()] {
+                Some(resource) => Some(resource.deref_mut()),
+                None => None,
+            }
+        }
+    }
+
+    pub fn remove<T: 'static>(&mut self) -> Option<T> {
+        let type_id = TypeId::of::<T>();
+
+        let id = self.resource_map.get(&type_id)?;
+
+        unsafe { 
+            match self.resources[id.index()].take() {
+                Some(resource) => Some(resource.take()),
+                None => None,
+            }
+        }
+    }
+
+    pub fn _insert_non_send<T:'static>(&mut self, value: T) {
+        let id = ResourceId::new(self.resources.len());
+        let type_id = TypeId::of::<T>();
+
+        let id = *self.resource_map.entry(type_id).or_insert(id);
+
+        if id.index() == self.resources.len() {
+            self.resources.push(Some(Resource::new(id, value)));
+        } else {
+            // TODO: drop
+            self.resources[id.index()] = Some(Resource::new(id, value));
+        }
+    }
+}
+
+struct Resource {
+    _id: ResourceId,
+    _name: String,
+    //value: Ptr,
+    data: NonNull<u8>,
 }
 
 impl Resource {
@@ -66,64 +148,9 @@ impl Resource {
     pub unsafe fn deref_mut<T>(&self) -> &mut T {
         &mut *self.data.as_ptr().cast::<T>()
     }
-}
-
-impl Resources {
-    pub fn new() -> Self {
-        Self {
-            resource_map: HashMap::new(),
-            resources: Vec::new(),
-        }
-    }
-
-    pub fn insert<T:Send + 'static>(&mut self, value: T) {
-        let id = ResourceId::new(self.resources.len());
-        let type_id = TypeId::of::<T>();
-
-        let id = *self.resource_map.entry(type_id).or_insert(id);
-
-        if id.index() == self.resources.len() {
-            self.resources.push(Resource::new(id, value));
-        } else {
-            // TODO: drop
-            self.resources[id.index()] = Resource::new(id, value);
-        }
-    }
-
-    pub(crate) fn get_resource_id<T:'static>(&self) -> ResourceId {
-        let type_id = TypeId::of::<T>();
-
-        *self.resource_map.get(&type_id).unwrap()
-    }
-
-    pub fn get<T:Send + 'static>(&self) -> Option<&T> {
-        let type_id = TypeId::of::<T>();
-
-        let id = self.resource_map.get(&type_id)?;
-
-        unsafe { Some(self.resources[id.index()].deref()) }
-    }
-
-    pub fn get_mut<T:Send + 'static>(&mut self) -> Option<&mut T> {
-        let type_id = TypeId::of::<T>();
-
-        let id = self.resource_map.get(&type_id)?;
-
-        unsafe { Some(self.resources[id.index()].deref_mut()) }
-    }
-
-    pub fn _insert_non_send<T:'static>(&mut self, value: T) {
-        let id = ResourceId::new(self.resources.len());
-        let type_id = TypeId::of::<T>();
-
-        let id = *self.resource_map.entry(type_id).or_insert(id);
-
-        if id.index() == self.resources.len() {
-            self.resources.push(Resource::new(id, value));
-        } else {
-            // TODO: drop
-            self.resources[id.index()] = Resource::new(id, value);
-        }
+    
+    unsafe fn take<T>(self) -> T {
+        self.data.as_ptr().cast::<T>().read()
     }
 }
 
@@ -162,6 +189,18 @@ mod tests {
         assert_eq!(resources.get_mut::<TestA>(), Some(&mut TestA(1000)));
         assert_eq!(resources.get::<TestB>(), Some(&TestB(1000)));
         assert_eq!(resources.get_mut::<TestB>(), Some(&mut TestB(1000)));
+    }
+
+    #[test]
+    fn remove() {
+        let mut resources = Resources::new();
+
+        resources.insert(TestA(1));
+        assert_eq!(resources.get::<TestA>(), Some(&TestA(1)));
+
+        assert_eq!(resources.remove::<TestA>(), Some(TestA(1)));
+        assert_eq!(resources.remove::<TestA>(), None);
+        assert_eq!(resources.get::<TestA>(), None);
     }
 
     #[derive(PartialEq, Debug)]

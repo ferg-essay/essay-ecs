@@ -130,7 +130,11 @@ impl World {
         self.deref_mut().resources.insert::<T>(value)
     }
 
-    pub fn get_resource_id<T:'static>(&mut self) -> ResourceId {
+    pub fn remove_resource<T: 'static>(&mut self) -> Option<T> {
+        self.deref_mut().resources.remove::<T>()
+    }
+
+    pub fn get_resource_id<T: 'static>(&mut self) -> ResourceId {
         self.deref_mut().resources.get_resource_id::<T>()
     }
 

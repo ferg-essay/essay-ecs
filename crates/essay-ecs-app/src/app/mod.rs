@@ -1,23 +1,13 @@
 mod main_schedule;
-
-use essay_ecs_core::prelude::{Phase};
-
 mod plugin;
 mod app;
-
-#[derive(Phase, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum CoreTaskSet {
-    First,
-    PreUpdate,
-    Update,
-    PostUpdate,
-    Last,
-}
 
 pub use app::App;
 
 pub use main_schedule::{
-    Main, Startup, Update, 
+    Main, 
+    PreStartup, Startup, PostStartup,
+    First, PreUpdate, Update, PostUpdate, Last,
     MainSchedulePlugin,
 };
 

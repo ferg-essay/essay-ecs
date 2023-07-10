@@ -8,4 +8,5 @@ pub mod core {
 
 pub mod prelude {
     pub use crate::core::prelude::*;
+    pub use crate::app::prelude::*;
 }

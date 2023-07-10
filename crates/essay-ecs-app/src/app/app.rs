@@ -84,6 +84,10 @@ impl App {
         self
     }
 
+    pub fn remove_resource<T>(&mut self) -> Option<T> {
+        self.world.remove_resource()
+    }
+
     pub fn add_schedule(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>, 
