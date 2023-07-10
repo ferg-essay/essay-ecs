@@ -8,7 +8,7 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
     let name = &ast.ident;
 
     TokenStream::from(quote! {
-        impl essay_ecs_core::entity::Component for #name {
+        impl essay_ecs::core::entity::Component for #name {
 
         }
     })

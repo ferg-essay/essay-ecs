@@ -1,3 +1,5 @@
+use std::any::type_name;
+
 ///
 /// see bevy ecs/../app.rs
 /// 
@@ -27,6 +29,9 @@ impl App {
         App::default()
     }
 
+    ///
+    /// Minimal app without even the main schedule.
+    /// 
     pub fn empty() -> Self {
         let mut world = World::new();
 
@@ -58,6 +63,10 @@ impl App {
         self
     }
 
+    //
+    // resources
+    //
+
     pub fn get_resource<T:Send+'static>(&mut self) -> Option<&T> {
         self.world.get_resource::<T>()
     }
@@ -66,12 +75,18 @@ impl App {
         self.world.get_resource_mut::<T>()
     }
 
-    pub fn resource<T:Send+'static>(&mut self) -> &T {
-        self.world.get_resource::<T>().expect("unassigned resource")
+    pub fn resource<T: Send + 'static>(&mut self) -> &T {
+        match self.world.get_resource::<T>() {
+            Some(value) => value,
+            None => panic!("unassigned resource {:?}", type_name::<T>()),
+        }
     }
 
     pub fn resource_mut<T: Send + 'static>(&mut self) -> &mut T {
-        self.world.get_resource_mut::<T>().expect("unassigned resource")
+        match self.world.get_resource_mut::<T>() {
+            Some(value) => value,
+            None => panic!("unassigned resource {:?}", type_name::<T>()),
+        }
     }
 
     pub fn insert_resource<T: Send + 'static>(&mut self, value: T) {
@@ -84,23 +99,31 @@ impl App {
         self
     }
 
-    pub fn remove_resource<T>(&mut self) -> Option<T> {
+    pub fn remove_resource<T: 'static>(&mut self) -> Option<T> {
         self.world.remove_resource()
     }
 
-    pub fn add_schedule(
-        &mut self, 
-        label: impl AsRef<dyn ScheduleLabel>, 
-        schedule: Schedule
-    ) -> &mut Self {
-        self.world.add_schedule(label, schedule);
+    pub fn insert_resource_non_send<T: 'static>(&mut self, value: T) {
+        self.world.insert_resource_non_send(value);
+    }
+
+    pub fn init_resource_non_send<T: FromWorld + 'static>(&mut self) -> &mut Self {
+        self.world.init_resource_non_send::<T>();
 
         self
+    }
+
+    pub fn remove_resource_non_send<T: 'static>(&mut self) -> Option<T> {
+        self.world.remove_resource_non_send()
     }
 
     pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
         self.world.spawn(value)
     }
+
+    //
+    // plugin routines
+    //
 
     pub fn add_plugin<P: Plugin + 'static>(&mut self, plugin: P) -> &mut Self {
         let plugin: Box<dyn Plugin> = Box::new(plugin);
@@ -114,12 +137,6 @@ impl App {
 
     pub fn is_plugin_added<P:Plugin>(&self) -> bool {
         self.plugins.is_plugin_added::<P>()
-    }
-
-    pub fn set_runner(&mut self, runner: impl FnOnce(App) + 'static + Send) -> &mut Self {
-        self.runner = Box::new(runner);
-
-        self
     }
 
     pub fn setup(&mut self) -> &mut Self {
@@ -147,8 +164,28 @@ impl App {
         self
     }
 
+    //
+    // schedule/update routines
+    //
+
+    pub fn add_schedule(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>, 
+        schedule: Schedule
+    ) -> &mut Self {
+        self.world.add_schedule(label, schedule);
+
+        self
+    }
+
     pub fn update(&mut self) -> &mut Self {
         self.world.run_schedule(&self.main_schedule);
+
+        self
+    }
+
+    pub fn set_runner(&mut self, runner: impl FnOnce(App) + 'static + Send) -> &mut Self {
+        self.runner = Box::new(runner);
 
         self
     }
@@ -186,7 +223,12 @@ fn run_once(mut app: App) {
 mod tests {
     use std::{sync::{Mutex, Arc}};
 
+    use essay_ecs_core::{Component, Commands};
+
     use crate::app::{app::{App}, Update, Startup};
+
+    mod ecs { pub mod core { pub use essay_ecs_core::*; }}
+    use ecs as essay_ecs;
 
     #[test]
     fn app_hello() {
@@ -274,6 +316,29 @@ mod tests {
         assert_eq!(app.resource::<TestA>(), &TestA(1));
         assert_eq!(app.resource::<TestB>(), &TestB(2));
     }
+
+    #[test]
+    fn spawn_and_execute() {
+        let mut app = App::new();
+        let value = Vec::<String>::new();
+        let value = Arc::new(Mutex::new(value));
+
+        let ptr = Arc::clone(&value);
+        app.add_system(Startup, move |mut cmd: Commands| {
+            push(&ptr, "spawn");
+            cmd.spawn(CompA);
+        });
+      
+        let ptr = Arc::clone(&value);
+        app.add_system(Update, move |_comp: &CompA| push(&ptr, "update"));
+        assert_eq!(take(&value), "");
+
+        app.update();
+        assert_eq!(take(&value), "spawn, update");
+    }
+
+    #[derive(Component)]
+    struct CompA;
 
     #[derive(Debug, Clone, PartialEq)]
     struct TestA(u32);

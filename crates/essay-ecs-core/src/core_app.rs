@@ -107,7 +107,7 @@ impl Default for CoreApp {
         let mut app = CoreApp::empty();
 
         app.insert_resource(Schedules::default());
-        let mut schedule = Schedule::new();
+        let schedule = Schedule::new();
         app.resource_mut::<Schedules>()
             .insert(Core, schedule);
 

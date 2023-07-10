@@ -247,8 +247,9 @@ mod tests {
         world.spawn(TestB(2));
         world.spawn((TestA(3),TestB(4)));
         world.spawn((TestB(5),TestA(6)));
+
         /*
-        let values = Rc::new(RefCell::new(Vec::<String>::new()));
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
         let ptr = values.clone();
 
         world.eval(move |a:(&TestB, &TestA)| {

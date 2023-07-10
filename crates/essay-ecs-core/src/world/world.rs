@@ -16,6 +16,7 @@ impl World {
         Self(Some(WorldInner {
                 store: Store::new(),
                 resources: Resources::new(),
+                resources_non_send: Resources::new(),
             }))
     }
 
@@ -138,6 +139,24 @@ impl World {
         self.deref_mut().resources.get_resource_id::<T>()
     }
 
+    pub fn init_resource_non_send<T: FromWorld + 'static>(&mut self) {
+        if ! self.deref().resources_non_send.get::<T>().is_none() {
+            return;
+        }
+
+        let value = T::init(self);
+
+        self.insert_resource_non_send::<T>(value);
+    }
+
+    pub fn insert_resource_non_send<T: 'static>(&mut self, value: T) {
+        self.deref_mut().resources_non_send.insert::<T>(value)
+    }
+
+    pub fn remove_resource_non_send<T: 'static>(&mut self) -> Option<T> {
+        self.deref_mut().resources_non_send.remove::<T>()
+    }
+
     pub fn query<Q:View>(&mut self) -> ViewIterator<Q> {
         self.deref_mut().store.iter_view()
     }
@@ -208,6 +227,7 @@ impl World {
 pub(crate) struct WorldInner {
     pub(crate) store: Store,
     pub(crate) resources: Resources,
+    pub(crate) resources_non_send: Resources,
 }
 
 impl<T:Default> FromWorld for T {

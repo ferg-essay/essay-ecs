@@ -1,21 +1,8 @@
 use std::{collections::HashMap, any::{TypeId, type_name}, ptr::NonNull, alloc::Layout, mem::{ManuallyDrop, self}};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ResourceId(usize);
-
-pub struct Resources {
+pub(crate) struct Resources {
     resource_map: HashMap<TypeId,ResourceId>,
     resources: Vec<Option<Resource>>,
-}
-
-impl ResourceId {
-    fn new(index: usize) -> Self {
-        ResourceId(index)
-    }
-
-    pub fn index(&self) -> usize {
-        self.0
-    }
 }
 
 impl Resources {
@@ -26,7 +13,7 @@ impl Resources {
         }
     }
 
-    pub fn insert<T:Send + 'static>(&mut self, value: T) {
+    pub fn insert<T: 'static>(&mut self, value: T) {
         let id = ResourceId::new(self.resources.len());
         let type_id = TypeId::of::<T>();
 
@@ -46,7 +33,7 @@ impl Resources {
         *self.resource_map.get(&type_id).unwrap()
     }
 
-    pub fn get<T:Send + 'static>(&self) -> Option<&T> {
+    pub fn get<T: 'static>(&self) -> Option<&T> {
         let type_id = TypeId::of::<T>();
 
         let id = self.resource_map.get(&type_id)?;
@@ -59,7 +46,7 @@ impl Resources {
         }
     }
 
-    pub fn get_mut<T: Send + 'static>(&mut self) -> Option<&mut T> {
+    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
         let type_id = TypeId::of::<T>();
 
         let id = self.resource_map.get(&type_id)?;
@@ -82,20 +69,6 @@ impl Resources {
                 Some(resource) => Some(resource.take()),
                 None => None,
             }
-        }
-    }
-
-    pub fn _insert_non_send<T:'static>(&mut self, value: T) {
-        let id = ResourceId::new(self.resources.len());
-        let type_id = TypeId::of::<T>();
-
-        let id = *self.resource_map.entry(type_id).or_insert(id);
-
-        if id.index() == self.resources.len() {
-            self.resources.push(Some(Resource::new(id, value)));
-        } else {
-            // TODO: drop
-            self.resources[id.index()] = Some(Resource::new(id, value));
         }
     }
 }
@@ -151,6 +124,28 @@ impl Resource {
     
     unsafe fn take<T>(self) -> T {
         self.data.as_ptr().cast::<T>().read()
+    }
+}
+/*
+impl<T> Drop for Resource<T> {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Box::from_raw(self.data.as_ptr().cast::<T>()))
+        }
+    }
+}
+*/
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ResourceId(usize);
+
+impl ResourceId {
+    fn new(index: usize) -> Self {
+        ResourceId(index)
+    }
+
+    pub fn index(&self) -> usize {
+        self.0
     }
 }
 

@@ -72,6 +72,12 @@ mod tests {
 
     use essay_ecs_core::{Component, Commands};
 
+    // simulate normal deployment
+    mod ecs {
+        pub mod core { pub use essay_ecs_core::*; }
+    }
+    use ecs as essay_ecs;
+
     use crate::app::{app::App, Startup};
 
     use super::Plugin;

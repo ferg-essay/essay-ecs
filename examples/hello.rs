@@ -1,10 +1,9 @@
-use essay_ecs_app::app::App;
-use essay_ecs_core::core_app::{Core};
+use essay_ecs_app::{App, Update};
 
 pub fn main() {
     let mut app = App::new();
 
-    app.add_system(Core, || println!("Hello"));
+    app.add_system(Update, || println!("Hello"));
 
     app.update();
 }

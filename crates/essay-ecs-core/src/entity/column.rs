@@ -86,6 +86,10 @@ impl Column {
 
         // zero-length items are pre-allocated
         let length = if pad_size == 0 { 1 } else { 0 };
+        let mut row_gen = Vec::new();
+        for _ in 0..length {
+            row_gen.push(0);
+        }
         let capacity = length;
 
         let data = dangling_data(meta.layout_padded().align());
@@ -99,7 +103,7 @@ impl Column {
             inc: inc,
 
             data: data,
-            row_gen: Default::default(),
+            row_gen,
 
             len: length,
             capacity: capacity,

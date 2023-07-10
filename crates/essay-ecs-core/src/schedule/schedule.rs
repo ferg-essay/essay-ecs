@@ -298,6 +298,8 @@ impl Schedule {
         self.replace(exec_schedule);
         world.replace(exec_world);
 
+        self.flush(world);
+
         Ok(())
     }
 
@@ -518,33 +520,33 @@ mod tests {
     use super::{Schedule, ScheduleLabel};
     use crate::*;
 
-    #[derive(PartialEq, Hash, Eq, Clone, Debug)]
-    enum TestSchedule {
-        A,
-    }
+    mod ecs { pub mod core { pub use crate::*; }}
+    use ecs as essay_ecs;
 
-    impl ScheduleLabel for TestSchedule {
-        fn box_clone(&self) -> Box<dyn ScheduleLabel> {
-            Box::new(Clone::clone(self))
-        }
-    }
-
-    #[derive(PartialEq, Hash, Eq, Clone, Debug)]
-    enum TestPhase {
-        A,
-        B,
-        C,
-    }
-
-    impl Phase for TestPhase {
-        fn box_clone(&self) -> Box<dyn Phase> {
-            Box::new(Clone::clone(self))
-        }
-    }
 
     #[test]
     fn schedule_label() {
         assert_eq!(format!("{:?}", TestSchedule::A), "A");
+    }
+
+    #[test]
+    fn schedule_flush() {
+        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let mut world = World::new();
+        let mut schedule = Schedule::new();
+
+        let ptr = values.clone();
+        schedule.add_system(move |mut cmd: Commands| { 
+            cmd.spawn(TestComp(2));
+        });
+
+        schedule.tick(&mut world).unwrap();
+        assert_eq!(world.query::<&TestComp>()
+            .map(|s| format!("comp{}", s.0))
+            .collect::<Vec<String>>(), 
+            vec!["a"]
+        );
     }
 
     #[test]
@@ -639,4 +641,31 @@ mod tests {
     fn push(values: &Arc<Mutex<Vec<String>>>, s: &str) {
         values.lock().unwrap().push(s.to_string());
     }
+
+    #[derive(PartialEq, Hash, Eq, Clone, Debug)]
+    enum TestSchedule {
+        A,
+    }
+
+    impl ScheduleLabel for TestSchedule {
+        fn box_clone(&self) -> Box<dyn ScheduleLabel> {
+            Box::new(Clone::clone(self))
+        }
+    }
+
+    #[derive(PartialEq, Hash, Eq, Clone, Debug)]
+    enum TestPhase {
+        A,
+        B,
+        C,
+    }
+
+    impl Phase for TestPhase {
+        fn box_clone(&self) -> Box<dyn Phase> {
+            Box::new(Clone::clone(self))
+        }
+    }
+
+    #[derive(Component)]
+    pub struct TestComp(u32);
 }
