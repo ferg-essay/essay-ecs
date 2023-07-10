@@ -189,6 +189,7 @@ impl Column {
         self.drop.replace(drop);
     }
 
+    #[cfg(test)]
     pub(crate) unsafe fn insert<T>(&mut self, row: RowId, value: T) -> Option<RowId> {
         let index = row.index();
 

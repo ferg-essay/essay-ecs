@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{world::World, 
     schedule::{SystemMeta, UnsafeWorld},
-    system::{IntoSystem, System},
+    system::{IntoSystem, System}, Local,
 };
 
 use crate::param::{Param, Arg};
@@ -14,7 +14,7 @@ pub struct IsWorld;
 // Param
 //
  
-pub trait ParamExcl : Send + Sync + 'static {
+pub trait ParamExcl {
     type Arg<'s>;
     type State: Send + Sync + 'static;
 
@@ -42,12 +42,7 @@ where
     marker: PhantomData<(R, M)>,
 }
 
-pub trait WorldFun<R, M> : Send + Sync + 'static
-    where
-        R: Send + Sync + 'static,
-        M: Send + Sync + 'static
-{
-
+pub trait WorldFun<R, M> : Send + Sync + 'static {
     type Params: ParamExcl;
 
     fn run(&mut self, world: &mut World, arg: ArgExcl<Self::Params>) -> R;
@@ -110,8 +105,8 @@ where
 macro_rules! impl_excl_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
-        impl<F: Send + Sync + 'static, R, $($param: ParamExcl,)*> WorldFun<R, fn(IsWorld,$($param,)*)> for F
-        where F:FnMut(&mut World, $($param,)*) -> R +
+        impl<F, R, $($param: ParamExcl,)*> WorldFun<R, fn(IsWorld,$($param,)*)> for F
+        where F:FnMut(&mut World, $($param,)*) -> R + Send + Sync + 'static +
             FnMut(&mut World, $(ArgExcl<$param>,)*) -> R,
             R: Send + Sync + 'static
         {
@@ -137,13 +132,11 @@ impl_excl_function!(P1, P2, P3, P4, P5, P6, P7);
 //
 // Local param
 //
-/*
-impl<'a, T:Default + Send + Sync> ParamExcl for Local<'a, T> {
+impl<'a, T: Default + Send + Sync + 'static> ParamExcl for Local<'a, T> {
     type State = T;
     type Arg<'s> = Local<'s, T>;
 
     fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
-        // let exl = std::sync::Exclusive::new(T::default());
         T::default()
     }
 
@@ -153,7 +146,6 @@ impl<'a, T:Default + Send + Sync> ParamExcl for Local<'a, T> {
         Local(state)
     }
 }
-*/
 
 //
 // Param composed of tuples
@@ -203,7 +195,7 @@ mod tests {
 
     use crate::{world::World, 
         schedule::{SystemMeta},
-        system::{IntoSystem, System}, Local, Schedule
+        system::{IntoSystem, System}, Local, Schedule, core_app::CoreApp
     };
 
     use super::ParamExcl;
@@ -212,11 +204,12 @@ mod tests {
 
     #[test]
     fn arg_tuples() {
-        let mut world = World::new();
-        let mut schedule = Schedule::new();
+        let mut core = CoreApp::new();
+        //let mut schedule = Schedule::new();
 
+        //core.run_system(|w: &mut World| println!("world!"));
+        core.run_system(|w: &mut World, l: Local<bool>| println!("world!"));
         /*
-        world.eval(|w: &mut World, l: Local<bool>| println!("world!"));
         set_global("init".to_string());
         system(&mut world, test_null);
         assert_eq!(get_global(), "test-null");

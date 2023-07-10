@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use essay_ecs_core::core_app::CoreApp;
+use essay_ecs_core::core_app::{CoreApp, Core};
 
 #[test]
 fn test_hello() {
@@ -11,7 +11,7 @@ fn test_hello() {
 
     let ptr = arc.clone();
 
-    app.add_system(move || ptr.lock().unwrap().push("hello, world".into()));
+    app.add_system(Core, move || ptr.lock().unwrap().push("hello, world".into()));
 
     assert_eq!(take(&arc), "");
 }

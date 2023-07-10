@@ -13,6 +13,12 @@ pub fn derive_schedule_label(input: TokenStream) -> TokenStream {
                 Box::new(Clone::clone(self))
             }
         }
+
+        impl AsRef<dyn essay_ecs_core::schedule::ScheduleLabel> for #name {
+            fn as_ref(&self) -> &dyn essay_ecs_core::schedule::ScheduleLabel {
+                self
+            }
+        }
     })
 }
 

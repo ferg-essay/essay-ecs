@@ -1,27 +1,19 @@
+use essay_ecs_macros::ScheduleLabel;
+
 use crate::{
     World, Schedule, IntoSystemConfig, 
-    schedule::{Phase, IntoPhaseConfigs, ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeWorld}, 
+    schedule::{ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeWorld}, 
     entity::{View, ViewIterator}, 
     Schedules, IntoSystem, 
     system::System,
 };
 
-
 pub struct CoreApp {
     world: World,
+    main_schedule: Box<dyn ScheduleLabel>,
 }
 
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
-pub enum CoreSchedule {
-    Main,
-}
-
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
-pub enum CorePhases {
-    First,
-    Main,
-    Last,
-}
+pub use crate as essay_ecs_core;
 
 impl CoreApp {
     pub fn new() -> Self {
@@ -35,16 +27,17 @@ impl CoreApp {
 
         CoreApp {
             world: world,
+            main_schedule: Box::new(Core),
         }
     }
 
     pub fn add_system<M>(
         &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
         into_system: impl IntoSystemConfig<M>
-    ) -> &mut Self
-    {
+    ) -> &mut Self {
         self.resource_mut::<Schedules>().add_system(
-            &CoreSchedule::Main,
+            label,
             into_system
         );
     
@@ -75,7 +68,10 @@ impl CoreApp {
         self.world.query()
     }
 
-    pub fn get_mut_schedule(&mut self, label: &dyn ScheduleLabel) -> Option<&mut Schedule> {
+    pub fn get_mut_schedule(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>
+    ) -> Option<&mut Schedule> {
         self.world.resource_mut::<Schedules>().get_mut(label)
     }
 
@@ -94,7 +90,7 @@ impl CoreApp {
     }
 
     pub fn tick(&mut self) -> &mut Self {
-        self.world.run_schedule(CoreSchedule::Main);
+        self.world.run_schedule(&self.main_schedule);
 
         self
     }
@@ -111,37 +107,13 @@ impl Default for CoreApp {
         let mut app = CoreApp::empty();
 
         app.insert_resource(Schedules::default());
+        let mut schedule = Schedule::new();
         app.resource_mut::<Schedules>()
-            .insert(CoreSchedule::Main, CorePhases::main_schedule());
+            .insert(Core, schedule);
 
         app
     }
 }
 
-impl CorePhases {
-    fn main_schedule() -> Schedule {
-        let mut schedule = Schedule::new();
-
-        schedule.set_default_phase(Self::Main);
-
-        schedule.add_phases((
-            Self::First,
-            Self::Main,
-            Self::Last,
-        ).chained());
-
-        schedule
-    }
-}
-
-impl Phase for CorePhases {
-    fn box_clone(&self) -> Box<dyn Phase> {
-        Box::new(Clone::clone(self))
-    }
-}
-
-impl ScheduleLabel for CoreSchedule {
-    fn box_clone(&self) -> Box<dyn ScheduleLabel> {
-        Box::new(Clone::clone(self))
-    }
-}
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Hash, Eq)]
+pub struct Core;

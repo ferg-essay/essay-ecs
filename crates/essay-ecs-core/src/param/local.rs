@@ -27,7 +27,7 @@ impl<'s, T:FromWorld> DerefMut for Local<'s, T> {
     }
 }
 
-impl<'a, T:FromWorld+Send+Sync+'static> Param for Local<'a, T> {
+impl<'a, T: FromWorld + Send + Sync + 'static> Param for Local<'a, T> {
     type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 

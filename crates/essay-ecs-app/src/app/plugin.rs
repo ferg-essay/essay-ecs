@@ -61,7 +61,7 @@ mod tests {
 
     use essay_ecs_core::{Component, Commands};
 
-    use crate::app::app::App;
+    use crate::app::{app::App, Startup};
 
     use super::Plugin;
 
@@ -119,7 +119,7 @@ mod tests {
     impl Plugin for TestSpawn {
         fn build(&self, app: &mut App) {
             let value = self.value.clone();
-            app.eval(move |mut c: Commands| c.spawn(value.clone()));
+            app.add_system(Startup, move |mut c: Commands| c.spawn(value.clone()));
         }
     }
 }

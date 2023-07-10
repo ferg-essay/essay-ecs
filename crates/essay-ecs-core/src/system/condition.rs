@@ -2,7 +2,7 @@
 mod test {
     use std::sync::{Arc, Mutex};
 
-    use crate::core_app::CoreApp;
+    use crate::core_app::{CoreApp, Core};
     use crate::IntoSystemConfig;
 
     #[test]
@@ -12,12 +12,12 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
         
         let ptr = values.clone();
-        app.add_system((move || { push(&ptr, "system-true" ); })
+        app.add_system(Core, (move || { push(&ptr, "system-true" ); })
             .run_if(run_true)
         );
         
         let ptr = values.clone();
-        app.add_system((move || { push(&ptr, "system-false" ); })
+        app.add_system(Core, (move || { push(&ptr, "system-false" ); })
             .run_if(run_false)
         );
 

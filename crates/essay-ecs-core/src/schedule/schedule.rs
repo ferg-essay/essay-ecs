@@ -31,10 +31,6 @@ pub struct Schedules {
     default_executor: Box<dyn ExecutorFactory>,
 }
 
-pub trait ScheduleLabel : Send + DynLabel + fmt::Debug {
-    fn box_clone(&self) -> BoxedLabel;
-}
-
 pub struct Schedule {
     inner: Option<ScheduleInner>,
     executor: Option<Box<dyn Executor>>,
@@ -102,48 +98,30 @@ struct ScheduleInner {
 
     executor_factory: Box<dyn ExecutorFactory>,
 
-    is_changed: bool,
+    is_stale: bool,
 }
 
 impl Schedules {
-    pub fn get(&self, label: &dyn ScheduleLabel) -> Option<&Schedule> {
-        self.schedule_map.get(label)
+    pub fn get(
+        &self, 
+        label: impl AsRef<dyn ScheduleLabel>
+    ) -> Option<&Schedule> {
+        self.schedule_map.get(label.as_ref())
     }
 
-    pub fn get_mut(&mut self, label: &dyn ScheduleLabel) -> Option<&mut Schedule> {
-        self.schedule_map.get_mut(label)
-    }
-
-    pub fn insert(&mut self, label: impl ScheduleLabel, schedule: Schedule) -> Option<Schedule> {
-        self.schedule_map.insert(label.box_clone(), schedule)
-    }
-
-    pub fn add_system<M>(
+    pub fn get_mut(
         &mut self, 
-        label: &dyn ScheduleLabel, 
-        config: impl IntoSystemConfig<M>,
-    ) {
-        self.schedule_map.get_mut(label)
-            .unwrap_or_else(|| panic!("add_system with an unknown schedule {:?}", label))
-            .add_system::<M>(config);
+        label: impl AsRef<dyn ScheduleLabel>
+    ) -> Option<&mut Schedule> {
+        self.schedule_map.get_mut(label.as_ref())
     }
 
-    pub fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) {
-        self.default_executor = Box::new(executor);
-
-        for schedule in self.schedule_map.values_mut() {
-            schedule.set_executor_factory(self.default_executor.box_clone());
-        }
-    }
-
-    pub fn tick(
+    pub fn insert(
         &mut self, 
-        label: &dyn ScheduleLabel, 
-        world: &mut World
-    ) -> Result<(), ScheduleErr> {
-        let schedule = self.schedule_map.get_mut(label).unwrap();
-        
-        schedule.tick(world)
+        label: impl AsRef<dyn ScheduleLabel>, 
+        schedule: Schedule
+    ) -> Option<Schedule> {
+        self.schedule_map.insert(label.as_ref().box_clone(), schedule)
     }
 
     pub fn remove(
@@ -158,6 +136,34 @@ impl Schedules {
         label: &dyn ScheduleLabel
     ) -> Option<(BoxedLabel, Schedule)> {
         self.schedule_map.remove_entry(label)
+    }
+
+    pub fn add_system<M>(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>, 
+        config: impl IntoSystemConfig<M>,
+    ) {
+        self.schedule_map.get_mut(label.as_ref())
+            .unwrap_or_else(|| panic!("add_system with an unknown schedule {:?}", label.as_ref()))
+            .add_system::<M>(config);
+    }
+
+    pub fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) {
+        self.default_executor = Box::new(executor);
+
+        for schedule in self.schedule_map.values_mut() {
+            schedule.set_executor_factory(self.default_executor.box_clone());
+        }
+    }
+
+    pub fn tick(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>, 
+        world: &mut World
+    ) -> Result<(), ScheduleErr> {
+        let schedule = self.schedule_map.get_mut(label.as_ref()).unwrap();
+        
+        schedule.tick(world)
     }
 }
 
@@ -184,7 +190,7 @@ impl Default for Schedule {
 
                 executor_factory: Default::default(),
     
-                is_changed: true,
+                is_stale: true,
             }),
             executor: None,
         }
@@ -195,15 +201,6 @@ impl Schedule {
     pub fn new() -> Self {
         Default::default()
     }
-    /*
-    pub(crate) fn system_mut(&mut self, system_id: SystemId) -> &mut SystemItem {
-        self.inner_mut().planner.get_mut(system_id)
-    }
-
-    pub(crate) fn system(&self, system_id: SystemId) -> &SystemItem {
-        self.inner().planner.get(system_id)
-    }
-    */
 
     pub fn add_system<M>(
         &mut self, 
@@ -232,7 +229,7 @@ impl Schedule {
 
         let phase_id = self.inner_mut().phases.get_server_id(phase_id);
 
-        self.inner_mut().is_changed = true;
+        self.inner_mut().is_stale = true;
 
         self.inner_mut().add_system(
             UnsafeSyncCell::new(system), 
@@ -253,7 +250,7 @@ impl Schedule {
         self.inner_mut().phases.add_phase(config);
         self.init_phases();
 
-        self.inner_mut().is_changed = true;
+        self.inner_mut().is_stale = true;
     }
 
     pub fn add_phases(&mut self, into_config: impl IntoPhaseConfigs) {
@@ -262,7 +259,7 @@ impl Schedule {
         self.inner_mut().phases.add_phases(config);
         self.init_phases();
 
-        self.inner_mut().is_changed = true;
+        self.inner_mut().is_stale = true;
     }
 
     fn init_phases(&mut self) {
@@ -279,8 +276,8 @@ impl Schedule {
     }
 
     pub fn tick(&mut self, world: &mut World) -> Result<(), ScheduleErr> {
-        while self.inner_mut().is_changed {
-            self.inner_mut().is_changed = false;
+        while self.inner_mut().is_stale {
+            self.inner_mut().is_stale = false;
             self.init(world);
             let plan = self.plan();
             self.executor = Some(
@@ -327,7 +324,6 @@ impl Schedule {
     }
 
     pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeWorld) {
-        // self.inner().systems[id.index()].as_mut().run_unsafe(world);
         self.inner().run_unsafe(id, world)
     }
 
@@ -383,7 +379,7 @@ impl ScheduleInner {
         self.conditions.push(conditions);
         self.uninit_systems.push(id);
         self.planner.add(id, type_name, phase_id);
-        self.is_changed = true;
+        self.is_stale = true;
 
         id
     }
@@ -394,7 +390,6 @@ impl ScheduleInner {
             let mut meta = self.planner.meta_mut(id);
             
             system.get_mut().init(&mut meta, world);
-            //println!("Meta-init {:#?}", meta);
 
             for cond in &mut self.conditions[id.index()] {
                 cond.get_mut().init(&mut meta, world);
@@ -404,15 +399,13 @@ impl ScheduleInner {
 
     pub(crate) fn flush(&mut self, world: &mut World) {
         for system in &mut self.systems {
-            //if ! system.meta.is_flush() {
-                system.get_mut().flush(world);
-            //}
+            system.get_mut().flush(world);
         }
     }
 
     fn set_executor_factory(&mut self, factory: Box<dyn ExecutorFactory>) {
         self.executor_factory = factory;
-        self.is_changed = true;
+        self.is_stale = true;
     }
 
     fn set_phase(&mut self, phase_id: PhaseId, system_id: SystemId) {
@@ -480,16 +473,8 @@ impl System for SystemFlush {
     }
 }
 
-impl From<NodeId> for SystemId {
-    fn from(value: NodeId) -> Self {
-        SystemId(value.index())
-    }
-}
-
-impl From<SystemId> for NodeId {
-    fn from(value: SystemId) -> Self {
-        NodeId(value.index())
-    }
+pub trait ScheduleLabel : Send + DynLabel + fmt::Debug {
+    fn box_clone(&self) -> BoxedLabel;
 }
 
 impl PartialEq for dyn ScheduleLabel {
@@ -503,6 +488,24 @@ impl Eq for dyn ScheduleLabel {}
 impl Hash for dyn ScheduleLabel {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.dyn_hash(state);
+    }
+}
+
+impl AsRef<dyn ScheduleLabel> for dyn ScheduleLabel {
+    fn as_ref(&self) -> &dyn ScheduleLabel {
+        self
+    }
+}
+
+impl From<NodeId> for SystemId {
+    fn from(value: NodeId) -> Self {
+        SystemId(value.index())
+    }
+}
+
+impl From<SystemId> for NodeId {
+    fn from(value: SystemId) -> Self {
+        NodeId(value.index())
     }
 }
 

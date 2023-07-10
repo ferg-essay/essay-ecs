@@ -57,7 +57,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
 mod test {
     use std::{sync::{Arc, Mutex}, time::Duration, thread};
 
-    use crate::{core_app::{CoreApp, CoreSchedule}, entity::Component, Commands, schedule::Executors};
+    use crate::{core_app::{CoreApp, Core}, entity::Component, Commands, schedule::Executors, Schedules};
 
     use super::{Query};
 
@@ -67,7 +67,7 @@ mod test {
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
         let ptr = values.clone();
-        app.add_system(move |q: Query<&TestA>| { 
+        app.add_system(Core, move |q: Query<&TestA>| { 
             for t in q.iter() {
                 ptr.lock().unwrap().push(format!("{:?}", t)); 
             }
@@ -99,33 +99,33 @@ mod test {
     fn query_parallel_sequential() {
         let mut app = CoreApp::new();
 
-        app.get_mut_schedule(&CoreSchedule::Main).unwrap().set_executor(Executors::Multithreaded);
+        app.resource_mut::<Schedules>().get_mut(&Core).unwrap().set_executor(Executors::Multithreaded);
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_q: Query<&TestA>| {
+        app.add_system(Core, move |_q: Query<&TestA>| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
 
         let ptr = values.clone();
-        app.add_system(move |_q: Query<&TestA>| {
+        app.add_system(Core, move |_q: Query<&TestA>| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_q: Query<&mut TestA>| {
+        app.add_system(Core, move |_q: Query<&mut TestA>| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_q: Query<&mut TestA>| {
+        app.add_system(Core, move |_q: Query<&mut TestA>| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));

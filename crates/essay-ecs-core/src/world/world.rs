@@ -1,6 +1,6 @@
 use crate::{
     entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan, Component}, 
-    schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId},
+    schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId}, Schedule,
 };
 
 use super::{entity_ref::EntityMut, EntityRef};
@@ -150,13 +150,45 @@ impl World {
     // Schedules
     //
 
-    pub fn run_schedule(&mut self, label: impl ScheduleLabel) {
-        let mut schedule = self.resource_mut::<Schedules>().remove(&label).unwrap();
+    pub fn add_schedule(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
+        schedule: Schedule,
+    ) {
+        self.resource_mut::<Schedules>()
+            .insert(label, schedule);
+    }
 
-        schedule.tick(self).unwrap();
+    pub fn run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) {
+        self.try_run_schedule(label).unwrap();
+    }
+
+    pub fn try_run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<(), SchedErr> {
+        self.try_eval_schedule(label, |world, schedule| {
+            schedule.tick(world).unwrap();
+        })
+    }
+
+    pub fn try_eval_schedule<R>(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
+        fun: impl FnOnce(&mut World, &mut Schedule) -> R
+    ) -> Result<R, SchedErr> {
+        let label = label.as_ref();
+
+        let Some((label, mut schedule))
+            = self.get_resource_mut::<Schedules>()
+                .and_then(|s| s.remove_entry(label))
+        else {
+            return Err(SchedErr::UnknownSchedule(format!("{:?}", label)));
+        };
+
+        let value = fun(self, &mut schedule);
 
         self.resource_mut::<Schedules>().insert(label, schedule);
-    }
+
+        Ok(value)
+    }   
 
     pub(crate) fn take(&mut self) -> Self {
         let inner = self.0.take();
@@ -169,7 +201,7 @@ impl World {
     }
 }
 
-pub struct WorldInner {
+pub(crate) struct WorldInner {
     pub(crate) store: Store,
     pub(crate) resources: Resources,
 }
@@ -178,6 +210,11 @@ impl<T:Default> FromWorld for T {
     fn init(_world: &mut World) -> T {
         T::default()
     }
+}
+
+#[derive(Debug)]
+pub enum SchedErr {
+    UnknownSchedule(String),
 }
 
 #[cfg(test)]

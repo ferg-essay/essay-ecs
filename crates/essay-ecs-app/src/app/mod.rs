@@ -1,16 +1,9 @@
-//use essay_ecs_macros::ScheduleLabel;
+mod main_schedule;
 
-use essay_ecs_core::prelude::{ScheduleLabel, Phase};
+use essay_ecs_core::prelude::{Phase};
 
 mod plugin;
 mod app;
-
-#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum CoreSchedule {
-    Startup,
-    Main,
-    Outer,
-}
 
 #[derive(Phase, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CoreTaskSet {
@@ -23,6 +16,13 @@ pub enum CoreTaskSet {
 
 pub use app::App;
 
-pub(crate) mod prelude {
-    pub use super::app::{App, Tick};
-}
+pub use main_schedule::{
+    Main, Startup, Update, 
+    MainSchedulePlugin,
+};
+
+pub use plugin::{
+    Plugin,
+};
+
+

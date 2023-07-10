@@ -630,13 +630,17 @@ impl fmt::Debug for AccessGroup {
 mod test {
     use std::{sync::{Arc, Mutex}, thread, time::Duration};
 
+    use essay_ecs_macros::Phase;
+
     use crate::{
-        core_app::{CoreApp, CorePhases}, 
+        core_app::{CoreApp, Core}, 
         entity::Component, 
         schedule::{schedule::Executors}, 
         system::{IntoSystemConfig}, 
         Res, ResMut, Commands, World
     };
+
+    use crate as essay_ecs_core;
 
     #[test]
     fn phase_groups() {
@@ -648,42 +652,42 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system((move || {
+        app.add_system(Core, (move || {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         }).phase(CorePhases::Last));
         
         let ptr = values.clone();
-        app.add_system((move || {
+        app.add_system(Core, (move || {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         }).phase(CorePhases::Last));
         
         let ptr = values.clone();
-        app.add_system(move || {
+        app.add_system(Core, move || {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move || {
+        app.add_system(Core, move || {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
         });
 
         let ptr = values.clone();
-        app.add_system((move || {
+        app.add_system(Core, (move || {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         }).phase(CorePhases::First));
         
         let ptr = values.clone();
-        app.add_system((move || {
+        app.add_system(Core, (move || {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
@@ -704,28 +708,28 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_w: &mut World| {
+        app.add_system(Core, move |_w: &mut World| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_w: &mut World| {
+        app.add_system(Core, move |_w: &mut World| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move || {
+        app.add_system(Core, move || {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move || {
+        app.add_system(Core, move || {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
@@ -746,14 +750,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |res: Res<String>| {
+        app.add_system(Core, move |res: Res<String>| {
             push(&ptr, format!("[S-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("S-{}]", res.get()));
         });
         
         let ptr = values.clone();
-        app.add_system(move |res: Res<String>| {
+        app.add_system(Core, move |res: Res<String>| {
             push(&ptr, format!("[S-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("S-{}]", res.get()));
@@ -775,14 +779,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |res: ResMut<String>| {
+        app.add_system(Core, move |res: ResMut<String>| {
             push(&ptr, format!("[A-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A-{}]", res.get()));
         });
         
         let ptr = values.clone();
-        app.add_system(move |res: ResMut<String>| {
+        app.add_system(Core, move |res: ResMut<String>| {
             push(&ptr, format!("[B-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B-{}]", res.get()));
@@ -804,14 +808,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |res: ResMut<String>| {
+        app.add_system(Core, move |res: ResMut<String>| {
             push(&ptr, format!("[A-{}", res.get()));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A-{}]", res.get()));
         });
         
         let ptr = values.clone();
-        app.add_system(move |res: ResMut<u32>| {
+        app.add_system(Core, move |res: ResMut<u32>| {
             thread::sleep(Duration::from_millis(10));
             push(&ptr, format!("[B-{}", res.get()));
             thread::sleep(Duration::from_millis(50));
@@ -833,28 +837,28 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_res: Res<String>| {
+        app.add_system(Core, move |_res: Res<String>| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
 
         let ptr = values.clone();
-        app.add_system(move |_res: Res<String>| {
+        app.add_system(Core, move |_res: Res<String>| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_res: ResMut<String>| {
+        app.add_system(Core, move |_res: ResMut<String>| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_res: ResMut<String>| {
+        app.add_system(Core, move |_res: ResMut<String>| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
@@ -875,14 +879,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_item: &TestA| {
+        app.add_system(Core, move |_item: &TestA| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_item: &TestA| {
+        app.add_system(Core, move |_item: &TestA| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
@@ -904,14 +908,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_item: &mut TestA| {
+        app.add_system(Core, move |_item: &mut TestA| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_item: &mut TestA| {
+        app.add_system(Core, move |_item: &mut TestA| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
@@ -934,14 +938,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_item: &mut TestA| {
+        app.add_system(Core, move |_item: &mut TestA| {
             push(&ptr, format!("[S"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("S]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_item: &mut TestB| {
+        app.add_system(Core, move |_item: &mut TestB| {
             push(&ptr, format!("[S"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("S]"));
@@ -963,28 +967,28 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_item: &mut TestA| {
+        app.add_system(Core, move |_item: &mut TestA| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_item: &mut TestA| {
+        app.add_system(Core, move |_item: &mut TestA| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_item: &TestA| {
+        app.add_system(Core, move |_item: &TestA| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
 
         let ptr = values.clone();
-        app.add_system(move |_item: &TestA| {
+        app.add_system(Core, move |_item: &TestA| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
@@ -1007,14 +1011,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(move |_r1: Res<u32>, _r2: ResMut<String>| {
+        app.add_system(Core, move |_r1: Res<u32>, _r2: ResMut<String>| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(move |_r1: ResMut<u32>, _r2: Res<String>| {
+        app.add_system(Core, move |_r1: ResMut<u32>, _r2: Res<String>| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
@@ -1039,5 +1043,12 @@ mod test {
         let values : Vec<String> = values.lock().unwrap().drain(..).collect();
 
         values.join(", ")
+    }
+
+    #[derive(Phase, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    enum CorePhases {
+        First,
+        Main,
+        Last,
     }
 }

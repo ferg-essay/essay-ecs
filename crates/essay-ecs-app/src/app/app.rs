@@ -1,38 +1,24 @@
-//use essay_ecs_macros::ScheduleLabel;
-
-use std::mem;
-
-use essay_ecs_core::{
-    IntoPhaseConfigs,
-    Schedule, Schedules,
-    IntoSystem, IntoSystemConfig,
-    schedule::{
-        SystemMeta, ScheduleLabel, UnsafeWorld
-    }, 
-    World,
-    system::System,
-    entity::{Bundle, EntityId}, 
-    Local,
-};
-
-use super::{plugin::{Plugins, Plugin}, CoreSchedule, CoreTaskSet};
-
 ///
 /// see bevy ecs/../app.rs
 /// 
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-pub struct Tick(u64);
+use essay_ecs_core::{
+    Schedule, Schedules,
+    IntoSystemConfig,
+    schedule::{
+        ScheduleLabel,
+    }, 
+    World,
+    entity::{Bundle, EntityId}, 
+    world::FromWorld,
+};
+
+use super::{plugin::{Plugins, Plugin}, main_schedule::MainSchedulePlugin, Main};
 
 pub struct App {
     world: World,
     plugins: Plugins,
-}
-
-impl Tick {
-    pub fn value(&self) -> u64 {
-        self.0
-    }
+    main_schedule: Box<dyn ScheduleLabel>,
 }
 
 impl App {
@@ -48,31 +34,24 @@ impl App {
         App {
             world: world,
             plugins: Plugins::default(),
+            main_schedule: Box::new(Main),
         }
     }
 
     pub fn add_system<M>(
         &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
         into_system: impl IntoSystemConfig<M>
-    ) -> &mut Self
-    {
-        self.resource_mut::<Schedules>().add_system(
-            &CoreSchedule::Main, 
-            into_system
-        );
-    
-        self
-    }
+    ) -> &mut Self {
+        let schedules = self.resource_mut::<Schedules>();
 
-    pub fn add_startup_system<M>(
-        &mut self, 
-        into_system: impl IntoSystemConfig<M>
-    ) -> &mut Self
-    {
-        self.resource_mut::<Schedules>().add_system(
-            &CoreSchedule::Startup, 
-            into_system
-        );
+        if let Some(schedule) = schedules.get_mut(label.as_ref()) {
+            schedule.add_system(into_system);
+        } else {
+            let mut schedule = Schedule::new();
+            schedule.add_system(into_system);
+            schedules.insert(label, schedule);
+        }
     
         self
     }
@@ -89,28 +68,26 @@ impl App {
         self.world.get_resource::<T>().expect("unassigned resource")
     }
 
-    pub fn resource_mut<T:Send+'static>(&mut self) -> &mut T {
+    pub fn resource_mut<T: Send + 'static>(&mut self) -> &mut T {
         self.world.get_resource_mut::<T>().expect("unassigned resource")
     }
 
-    pub fn insert_resource<T:Send+'static>(&mut self, value: T) {
+    pub fn insert_resource<T: Send + 'static>(&mut self, value: T) {
         self.world.insert_resource(value);
     }
 
-    pub fn add_default_schedule(&mut self) -> &mut Self {
-        self.add_schedule(CoreSchedule::Main, CoreSchedule::main_schedule());
-        self.add_schedule(CoreSchedule::Startup, CoreSchedule::startup_schedule());
-        self.add_schedule(CoreSchedule::Outer, CoreSchedule::outer_schedule());
+    pub fn init_resource<T: FromWorld + Send + 'static>(&mut self) -> &mut Self {
+        self.world.init_resource::<T>();
 
         self
     }
 
     pub fn add_schedule(
         &mut self, 
-        label: impl ScheduleLabel, 
+        label: impl AsRef<dyn ScheduleLabel>, 
         schedule: Schedule
     ) -> &mut Self {
-        self.resource_mut::<Schedules>().insert(label, schedule);
+        self.world.add_schedule(label, schedule);
 
         self
     }
@@ -142,27 +119,9 @@ impl App {
     }
 
     pub fn update(&mut self) -> &mut Self {
-        self.world.resource_mut::<Tick>().0 += 1;
-
-        self.world.run_schedule(CoreSchedule::Outer);
+        self.world.run_schedule(&self.main_schedule);
 
         self
-    }
-
-    pub fn eval<R, M>(&mut self, fun: impl IntoSystem<R, M>) -> R
-    {
-        let mut schedule = Schedule::new();
-        //schedule.add_system(fun);
-        todo!();
-        /*
-        let mut system = IntoSystem::into_system(fun);
-
-        system.init(&mut SystemMeta::empty(), &mut self.world);
-        let value = system.run(&mut unsafe_world);
-        system.flush(&mut self.world);
-
-        value
-        */
     }
 }
 
@@ -170,76 +129,28 @@ impl Default for App {
     fn default() -> Self {
         let mut app = App::empty();
 
-        app.insert_resource(Tick(0));
+        app.init_resource::<Schedules>();
 
-        app.add_default_schedule();
+        app.add_plugin(MainSchedulePlugin);
 
         app
     }
 }
 
-impl CoreSchedule {
-    fn main_schedule() -> Schedule {
-        CoreTaskSet::main_schedule()
-    }
-
-    fn outer_schedule() -> Schedule {
-        let mut schedule = Schedule::new();
-
-        todo!();
-        // schedule.add_system(Self::outer_system);
-
-        schedule
-    }
-
-    fn outer_system(world: &mut World, mut is_startup: Local<bool>) {
-        if ! *is_startup {
-            *is_startup = true;
-            world.run_schedule(CoreSchedule::Startup);
-        }
-
-        world.run_schedule(CoreSchedule::Main);
-    }
-
-    fn startup_schedule() -> Schedule {
-        Schedule::new()
-    }
-}
-
-impl CoreTaskSet {
-    fn main_schedule() -> Schedule {
-        let mut schedule = Schedule::new();
-
-        schedule.set_default_phase(Self::Update);
-
-        schedule.add_phases((
-            Self::First,
-            Self::PreUpdate,
-            Self::Update,
-            Self::PostUpdate,
-            Self::Last,
-        ).chained());
-
-        schedule
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc, sync::{Mutex, Arc}};
+    use std::{sync::{Mutex, Arc}};
 
-    use essay_ecs_core::Res;
-
-    use crate::app::app::App;
+    use crate::app::{app::{App}, Update, Startup};
 
     #[test]
-    fn app_system() {
+    fn app_hello() {
         let mut app = App::new();
         let value = Vec::<String>::new();
         let value = Arc::new(Mutex::new(value));
         
         let ptr = Arc::clone(&value);
-        app.add_system(move || ptr.lock().unwrap().push("update".to_string()));
+        app.add_system(Update, move || ptr.lock().unwrap().push("update".to_string()));
         assert_eq!(take(&value), "");
         app.update();
         assert_eq!(take(&value), "update");
@@ -252,20 +163,19 @@ mod tests {
     fn startup_system() {
         let mut app = App::new();
         let value = Vec::<String>::new();
-        let value = Rc::new(RefCell::new(value));
-        /*
-        let ptr = Rc::clone(&value);
-        app.add_startup_system(move || ptr.borrow_mut().push("startup".to_string()));
+        let value = Arc::new(Mutex::new(value));
+      
+        let ptr = Arc::clone(&value);
+        app.add_system(Startup, move || push(&ptr, "startup"));
 
-        let ptr = Rc::clone(&value);
-        app.add_system(move || ptr.borrow_mut().push("update".to_string()));
+        let ptr = Arc::clone(&value);
+        app.add_system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
         app.update();
         assert_eq!(take(&value), "startup, update");
         app.update();
         app.update();
         assert_eq!(take(&value), "update, update");
-        */
     }
 
     #[test]
@@ -280,18 +190,6 @@ mod tests {
         assert_eq!(app.resource::<TestB>(), &TestB(2));
     }
 
-    #[test]
-    fn eval() {
-        let mut app = App::new();
-
-        app.insert_resource(TestA(1));
-        assert_eq!(app.eval(|r: Res<TestA>| r.clone()), TestA(1));
-
-        app.insert_resource(TestB(2));
-        assert_eq!(app.eval(|r: Res<TestA>| r.clone()), TestA(1));
-        assert_eq!(app.eval(|r: Res<TestB>| r.clone()), TestB(2));
-    }
-
     #[derive(Debug, Clone, PartialEq)]
     struct TestA(u32);
 
@@ -302,8 +200,7 @@ mod tests {
         ptr.lock().unwrap().drain(..).collect::<Vec<String>>().join(", ")
     }
 
-    fn test_system() {
-        println!("hello");
+    fn push(ptr: &Arc<Mutex<Vec<String>>>, value: &str) {
+        ptr.lock().unwrap().push(value.to_string());
     }
-
 }
