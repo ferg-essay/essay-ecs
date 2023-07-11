@@ -5,7 +5,7 @@ use crate::{
     schedule::{ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeWorld}, 
     entity::{View, ViewIterator}, 
     Schedules, IntoSystem, 
-    system::System,
+    system::System, world::FromWorld,
 };
 
 pub struct CoreApp {
@@ -44,20 +44,30 @@ impl CoreApp {
         self
     }
 
-    pub fn get_resource<T:Send + 'static>(&mut self) -> Option<&T> {
+    pub fn get_resource<T: Send + 'static>(&mut self) -> Option<&T> {
         self.world.get_resource::<T>()
     }
 
-    pub fn get_mut_resource<T:Send + 'static>(&mut self) -> Option<&mut T> {
+    pub fn get_mut_resource<T: Send + 'static>(&mut self) -> Option<&mut T> {
         self.world.get_resource_mut::<T>()
     }
 
-    pub fn resource<T:Send + 'static>(&mut self) -> &T {
+    pub fn resource<T: Send + 'static>(&mut self) -> &T {
         self.world.get_resource::<T>().expect("unassigned resource")
     }
 
-    pub fn resource_mut<T:Send + 'static>(&mut self) -> &mut T {
+    pub fn resource_mut<T: Send + 'static>(&mut self) -> &mut T {
         self.world.get_resource_mut::<T>().expect("unassigned resource")
+    }
+
+    pub fn contains_resource<T: 'static>(&mut self) -> bool {
+        self.world.contains_resource::<T>()
+    }
+
+    pub fn init_resource<T: FromWorld + Send + 'static>(&mut self) -> &mut Self {
+        self.world.init_resource::<T>();
+
+        self
     }
 
     pub fn insert_resource<T:Send + 'static>(&mut self, value: T) {

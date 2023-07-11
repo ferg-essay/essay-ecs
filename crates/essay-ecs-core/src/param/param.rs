@@ -1,5 +1,5 @@
 use crate::{
-    world::{World}, 
+    world::World, 
     schedule::{SystemMeta, UnsafeWorld}
 };
 
@@ -66,7 +66,24 @@ macro_rules! impl_param_tuple {
     }
 }
 
-impl_param_tuple!();
+impl Param for ()
+{
+    type Arg<'w, 's> = ();
+    type State = ();
+
+    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+        ()
+    }
+
+    fn arg<'w, 's>(
+        _world: &'w UnsafeWorld, 
+        _state: &'s mut Self::State,
+    ) -> Self::Arg<'w, 's> {
+        ()
+    }
+}
+
+// impl_param_tuple!();
 impl_param_tuple!(P1);
 impl_param_tuple!(P1, P2);
 impl_param_tuple!(P1, P2, P3);

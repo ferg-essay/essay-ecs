@@ -1,3 +1,4 @@
+pub mod event;
 mod channel;
 mod app;
 

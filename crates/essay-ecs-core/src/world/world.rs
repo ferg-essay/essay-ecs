@@ -109,12 +109,16 @@ impl World {
         self.deref_mut().resources.get_mut::<T>()
     }
     
-    pub fn resource<T:Send + 'static>(&self) -> &T {
+    pub fn resource<T: Send + 'static>(&self) -> &T {
         self.get_resource::<T>().unwrap()
     }
     
-    pub fn resource_mut<T:Send + 'static>(&mut self) -> &mut T {
+    pub fn resource_mut<T: Send + 'static>(&mut self) -> &mut T {
         self.get_resource_mut::<T>().unwrap()
+    }
+
+    pub fn contains_resource<T: 'static>(&self) -> bool {
+        self.deref().resources.contains_resource::<T>()
     }
 
     pub fn init_resource<T:FromWorld + Send +'static>(&mut self) {

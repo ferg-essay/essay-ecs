@@ -10,11 +10,11 @@ use crate::{
 use super::{
     phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase}, 
     Phase, 
-    preorder::{NodeId}, 
+    preorder::NodeId, 
     SystemMeta, 
-    plan::{Plan}, 
+    plan::Plan, 
     unsafe_cell::UnsafeSyncCell, 
-    planner::{Planner}, 
+    planner::Planner, 
     multithreaded::MultithreadedExecutor, UnsafeWorld
 };
 
@@ -513,9 +513,7 @@ impl From<SystemId> for NodeId {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::{Arc, Mutex}};
-
-    use crate::{world::World, schedule::Phase};
+    use crate::{world::World, schedule::Phase, util::test::TestValues};
 
     use super::{Schedule, ScheduleLabel};
     use crate::*;
@@ -531,12 +529,9 @@ mod tests {
 
     #[test]
     fn schedule_flush() {
-        let values = Arc::new(Mutex::new(Vec::<String>::new()));
-
         let mut world = World::new();
         let mut schedule = Schedule::new();
 
-        let ptr = values.clone();
         schedule.add_system(move |mut cmd: Commands| { 
             cmd.spawn(TestComp(2));
         });
@@ -551,73 +546,73 @@ mod tests {
 
     #[test]
     fn phase_a_b_c() {
-        let values = Arc::new(Mutex::new(Vec::<String>::new()));
+        let mut values = TestValues::new();
 
         let mut world = World::new();
 
         // A, default
         let mut schedule = new_schedule_a_b_c();
 
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system((move || { 
-            push(&ptr, "a"); 
+            ptr.push("a"); 
         }).phase(TestPhase::A));
         
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system(move || { 
-            push(&ptr, "b"); 
+            ptr.push("b"); 
         });
 
         schedule.tick(&mut world).unwrap();
-        assert_eq!(take(&values), "a, b");
+        assert_eq!(values.take(), "a, b");
 
         // C, default
         let mut schedule = new_schedule_a_b_c();
 
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system((move || { 
-            push(&ptr, "c"); 
+            ptr.push("c"); 
         }).phase(TestPhase::C));
         
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system(move || { 
-            push(&ptr, "b"); 
+            ptr.push("b"); 
         });
 
         schedule.tick(&mut world).unwrap();
-        assert_eq!(take(&values), "b, c");
+        assert_eq!(values.take(), "b, c");
 
         // default, A
         let mut schedule = new_schedule_a_b_c();
 
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system(move || { 
-            push(&ptr, "b"); 
+            ptr.push("b"); 
         });
         
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system((move || { 
-            push(&ptr, "a"); 
+            ptr.push("a"); 
         }).phase(TestPhase::A));
 
         schedule.tick(&mut world).unwrap();
-        assert_eq!(take(&values), "a, b");
+        assert_eq!(values.take(), "a, b");
 
         // default, C
         let mut schedule = new_schedule_a_b_c();
 
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system(move || { 
-            push(&ptr, "b"); 
+            ptr.push("b"); 
         });
         
-        let ptr = values.clone();
+        let mut ptr = values.clone();
         schedule.add_system((move || { 
-            push(&ptr, "c"); 
+            ptr.push("c"); 
         }).phase(TestPhase::C));
 
         schedule.tick(&mut world).unwrap();
-        assert_eq!(take(&values), "b, c");
+        assert_eq!(values.take(), "b, c");
     }
 
     fn new_schedule_a_b_c() -> Schedule {
@@ -630,16 +625,6 @@ mod tests {
         schedule.set_default_phase(TestPhase::B);
 
         schedule
-    }
-
-    fn take(values: &Arc<Mutex<Vec<String>>>) -> String {
-        let str_vec = values.lock().unwrap().drain(..).collect::<Vec<String>>();
-
-        return str_vec.join(", ");
-    }
-
-    fn push(values: &Arc<Mutex<Vec<String>>>, s: &str) {
-        values.lock().unwrap().push(s.to_string());
     }
 
     #[derive(PartialEq, Hash, Eq, Clone, Debug)]

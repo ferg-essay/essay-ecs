@@ -179,7 +179,21 @@ macro_rules! impl_param_excl_tuple {
     }
 }
 
-impl_param_excl_tuple!();
+impl ParamExcl for ()
+{
+    type Arg<'s> = ();
+    type State = ();
+
+    fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
+        ()
+    }
+
+    fn arg<'s>(_state: &'s mut Self::State) -> Self::Arg<'s> {
+        ()
+    }
+}
+
+// impl_param_excl_tuple!();
 impl_param_excl_tuple!(P1);
 impl_param_excl_tuple!(P1, P2);
 impl_param_excl_tuple!(P1, P2, P3);

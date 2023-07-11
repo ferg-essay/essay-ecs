@@ -1,4 +1,4 @@
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::{world::World, entity::{View, ComponentId}, 
     schedule::{SystemMeta, UnsafeWorld},
@@ -139,7 +139,7 @@ impl_each_function!(P1, P2, P3, P4, P5, P6, P7);
 mod tests {
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{World, entity::Component, Schedule};
+    use crate::{World, entity::Component, Schedule, util::test::TestValues};
 
     #[test]
     fn test_each() {
@@ -147,7 +147,7 @@ mod tests {
 
         world.spawn(TestA(1));
 
-        let values = Rc::new(RefCell::new(Vec::<String>::new()));
+        let _values = TestValues::new();
 
         let mut schedule = Schedule::new();
         schedule.add_system(system_each_ref);

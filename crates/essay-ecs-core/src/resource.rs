@@ -59,6 +59,12 @@ impl Resources {
         }
     }
 
+    pub fn contains_resource<T: 'static>(&self) -> bool {
+        let type_id = TypeId::of::<T>();
+
+        self.resource_map.contains_key(&type_id)
+    }
+
     pub fn remove<T: 'static>(&mut self) -> Option<T> {
         let type_id = TypeId::of::<T>();
 

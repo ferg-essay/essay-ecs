@@ -75,9 +75,9 @@ impl Plugin for MainSchedulePlugin {
         let mut main_schedule = Schedule::new();
         main_schedule.set_executor(Executors::Single);
 
-        app.add_schedule(Main, main_schedule)
+        app.schedule(Main, main_schedule)
             .init_resource::<MainSchedule>()
-            .add_system(Main, Main::main_system);
+            .system(Main, Main::main_system);
     }
 }
 
@@ -96,12 +96,12 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
         
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || ptr.lock().unwrap().push("update".to_string()));
+        app.system(Update, move || ptr.lock().unwrap().push("update".to_string()));
         assert_eq!(take(&value), "");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "update");
-        app.update();
-        app.update();
+        app.tick();
+        app.tick();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -112,15 +112,15 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
       
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move || push(&ptr, "startup"));
+        app.system(Startup, move || push(&ptr, "startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || push(&ptr, "update"));
+        app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "startup, update");
-        app.update();
-        app.update();
+        app.tick();
+        app.tick();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -131,22 +131,22 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
       
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move || push(&ptr, "startup"));
+        app.system(Startup, move || push(&ptr, "startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(PostStartup, move || push(&ptr, "post-startup"));
+        app.system(PostStartup, move || push(&ptr, "post-startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(PreStartup, move || push(&ptr, "pre-startup"));
+        app.system(PreStartup, move || push(&ptr, "pre-startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || push(&ptr, "update"));
+        app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "pre-startup, startup, post-startup, update");
-        app.update();
-        app.update();
+        app.tick();
+        app.tick();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -157,38 +157,38 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
       
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move || push(&ptr, "startup"));
+        app.system(Startup, move || push(&ptr, "startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(PostStartup, move || push(&ptr, "post-startup"));
+        app.system(PostStartup, move || push(&ptr, "post-startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(PreStartup, move || push(&ptr, "pre-startup"));
+        app.system(PreStartup, move || push(&ptr, "pre-startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || push(&ptr, "update"));
+        app.system(Update, move || push(&ptr, "update"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(First, move || push(&ptr, "first"));
+        app.system(First, move || push(&ptr, "first"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(PreUpdate, move || push(&ptr, "pre-update"));
+        app.system(PreUpdate, move || push(&ptr, "pre-update"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(PostUpdate, move || push(&ptr, "post-update"));
+        app.system(PostUpdate, move || push(&ptr, "post-update"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Last, move || push(&ptr, "last"));
+        app.system(Last, move || push(&ptr, "last"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Bogus, move || push(&ptr, "bogus"));
+        app.system(Bogus, move || push(&ptr, "bogus"));
 
         assert_eq!(take(&value), "");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "pre-startup, startup, post-startup, first, pre-update, update, post-update, last");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "first, pre-update, update, post-update, last");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "first, pre-update, update, post-update, last");
     }
 

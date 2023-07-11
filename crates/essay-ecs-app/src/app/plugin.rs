@@ -39,7 +39,7 @@ impl Plugins {
         self.plugins.push(plugin);
     }
 
-    pub(crate) fn is_plugin_added<T:Plugin>(&self) -> bool {
+    pub(crate) fn contains_plugin<T:Plugin>(&self) -> bool {
         self.names.contains(type_name::<T>())
     }
 
@@ -86,9 +86,9 @@ mod tests {
     fn add_plugin() {
         let mut app = App::new();
 
-        assert!(! app.is_plugin_added::<TestSpawn>());
+        assert!(! app.contains_plugin::<TestSpawn>());
 
-        app.add_plugin(TestSpawn::new(TestA(100)));
+        app.plugin(TestSpawn::new(TestA(100)));
         /*
         assert!(app.is_plugin_added::<TestSpawn>());
 
@@ -105,8 +105,8 @@ mod tests {
     fn add_dup() {
         let mut app = App::new();
 
-        app.add_plugin(TestSpawn::new(TestA(100)));
-        app.add_plugin(TestSpawn::new(TestA(200)));
+        app.plugin(TestSpawn::new(TestA(100)));
+        app.plugin(TestSpawn::new(TestA(200)));
     }
 
     fn _take<T:fmt::Debug>(ptr: &Rc<RefCell<Vec<T>>>) -> String {
@@ -136,7 +136,7 @@ mod tests {
     impl Plugin for TestSpawn {
         fn build(&self, app: &mut App) {
             let value = self.value.clone();
-            app.add_system(Startup, move |mut c: Commands| c.spawn(value.clone()));
+            app.system(Startup, move |mut c: Commands| c.spawn(value.clone()));
         }
     }
 }

@@ -34,6 +34,138 @@ pub struct SystemMeta {
     mut_components: HashSet<ComponentId>,
 }
 
+impl SystemMeta {
+    pub(crate) fn new(
+        id: SystemId, 
+        name: String,
+        phase: Option<SystemId>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            phase,
+            priority: Default::default(),
+
+            is_flush: false,
+            is_exclusive: false,
+
+            resources: Default::default(),
+            mut_resources: Default::default(),
+
+            components: Default::default(),
+            mut_components: Default::default(),
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            id: SystemId(0),
+            name: "empty".to_string(),
+            priority: Default::default(),
+            phase: None,
+
+            is_flush: false,
+            is_exclusive: false,
+
+            resources: Default::default(),
+            mut_resources: Default::default(),
+
+            components: Default::default(),
+            mut_components: Default::default(),
+        }
+    }
+
+    pub fn id(&self) -> SystemId {
+        self.id
+    }
+
+    pub fn set_exclusive(&mut self) {
+        self.is_exclusive = true;
+    }
+
+    pub fn is_exclusive(&self) -> bool {
+        self.is_exclusive
+    }
+
+    pub(crate) fn set_flush(&mut self) {
+        self.is_flush = true;
+    }
+
+    pub(crate) fn is_flush(&self) -> bool {
+        self.is_flush
+    }
+
+    pub fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    pub fn set_priority(&mut self, priority: Priority) {
+        self.priority = priority;
+    }
+
+    pub fn add_priority(&mut self, delta: u32) {
+        self.priority = self.priority.add(delta);
+    }
+
+    pub fn sub_priority(&mut self, delta: u32) {
+        self.priority = self.priority.sub(delta);
+    }
+
+    pub fn insert_resource(&mut self, id: ResourceId) {
+        self.resources.insert(id);
+    }
+
+    pub fn insert_resource_mut(&mut self, id: ResourceId) {
+        self.mut_resources.insert(id);
+    }
+
+    pub fn insert_component(&mut self, id: ComponentId) {
+        self.components.insert(id);
+    }
+
+    pub fn insert_component_mut(&mut self, id: ComponentId) {
+        self.mut_components.insert(id);
+    }
+    
+    pub(crate) fn add_phase_arrows(
+        &self, 
+        preorder: &mut Preorder, 
+        prev_map: &HashMap<SystemId, SystemId>
+    ) {
+        if let Some(phase) = &self.phase {
+            preorder.add_arrow(
+                NodeId::from(self.id), 
+                NodeId::from(*phase)
+            );
+
+            if let Some(prev) = prev_map.get(&phase) {
+                preorder.add_arrow(
+                    NodeId::from(*prev), 
+                    NodeId::from(self.id)
+                );
+            }
+        }
+    }
+
+    pub(crate) fn set_phase(&mut self, system_id: SystemId) {
+        self.phase = Some(system_id);
+    }
+}
+
+impl fmt::Debug for SystemMeta {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SystemMeta")
+         .field("id", &self.id)
+         .field("name", &self.name)
+         .field("phase", &self.phase)
+         .field("is_exclusive", &self.is_exclusive)
+         .field("is_flush", &self.is_exclusive)
+         .field("resources", &self.resources)
+         .field("mut_resources", &self.mut_resources)
+         .finish()
+    }
+}
+
 pub struct PhasePlan {
     phase: Option<SystemId>,
 
@@ -202,138 +334,6 @@ impl Default for Planner {
             preorder: Default::default(),
             order: Default::default(),
         }
-    }
-}
-
-impl SystemMeta {
-    pub(crate) fn new(
-        id: SystemId, 
-        name: String,
-        phase: Option<SystemId>,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            phase,
-            priority: Default::default(),
-
-            is_flush: false,
-            is_exclusive: false,
-
-            resources: Default::default(),
-            mut_resources: Default::default(),
-
-            components: Default::default(),
-            mut_components: Default::default(),
-        }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            id: SystemId(0),
-            name: "empty".to_string(),
-            priority: Default::default(),
-            phase: None,
-
-            is_flush: false,
-            is_exclusive: false,
-
-            resources: Default::default(),
-            mut_resources: Default::default(),
-
-            components: Default::default(),
-            mut_components: Default::default(),
-        }
-    }
-
-    pub fn id(&self) -> SystemId {
-        self.id
-    }
-
-    pub fn set_exclusive(&mut self) {
-        self.is_exclusive = true;
-    }
-
-    pub fn is_exclusive(&self) -> bool {
-        self.is_exclusive
-    }
-
-    pub(crate) fn set_flush(&mut self) {
-        self.is_flush = true;
-    }
-
-    pub(crate) fn is_flush(&self) -> bool {
-        self.is_flush
-    }
-
-    pub fn priority(&self) -> Priority {
-        self.priority
-    }
-
-    pub fn set_priority(&mut self, priority: Priority) {
-        self.priority = priority;
-    }
-
-    pub fn add_priority(&mut self, delta: u32) {
-        self.priority = self.priority.add(delta);
-    }
-
-    pub fn sub_priority(&mut self, delta: u32) {
-        self.priority = self.priority.sub(delta);
-    }
-
-    pub(crate) fn insert_resource(&mut self, id: ResourceId) {
-        self.resources.insert(id);
-    }
-
-    pub(crate) fn insert_resource_mut(&mut self, id: ResourceId) {
-        self.mut_resources.insert(id);
-    }
-
-    pub(crate) fn insert_component(&mut self, id: ComponentId) {
-        self.components.insert(id);
-    }
-
-    pub(crate) fn insert_component_mut(&mut self, id: ComponentId) {
-        self.mut_components.insert(id);
-    }
-    
-    pub(crate) fn add_phase_arrows(
-        &self, 
-        preorder: &mut Preorder, 
-        prev_map: &HashMap<SystemId, SystemId>
-    ) {
-        if let Some(phase) = &self.phase {
-            preorder.add_arrow(
-                NodeId::from(self.id), 
-                NodeId::from(*phase)
-            );
-
-            if let Some(prev) = prev_map.get(&phase) {
-                preorder.add_arrow(
-                    NodeId::from(*prev), 
-                    NodeId::from(self.id)
-                );
-            }
-        }
-    }
-
-    pub(crate) fn set_phase(&mut self, system_id: SystemId) {
-        self.phase = Some(system_id);
-    }
-}
-
-impl fmt::Debug for SystemMeta {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SystemMeta")
-         .field("id", &self.id)
-         .field("name", &self.name)
-         .field("phase", &self.phase)
-         .field("is_exclusive", &self.is_exclusive)
-         .field("is_flush", &self.is_exclusive)
-         .field("resources", &self.resources)
-         .field("mut_resources", &self.mut_resources)
-         .finish()
     }
 }
 
@@ -635,8 +635,8 @@ mod test {
     use crate::{
         core_app::{CoreApp, Core}, 
         entity::Component, 
-        schedule::{schedule::Executors}, 
-        system::{IntoSystemConfig}, 
+        schedule::schedule::Executors, 
+        system::IntoSystemConfig, 
         Res, ResMut, Commands, World
     };
 

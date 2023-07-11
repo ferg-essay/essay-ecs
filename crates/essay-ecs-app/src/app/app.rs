@@ -1,21 +1,23 @@
 use std::any::type_name;
 
 ///
-/// see bevy ecs/../app.rs
+/// see bevy bevy_app/../app.rs
 /// 
 
 use essay_ecs_core::{
     Schedule, Schedules,
     IntoSystemConfig,
-    schedule::{
-        ScheduleLabel,
-    }, 
+    schedule::ScheduleLabel,
     World,
-    entity::{Bundle, EntityId}, 
     world::FromWorld,
 };
 
+use crate::{event::{Event, Events}, First};
+
 use super::{plugin::{Plugins, Plugin}, main_schedule::MainSchedulePlugin, Main};
+
+#[cfg(test)]
+use essay_ecs_core::entity::{Bundle, EntityId};
 
 pub struct App {
     world: World,
@@ -45,7 +47,7 @@ impl App {
         }
     }
 
-    pub fn add_system<M>(
+    pub fn system<M>(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>,
         into_system: impl IntoSystemConfig<M>
@@ -66,6 +68,16 @@ impl App {
     //
     // resources
     //
+
+    pub fn insert_resource<T: Send + 'static>(&mut self, value: T) {
+        self.world.insert_resource(value);
+    }
+
+    pub fn init_resource<T: FromWorld + Send + 'static>(&mut self) -> &mut Self {
+        self.world.init_resource::<T>();
+
+        self
+    }
 
     pub fn get_resource<T:Send+'static>(&mut self) -> Option<&T> {
         self.world.get_resource::<T>()
@@ -89,16 +101,6 @@ impl App {
         }
     }
 
-    pub fn insert_resource<T: Send + 'static>(&mut self, value: T) {
-        self.world.insert_resource(value);
-    }
-
-    pub fn init_resource<T: FromWorld + Send + 'static>(&mut self) -> &mut Self {
-        self.world.init_resource::<T>();
-
-        self
-    }
-
     pub fn remove_resource<T: 'static>(&mut self) -> Option<T> {
         self.world.remove_resource()
     }
@@ -117,15 +119,24 @@ impl App {
         self.world.remove_resource_non_send()
     }
 
-    pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
-        self.world.spawn(value)
+    //
+    // events
+    //
+
+    pub fn event<E: Event>(&mut self) -> &mut Self {
+        if ! self.world.contains_resource::<Events<E>>() {
+            self.init_resource::<Events<E>>()
+                .system(First, Events::<E>::update);
+        }
+
+        self
     }
 
     //
-    // plugin routines
+    // plugins
     //
 
-    pub fn add_plugin<P: Plugin + 'static>(&mut self, plugin: P) -> &mut Self {
+    pub fn plugin<P: Plugin + 'static>(&mut self, plugin: P) -> &mut Self {
         let plugin: Box<dyn Plugin> = Box::new(plugin);
 
         self.plugins.add_name(&plugin);
@@ -135,8 +146,8 @@ impl App {
         self
     }
 
-    pub fn is_plugin_added<P:Plugin>(&self) -> bool {
-        self.plugins.is_plugin_added::<P>()
+    pub fn contains_plugin<P:Plugin>(&self) -> bool {
+        self.plugins.contains_plugin::<P>()
     }
 
     pub fn setup(&mut self) -> &mut Self {
@@ -168,7 +179,7 @@ impl App {
     // schedule/update routines
     //
 
-    pub fn add_schedule(
+    pub fn schedule(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>, 
         schedule: Schedule
@@ -178,13 +189,13 @@ impl App {
         self
     }
 
-    pub fn update(&mut self) -> &mut Self {
+    pub fn tick(&mut self) -> &mut Self {
         self.world.run_schedule(&self.main_schedule);
 
         self
     }
 
-    pub fn set_runner(&mut self, runner: impl FnOnce(App) + 'static + Send) -> &mut Self {
+    pub fn runner(&mut self, runner: impl FnOnce(App) + 'static + Send) -> &mut Self {
         self.runner = Box::new(runner);
 
         self
@@ -197,6 +208,11 @@ impl App {
 
         runner(app);
     }
+
+    #[cfg(test)]
+    pub fn spawn<T: Bundle>(&mut self, value: T) -> EntityId {
+        self.world.spawn(value)
+    }
 }
 
 impl Default for App {
@@ -205,7 +221,7 @@ impl Default for App {
 
         app.init_resource::<Schedules>();
 
-        app.add_plugin(MainSchedulePlugin);
+        app.plugin(MainSchedulePlugin);
 
         app
     }
@@ -215,17 +231,17 @@ fn run_once(mut app: App) {
     app.finish();
     app.cleanup();
 
-    app.update();
+    app.tick();
 }
 
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::{Mutex, Arc}};
+    use std::sync::{Mutex, Arc};
 
     use essay_ecs_core::{Component, Commands};
 
-    use crate::app::{app::{App}, Update, Startup};
+    use crate::{app::{app::App, Update, Startup}, event::{Event, OutEvent, InEvent}, PreUpdate};
 
     mod ecs { pub mod core { pub use essay_ecs_core::*; }}
     use ecs as essay_ecs;
@@ -237,12 +253,12 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
         
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || ptr.lock().unwrap().push("update".to_string()));
+        app.system(Update, move || ptr.lock().unwrap().push("update".to_string()));
         assert_eq!(take(&value), "");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "update");
-        app.update();
-        app.update();
+        app.tick();
+        app.tick();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -253,15 +269,15 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
       
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move || push(&ptr, "startup"));
+        app.system(Startup, move || push(&ptr, "startup"));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || push(&ptr, "update"));
+        app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "startup, update");
-        app.update();
-        app.update();
+        app.tick();
+        app.tick();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -272,10 +288,10 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move || push(&ptr, "startup"));
+        app.system(Startup, move || push(&ptr, "startup"));
       
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || push(&ptr, "update"));
+        app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
         app.run();
@@ -289,15 +305,15 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move || push(&ptr, "startup"));
+        app.system(Startup, move || push(&ptr, "startup"));
       
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move || push(&ptr, "update"));
+        app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
-        app.set_runner(|mut app| {
+        app.runner(|mut app| {
             for _ in 0..3 {
-                app.update();
+                app.tick();
             }
         });
 
@@ -324,17 +340,46 @@ mod tests {
         let value = Arc::new(Mutex::new(value));
 
         let ptr = Arc::clone(&value);
-        app.add_system(Startup, move |mut cmd: Commands| {
+        app.system(Startup, move |mut cmd: Commands| {
             push(&ptr, "spawn");
             cmd.spawn(CompA);
         });
       
         let ptr = Arc::clone(&value);
-        app.add_system(Update, move |_comp: &CompA| push(&ptr, "update"));
+        app.system(Update, move |_comp: &CompA| push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
-        app.update();
+        app.tick();
         assert_eq!(take(&value), "spawn, update");
+    }
+
+    #[test]
+    fn events() {
+        let mut app = App::new();
+        let value = Vec::<String>::new();
+        let value = Arc::new(Mutex::new(value));
+
+        app.event::<TestEvent>();
+
+        let mut counter = 1;
+        app.system(PreUpdate, move |mut writer: OutEvent<TestEvent>| {
+            writer.send(TestEvent(counter));
+            counter += 1;
+        });
+
+        let ptr = Arc::clone(&value);
+        app.system(PreUpdate, move |mut reader: InEvent<TestEvent>| {
+            for event in reader.iter() {
+                push(&ptr, &format!("{:?}", event));
+            }
+        });
+
+        app.tick();
+        assert_eq!(take(&value), "TestEvent(1)");
+        app.tick();
+        assert_eq!(take(&value), "TestEvent(2)");
+        app.tick();
+        assert_eq!(take(&value), "TestEvent(3)");
     }
 
     #[derive(Component)]
@@ -345,6 +390,11 @@ mod tests {
 
     #[derive(Debug, Clone, PartialEq)]
     struct TestB(u32);
+
+    #[derive(Debug)]
+    struct TestEvent(u32);
+
+    impl Event for TestEvent {}
 
     fn take(ptr: &Arc<Mutex<Vec<String>>>) -> String {
         ptr.lock().unwrap().drain(..).collect::<Vec<String>>().join(", ")
