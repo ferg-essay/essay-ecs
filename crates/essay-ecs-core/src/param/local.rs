@@ -5,13 +5,13 @@
 
 use std::ops::{Deref, DerefMut};
 
-use crate::{world::FromWorld, schedule::{SystemMeta, UnsafeWorld}, World};
+use crate::{store::FromStore, schedule::{SystemMeta, UnsafeWorld}, Store};
 
 use super::Param;
 
-pub struct Local<'s, T:FromWorld>(pub(crate) &'s mut T);
+pub struct Local<'s, T:FromStore>(pub(crate) &'s mut T);
 
-impl<'s, T:FromWorld> Deref for Local<'s, T> {
+impl<'s, T:FromStore> Deref for Local<'s, T> {
     type Target = T;
 
     #[inline]
@@ -20,18 +20,18 @@ impl<'s, T:FromWorld> Deref for Local<'s, T> {
     }
 }
 
-impl<'s, T:FromWorld> DerefMut for Local<'s, T> {
+impl<'s, T:FromStore> DerefMut for Local<'s, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0
     }
 }
 
-impl<'a, T: FromWorld + Send + Sync + 'static> Param for Local<'a, T> {
+impl<'a, T: FromStore + Send + Sync + 'static> Param for Local<'a, T> {
     type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 
-    fn init(_meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Self::State {
         // let exl = std::sync::Exclusive::new(T::default());
         T::init(world)
     }
@@ -43,20 +43,20 @@ impl<'a, T: FromWorld + Send + Sync + 'static> Param for Local<'a, T> {
         Local(state)
     }
 
-    fn flush(_world: &mut World, _state: &mut Self::State) {
+    fn flush(_world: &mut Store, _state: &mut Self::State) {
     }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::{world::{World}, schedule::Schedule, param::ResMut};
+    use crate::{store::{Store}, schedule::Schedule, param::ResMut};
 
     use super::Local;
 
     #[test]
     fn test_local() {
-        let mut world = World::new();
+        let mut world = Store::new();
         world.insert_resource::<String>("none".to_string());
 
         let mut schedule = Schedule::new();

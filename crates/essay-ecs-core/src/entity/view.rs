@@ -2,7 +2,7 @@
 use std::{marker::PhantomData, collections::HashSet};
 
 use super::{
-    {Store, ViewId}, 
+    {EntityStore, ViewId}, 
     meta::{TableMeta, ViewTableType, ColumnId}, 
     store::{Component}, table::TableRow, EntityId,
 };
@@ -16,7 +16,7 @@ pub trait View : Send + Sync {
 }
 
 pub struct ViewCursor<'a, 't> {
-    store: &'t Store,
+    store: &'t EntityStore,
     table: &'a TableMeta,
     view_table: &'a ViewTableType,
     row: &'a TableRow,
@@ -25,7 +25,7 @@ pub struct ViewCursor<'a, 't> {
 }
 
 pub struct ViewBuilder<'a> {
-    store: &'a mut Store, 
+    store: &'a mut EntityStore, 
     columns: Vec<ColumnId>,
 
     components: HashSet<ColumnId>,
@@ -44,7 +44,7 @@ pub struct ViewPlan {
 impl ViewPlan {
     pub(crate) fn new_cursor<'a, 't>(
         &'a self, 
-        store: &'t Store,
+        store: &'t EntityStore,
         table: &'a TableMeta,
         view_row: &'a ViewTableType,
         row: &'a TableRow
@@ -99,7 +99,7 @@ impl<'a, 't> ViewCursor<'a, 't> {
 }
 
 impl<'a, 't> ViewBuilder<'a> {
-    pub(crate) fn new(store: &'a mut Store) -> Self {
+    pub(crate) fn new(store: &'a mut EntityStore) -> Self {
         Self {
             store,
             columns: Vec::new(),
@@ -143,7 +143,7 @@ impl<'a, 't> ViewBuilder<'a> {
 }
 
 pub struct ViewIterator<'a, T:View> {
-    store: &'a Store,
+    store: &'a EntityStore,
 
     view_id: ViewId,
     plan: ViewPlan,
@@ -157,7 +157,7 @@ pub struct ViewIterator<'a, T:View> {
 
 impl<'a, T:View> ViewIterator<'a, T> {
     pub(crate) fn new(
-        table: &'a Store, 
+        table: &'a EntityStore, 
         plan: ViewPlan,
     ) -> Self {
         Self {

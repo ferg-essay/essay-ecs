@@ -4,7 +4,7 @@ use std::{hash::{Hash, Hasher}, collections::HashMap, any::Any, sync::mpsc};
 
 use crate::{
     system::{SystemId, System, IntoSystemConfig, SystemConfig}, 
-    world::World, 
+    store::Store, 
     util::DynLabel};
 
 use super::{
@@ -40,8 +40,8 @@ pub trait Executor: Send {
     fn run(
         &mut self, 
         schedule: Schedule, 
-        world: World
-    ) -> Result<(Schedule, World), ScheduleErr>;
+        world: Store
+    ) -> Result<(Schedule, Store), ScheduleErr>;
 }
 
 pub trait ExecutorFactory: Send + 'static {
@@ -159,7 +159,7 @@ impl Schedules {
     pub fn tick(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>, 
-        world: &mut World
+        world: &mut Store
     ) -> Result<(), ScheduleErr> {
         let schedule = self.schedule_map.get_mut(label.as_ref()).unwrap();
         
@@ -275,7 +275,7 @@ impl Schedule {
         }
     }
 
-    pub fn tick(&mut self, world: &mut World) -> Result<(), ScheduleErr> {
+    pub fn tick(&mut self, world: &mut Store) -> Result<(), ScheduleErr> {
         while self.inner_mut().is_stale {
             self.inner_mut().is_stale = false;
             self.init(world);
@@ -303,7 +303,7 @@ impl Schedule {
         Ok(())
     }
 
-    pub(crate) fn init(&mut self, world: &mut World) {
+    pub(crate) fn init(&mut self, world: &mut Store) {
         self.inner_mut().init(world);
 
         self.init_phases();
@@ -317,7 +317,7 @@ impl Schedule {
         self.inner().planner.plan(phase_order)
     }
 
-    pub(crate) fn flush(&mut self, world: &mut World) {
+    pub(crate) fn flush(&mut self, world: &mut Store) {
         self.inner_mut().flush(world);
     }
 
@@ -386,7 +386,7 @@ impl ScheduleInner {
         id
     }
 
-    pub(crate) fn init(&mut self, world: &mut World) {
+    pub(crate) fn init(&mut self, world: &mut Store) {
         for id in self.uninit_systems.drain(..) {
             let system = &mut self.systems[id.index()];
             let mut meta = self.planner.meta_mut(id);
@@ -399,7 +399,7 @@ impl ScheduleInner {
         }
     }
 
-    pub(crate) fn flush(&mut self, world: &mut World) {
+    pub(crate) fn flush(&mut self, world: &mut Store) {
         for system in &mut self.systems {
             system.get_mut().flush(world);
         }
@@ -437,8 +437,8 @@ impl Executor for SingleExecutor {
     fn run(
         &mut self, 
         mut schedule: Schedule, 
-        world: World
-    ) -> Result<(Schedule, World), ScheduleErr> {
+        world: Store
+    ) -> Result<(Schedule, Store), ScheduleErr> {
         let mut world = UnsafeWorld::new(world);
 
         for id in self.0.order() {
@@ -461,7 +461,7 @@ struct SystemFlush(PhaseId);
 impl System for SystemFlush {
     type Out = ();
 
-    fn init(&mut self, meta: &mut SystemMeta, _world: &mut World) {
+    fn init(&mut self, meta: &mut SystemMeta, _world: &mut Store) {
         meta.set_exclusive();
         meta.set_flush();
     }
@@ -470,7 +470,7 @@ impl System for SystemFlush {
         panic!("SystemFlush[{:?}] run_unsafe can't be called directly", self.0);
     }
 
-    fn flush(&mut self, _world: &mut World) {
+    fn flush(&mut self, _world: &mut Store) {
     //    panic!("SystemFlush[{:?}] flush can't be called directly", self.0);
     }
 }
@@ -513,7 +513,7 @@ impl From<SystemId> for NodeId {
 
 #[cfg(test)]
 mod tests {
-    use crate::{world::World, schedule::Phase, util::test::TestValues};
+    use crate::{store::Store, schedule::Phase, util::test::TestValues};
 
     use super::{Schedule, ScheduleLabel};
     use crate::*;
@@ -529,7 +529,7 @@ mod tests {
 
     #[test]
     fn schedule_flush() {
-        let mut world = World::new();
+        let mut world = Store::new();
         let mut schedule = Schedule::new();
 
         schedule.add_system(move |mut cmd: Commands| { 
@@ -548,7 +548,7 @@ mod tests {
     fn phase_a_b_c() {
         let mut values = TestValues::new();
 
-        let mut world = World::new();
+        let mut world = Store::new();
 
         // A, default
         let mut schedule = new_schedule_a_b_c();

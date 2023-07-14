@@ -3,16 +3,16 @@ use std::{collections::VecDeque};
 use crate::entity::EntityId;
 use crate::{entity::Component};
 
-use crate::world::{World};
+use crate::store::{Store};
 
 use super::entity_command::{Spawn, EntityCommands, SpawnEmpty};
 
 pub trait Command: Send + 'static {
-    fn flush(self: Box<Self>, world: &mut World);
+    fn flush(self: Box<Self>, world: &mut Store);
 }
 
 pub struct Commands<'w, 's> {
-    world: &'w mut World,
+    world: &'w mut Store,
     queue: &'s mut CommandQueue,
 }
 
@@ -30,7 +30,7 @@ impl<'w, 's> Commands<'w, 's> {
     }
 
     pub(crate) fn new(
-        world: &'w mut World,
+        world: &'w mut Store,
         queue: &'s mut CommandQueue
     ) -> Self {
         Self {
@@ -75,7 +75,7 @@ impl CommandQueue {
         self.queue.push_back(Box::new(command))
     }
 
-    pub(crate) fn flush(&mut self, world: &mut World) {
+    pub(crate) fn flush(&mut self, world: &mut Store) {
         for command in self.queue.drain(..) {
             command.flush(world);
         }
@@ -92,9 +92,9 @@ impl Default for CommandQueue {
 /// Closure as Command. 
 /// 
 impl<F> Command for F
-    where F: FnOnce(&mut World) + Send + Sync + 'static
+    where F: FnOnce(&mut Store) + Send + Sync + 'static
 {
-    fn flush(self: Box<Self>, world: &mut World) {
+    fn flush(self: Box<Self>, world: &mut Store) {
         self(world);
     }
 }
@@ -150,7 +150,7 @@ struct InsertResource<T:'static> {
 }
 
 impl<T:Send+Sync+'static> Command for InsertResource<T> {
-    fn flush(self: Box<Self>, world: &mut World) {
+    fn flush(self: Box<Self>, world: &mut Store) {
         world.insert_resource(self.value);
     }
 }
@@ -166,7 +166,7 @@ impl Commands<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{world::World, entity::Component, Schedule, core_app::CoreApp};
+    use crate::{store::Store, entity::Component, Schedule, core_app::CoreApp};
 
     use super::Commands;
 
@@ -174,7 +174,7 @@ mod tests {
     fn add_closure() {
         let mut app = CoreApp::new();
         
-        app.run_system(|mut c: Commands| c.add(|w: &mut World| {
+        app.run_system(|mut c: Commands| c.add(|w: &mut Store| {
             w.spawn(TestA(100)); 
         }));
 
@@ -183,7 +183,7 @@ mod tests {
             .collect();
         assert_eq!(values, vec![TestA(100)]);
 
-        app.run_system(|mut c: Commands| c.add(|w: &mut World| {
+        app.run_system(|mut c: Commands| c.add(|w: &mut Store| {
             w.spawn(TestA(200)); 
         }));
 
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn insert_resource() {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let mut schedule = Schedule::new();
         schedule.add_system(|mut c: Commands| c.insert_resource(TestA(100)));

@@ -1,19 +1,20 @@
 use essay_ecs_macros::ScheduleLabel;
 
 use crate::{
-    World, Schedule, IntoSystemConfig, 
+    Store, Schedule, IntoSystemConfig, 
     schedule::{ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeWorld}, 
     entity::{View, ViewIterator}, 
     Schedules, IntoSystem, 
-    system::System, world::FromWorld,
+    system::System, store::FromStore,
 };
 
 pub struct CoreApp {
-    world: World,
+    world: Store,
     main_schedule: Box<dyn ScheduleLabel>,
 }
 
-pub use crate as essay_ecs_core;
+mod ecs { pub mod core { pub use crate::*; }}
+use ecs as essay_ecs;
 
 impl CoreApp {
     pub fn new() -> Self {
@@ -21,7 +22,7 @@ impl CoreApp {
     }
 
     pub fn empty() -> Self {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         world.init_resource::<Schedules>();
 
@@ -64,7 +65,7 @@ impl CoreApp {
         self.world.contains_resource::<T>()
     }
 
-    pub fn init_resource<T: FromWorld + Send + 'static>(&mut self) -> &mut Self {
+    pub fn init_resource<T: FromStore + Send + 'static>(&mut self) -> &mut Self {
         self.world.init_resource::<T>();
 
         self

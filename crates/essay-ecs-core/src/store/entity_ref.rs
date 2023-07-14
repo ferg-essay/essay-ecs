@@ -1,19 +1,19 @@
-use crate::{World, entity::{EntityId, Component}};
+use crate::{Store, entity::{EntityId, Component}};
 
 pub struct EntityRef<'a> {
     id: EntityId,
     
-    world: &'a World,
+    world: &'a Store,
 }
 
 pub struct EntityMut<'a> {
     id: EntityId,
     
-    world: &'a mut World,
+    world: &'a mut Store,
 }
 
 impl<'a> EntityRef<'a> {
-    pub(crate) fn new(id: EntityId, world: &'a World) -> Self {
+    pub(crate) fn new(id: EntityId, world: &'a Store) -> Self {
         Self {
             id,
             world,
@@ -26,7 +26,7 @@ impl<'a> EntityRef<'a> {
 }
 
 impl<'a> EntityMut<'a> {
-    pub(crate) fn new(id: EntityId, world: &'a mut World) -> Self {
+    pub(crate) fn new(id: EntityId, world: &'a mut Store) -> Self {
         Self {
             id,
             world,

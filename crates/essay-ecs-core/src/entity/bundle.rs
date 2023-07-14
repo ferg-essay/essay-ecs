@@ -3,7 +3,7 @@
 // Insert
 //
 
-use super::{meta::{TableId, ColumnId, TableMeta}, Store, column::RowId, Component, store::EntityId};
+use super::{meta::{TableId, ColumnId, TableMeta}, EntityStore, column::RowId, Component, store::EntityId};
 
 pub trait Bundle:'static {
     fn build(builder: &mut InsertBuilder);
@@ -12,7 +12,7 @@ pub trait Bundle:'static {
 }
 
 pub struct InsertBuilder<'a> {
-    store: &'a mut Store,
+    store: &'a mut EntityStore,
     columns: Vec<ColumnId>,
 }
 
@@ -24,14 +24,14 @@ pub struct InsertPlan {
 
 pub struct InsertCursor<'a> {
     id: EntityId,
-    store: &'a mut Store,
+    store: &'a mut EntityStore,
     plan: &'a InsertPlan,
     index: usize,
     rows: Vec<RowId>,
 }
 
 impl<'a,'t> InsertBuilder<'a> {
-    pub(crate) fn new(store: &'a mut Store) -> Self {
+    pub(crate) fn new(store: &'a mut EntityStore) -> Self {
         Self {
             store,
             columns: Vec::new(),
@@ -80,7 +80,7 @@ impl<'a,'t> InsertBuilder<'a> {
 impl InsertPlan {
     pub(crate) fn insert<T:'static>(
         &self,
-        store: &mut Store, 
+        store: &mut EntityStore, 
         index: usize, 
         value: T
     ) -> RowId {
@@ -92,7 +92,7 @@ impl InsertPlan {
 
     pub(crate) fn cursor<'a>(
         &'a self, 
-        store: &'a mut Store,
+        store: &'a mut EntityStore,
         id: EntityId,
     ) -> InsertCursor<'a> {
         let mut cursor = InsertCursor {

@@ -1,4 +1,4 @@
-use crate::{entity::{Component, EntityId}, World, Commands};
+use crate::{entity::{Component, EntityId}, Store, Commands};
 
 use super::Command;
 
@@ -42,7 +42,7 @@ impl SpawnEmpty {
 }
 
 impl Command for SpawnEmpty {
-    fn flush(self: Box<Self>, world: &mut World) {
+    fn flush(self: Box<Self>, world: &mut Store) {
         world.spawn_empty_id(self.id);
     }
 }
@@ -65,7 +65,7 @@ impl<T:Component + 'static> Spawn<T> {
 }
 
 impl<T:Component + 'static> Command for Spawn<T> {
-    fn flush(self: Box<Self>, world: &mut World) {
+    fn flush(self: Box<Self>, world: &mut Store) {
         world.spawn_id(self.id, self.value);
     }
 }
@@ -88,7 +88,7 @@ impl<T:Component + 'static> EntityInsert<T> {
 }
 
 impl<T:Component + 'static> Command for EntityInsert<T> {
-    fn flush(self: Box<Self>, world: &mut World) {
+    fn flush(self: Box<Self>, world: &mut Store) {
         world.insert(self.id, self.value);
     }
 }
@@ -109,7 +109,7 @@ impl EntityDespawn {
 }
 
 impl Command for EntityDespawn {
-    fn flush(self: Box<Self>, world: &mut World) {
+    fn flush(self: Box<Self>, world: &mut Store) {
         world.despawn(self.id);
     }
 }

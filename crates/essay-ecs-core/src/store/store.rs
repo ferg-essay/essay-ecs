@@ -1,30 +1,30 @@
 use crate::{
-    entity::{Store, ViewIterator, View, Bundle, EntityId, ViewPlan, Component}, 
+    entity::{EntityStore, ViewIterator, View, Bundle, EntityId, ViewPlan, Component}, 
     schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId}, Schedule,
 };
 
 use super::{entity_ref::EntityMut, EntityRef};
 
-pub struct World(Option<WorldInner>);
+pub struct Store(Option<StoreInner>);
 
-pub trait FromWorld {
-    fn init(world: &mut World) -> Self;
+pub trait FromStore {
+    fn init(world: &mut Store) -> Self;
 }
 
-impl World {
+impl Store {
     pub fn new() -> Self {
-        Self(Some(WorldInner {
-                store: Store::new(),
+        Self(Some(StoreInner {
+                entities: EntityStore::new(),
                 resources: Resources::new(),
                 resources_non_send: Resources::new(),
             }))
     }
 
-    fn deref(&self) -> &WorldInner {
+    fn deref(&self) -> &StoreInner {
         self.0.as_ref().unwrap() 
     }
 
-    fn deref_mut(&mut self) -> &mut WorldInner {
+    fn deref_mut(&mut self) -> &mut StoreInner {
         self.0.as_mut().unwrap()
     }
 
@@ -41,29 +41,29 @@ impl World {
     }
 
     pub fn get_entity(&self, id: EntityId) -> Option<EntityRef> {
-        match self.deref().store.get_entity(id) {
+        match self.deref().entities.get_entity(id) {
             Some(id) => Some(EntityRef::new(id, self)),
             None => None,
         }
     }
 
     pub fn get_entity_mut(&mut self, id: EntityId) -> Option<EntityMut> {
-        match self.deref_mut().store.get_entity(id) {
+        match self.deref_mut().entities.get_entity(id) {
             Some(id) => Some(EntityMut::new(id, self)),
             None => None,
         }
     }
 
     pub fn get<T:'static>(&self, id: EntityId) -> Option<&T> {
-        self.deref().store.get::<T>(id)
+        self.deref().entities.get::<T>(id)
     }
 
     pub fn get_mut<T:'static>(&mut self, id: EntityId) -> Option<&mut T> {
-        self.deref_mut().store.get_mut::<T>(id)
+        self.deref_mut().entities.get_mut::<T>(id)
     }
 
     pub(crate) fn alloc_entity_id(&mut self) -> EntityId {
-        self.deref_mut().store.alloc_entity_id()
+        self.deref_mut().entities.alloc_entity_id()
     }
 
     pub fn spawn<T:Bundle>(&mut self, value: T) -> EntityId {
@@ -73,11 +73,11 @@ impl World {
     }
 
     pub(crate) fn spawn_id<T:Bundle>(&mut self, id: EntityId, value: T) -> EntityId {
-        self.deref_mut().store.spawn_id::<T>(id, value)
+        self.deref_mut().entities.spawn_id::<T>(id, value)
     }
 
     pub(crate) fn spawn_empty_id(&mut self, id: EntityId) -> EntityId {
-        self.deref_mut().store.spawn_empty_id(id)
+        self.deref_mut().entities.spawn_empty_id(id)
     }
 
     pub(crate) fn insert<T:Component + 'static>(
@@ -85,26 +85,26 @@ impl World {
         id: EntityId, 
         value: T
     ) -> EntityId {
-        self.deref_mut().store.extend(id, value)
+        self.deref_mut().entities.extend(id, value)
     }
 
     pub(crate) fn despawn(&mut self, id: EntityId) {
-        self.deref_mut().store.despawn(id)
+        self.deref_mut().entities.despawn(id)
     }
 
-    pub fn view<V:View>(&mut self) -> ViewIterator<'_,V> {
-        self.deref_mut().store.iter_view::<V>()
+    pub fn view<V: View>(&mut self) -> ViewIterator<'_,V> {
+        self.deref_mut().entities.iter_view::<V>()
     }
 
     //
     // Resources
     //
     
-    pub fn get_resource<T:Send + 'static>(&self) -> Option<&T> {
+    pub fn get_resource<T: Send + 'static>(&self) -> Option<&T> {
         self.deref().resources.get::<T>()
     }
     
-    pub fn get_resource_mut<T:Send + 'static>(&mut self) -> Option<&mut T> {
+    pub fn get_resource_mut<T: Send + 'static>(&mut self) -> Option<&mut T> {
         // TODO!
         self.deref_mut().resources.get_mut::<T>()
     }
@@ -121,7 +121,7 @@ impl World {
         self.deref().resources.contains_resource::<T>()
     }
 
-    pub fn init_resource<T:FromWorld + Send +'static>(&mut self) {
+    pub fn init_resource<T:FromStore + Send +'static>(&mut self) {
         if ! self.deref().resources.get::<T>().is_none() {
             return;
         }
@@ -143,7 +143,7 @@ impl World {
         self.deref_mut().resources.get_resource_id::<T>()
     }
 
-    pub fn init_resource_non_send<T: FromWorld + 'static>(&mut self) {
+    pub fn init_resource_non_send<T: FromStore + 'static>(&mut self) {
         if ! self.deref().resources_non_send.get::<T>().is_none() {
             return;
         }
@@ -162,15 +162,15 @@ impl World {
     }
 
     pub fn query<Q:View>(&mut self) -> ViewIterator<Q> {
-        self.deref_mut().store.iter_view()
+        self.deref_mut().entities.iter_view()
     }
 
     pub(crate) fn view_build<Q:View>(&mut self) -> ViewPlan {
-        self.deref_mut().store.view_plan::<Q>()
+        self.deref_mut().entities.view_plan::<Q>()
     }
 
     pub(crate) unsafe fn view_iter_from_plan<Q: View>(&mut self, plan: &ViewPlan) -> ViewIterator<Q> {
-        self.deref_mut().store.iter_view_with_plan::<Q>(plan.clone())
+        self.deref_mut().entities.iter_view_with_plan::<Q>(plan.clone())
     }
 
     //
@@ -199,7 +199,7 @@ impl World {
     pub fn try_eval_schedule<R>(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>,
-        fun: impl FnOnce(&mut World, &mut Schedule) -> R
+        fun: impl FnOnce(&mut Store, &mut Schedule) -> R
     ) -> Result<R, SchedErr> {
         let label = label.as_ref();
 
@@ -223,19 +223,19 @@ impl World {
         Self(inner)
     }
 
-    pub(crate) fn replace(&mut self, world: World) {
+    pub(crate) fn replace(&mut self, world: Store) {
         self.0 = world.0
     }
 }
 
-pub(crate) struct WorldInner {
-    pub(crate) store: Store,
+pub(crate) struct StoreInner {
+    pub(crate) entities: EntityStore,
     pub(crate) resources: Resources,
     pub(crate) resources_non_send: Resources,
 }
 
-impl<T:Default> FromWorld for T {
-    fn init(_world: &mut World) -> T {
+impl<T:Default> FromStore for T {
+    fn init(_world: &mut Store) -> T {
         T::default()
     }
 }
@@ -247,13 +247,13 @@ pub enum SchedErr {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::Component};
+    use crate::entity::Component;
 
-    use super::World;
+    use super::Store;
 
     #[test]
     fn spawn() {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let id_a = world.spawn(TestA(1));
 
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn resource_set_get() {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         assert_eq!(world.get_resource::<TestB>(), None);
         assert_eq!(world.get_resource_mut::<TestB>(), None);
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn query() {
-        let mut world = World::new();
+        let mut world = Store::new();
         
         assert_eq!(world.query::<&TestA>()
             .map(|v| format!("{:?}", v))

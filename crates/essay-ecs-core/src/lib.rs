@@ -4,7 +4,7 @@ pub mod util;
 pub mod schedule;
 pub mod entity;
 pub mod system;
-pub mod world;
+pub mod store;
 pub mod resource;
 
 pub use essay_ecs_macros::{
@@ -25,8 +25,8 @@ pub use param::{
     Res, ResMut, Query, 
 };
 
-pub use world::{
-    World, Commands
+pub use store::{
+    Store, Commands
 };
 
 pub mod prelude {
@@ -43,8 +43,6 @@ pub mod prelude {
             IntoSystem, IntoSystemConfig,
         },
 
-        world::{
-            World, Commands,
-        }
+        store::Commands,
     };
 }

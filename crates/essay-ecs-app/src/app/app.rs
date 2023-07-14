@@ -8,8 +8,8 @@ use essay_ecs_core::{
     Schedule, Schedules,
     IntoSystemConfig,
     schedule::ScheduleLabel,
-    World,
-    world::FromWorld,
+    Store,
+    store::FromStore, IntoPhaseConfigs,
 };
 
 use crate::{event::{Event, Events}, First};
@@ -20,7 +20,7 @@ use super::{plugin::{Plugins, Plugin}, main_schedule::MainSchedulePlugin, Main};
 use essay_ecs_core::entity::{Bundle, EntityId};
 
 pub struct App {
-    world: World,
+    world: Store,
     plugins: Plugins,
     main_schedule: Box<dyn ScheduleLabel>,
     runner: Box<dyn FnOnce(App) + Send>,
@@ -35,7 +35,7 @@ impl App {
     /// Minimal app without even the main schedule.
     /// 
     pub fn empty() -> Self {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         world.init_resource::<Schedules>();
 
@@ -65,6 +65,24 @@ impl App {
         self
     }
 
+    pub fn phase(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
+        into_phase: impl IntoPhaseConfigs
+    ) -> &mut Self {
+        let schedules = self.resource_mut::<Schedules>();
+
+        if let Some(schedule) = schedules.get_mut(label.as_ref()) {
+            schedule.add_phases(into_phase);
+        } else {
+            let mut schedule = Schedule::new();
+            schedule.add_phases(into_phase);
+            schedules.insert(label, schedule);
+        }
+    
+        self
+    }
+
     //
     // resources
     //
@@ -73,7 +91,7 @@ impl App {
         self.world.insert_resource(value);
     }
 
-    pub fn init_resource<T: FromWorld + Send + 'static>(&mut self) -> &mut Self {
+    pub fn init_resource<T: FromStore + Send + 'static>(&mut self) -> &mut Self {
         self.world.init_resource::<T>();
 
         self
@@ -109,7 +127,7 @@ impl App {
         self.world.insert_resource_non_send(value);
     }
 
-    pub fn init_resource_non_send<T: FromWorld + 'static>(&mut self) -> &mut Self {
+    pub fn init_resource_non_send<T: FromStore + 'static>(&mut self) -> &mut Self {
         self.world.init_resource_non_send::<T>();
 
         self

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    world::World, 
+    store::Store, 
     schedule::{SystemMeta, UnsafeWorld},
     system::{IntoSystem, System},
 };
@@ -42,7 +42,7 @@ where
 {
     type Out = F::Out;
 
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
+    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) {
         self.state = Some(F::Param::init(meta, world));
     }
 
@@ -55,7 +55,7 @@ where
         self.fun.run(arg)
     }
 
-    fn flush(&mut self, world: &mut World) {
+    fn flush(&mut self, world: &mut Store) {
         F::Param::flush(world, self.state.as_mut().unwrap());
     }
 }    
@@ -113,7 +113,7 @@ mod tests {
     use std::any::type_name;
     use std::marker::PhantomData;
 
-    use crate::{world::World, 
+    use crate::{store::Store, 
         system::{IntoSystem},
         schedule::{Schedule, SystemMeta, UnsafeWorld},
     };
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn arg_tuples() {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         set_global("init".to_string());
         system(&mut world, test_null);
@@ -145,7 +145,7 @@ mod tests {
         assert_eq!(get_global(), "test-arg7 u8 u16 u32 u64 i8 i16 i32");
     }
 
-    fn system<M>(world: &mut World, fun: impl IntoSystem<(),M>)->String {
+    fn system<M>(world: &mut Store, fun: impl IntoSystem<(),M>)->String {
         set_global("init".to_string());
         let mut schedule = Schedule::new();
         schedule.add_system(fun);
@@ -233,7 +233,7 @@ mod tests {
             }
         }
 
-        fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+        fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
         }
     }
  }

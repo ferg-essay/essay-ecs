@@ -1,10 +1,12 @@
 mod entity_ref;
 mod resource_command;
 mod entity_command;
-mod world;
+mod store;
 mod command;
 
-pub use world::{World,FromWorld};
+pub use store::{
+    Store, FromStore
+};
 
 pub use command::{
     Commands, Command, CommandQueue,

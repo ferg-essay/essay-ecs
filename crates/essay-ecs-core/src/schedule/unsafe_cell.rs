@@ -1,6 +1,6 @@
 use std::{cell::UnsafeCell, ops::{Deref, DerefMut}};
 
-use crate::World;
+use crate::Store;
 
 pub struct UnsafeSyncCell<T: ?Sized> {
     value: UnsafeCell<T>,
@@ -56,32 +56,32 @@ impl<T> UnsafeSendCell<T> {
 unsafe impl<T> Send for UnsafeSendCell<T> {}
 unsafe impl<T> Sync for UnsafeSendCell<T> {}
 
-pub struct UnsafeWorld(UnsafeCell<World>);
+pub struct UnsafeWorld(UnsafeCell<Store>);
 
 impl UnsafeWorld {
-    pub fn new(world: World) -> Self {
+    pub fn new(world: Store) -> Self {
         UnsafeWorld(UnsafeCell::new(world))
     }
 
-    pub(crate) unsafe fn get_ref(&self) -> &World {
+    pub(crate) unsafe fn get_ref(&self) -> &Store {
         unsafe { self.0.get().as_ref().unwrap() }
     }
 
-    pub fn get_mut(&mut self) -> &mut World {
+    pub fn get_mut(&mut self) -> &mut Store {
         self.0.get_mut()
     }
 
-    pub(crate) unsafe fn as_mut(&self) -> &mut World {
+    pub(crate) unsafe fn as_mut(&self) -> &mut Store {
         &mut *self.0.get()
     }
 
-    pub(crate) fn take(self) -> World {
+    pub(crate) fn take(self) -> Store {
         self.0.into_inner()
     }
 }
 
 impl Deref for UnsafeWorld {
-    type Target = World;
+    type Target = Store;
 
     fn deref(&self) -> &Self::Target {
         unsafe { self.get_ref() }

@@ -1,6 +1,6 @@
 use std::{ops::{Deref, DerefMut}};
 
-use crate::{schedule::{SystemMeta, UnsafeWorld}, World};
+use crate::{schedule::{SystemMeta, UnsafeWorld}, Store};
 
 use super::Param;
 
@@ -28,7 +28,7 @@ impl<T:Send+'static> Param for Res<'_, T> {
         }
     }
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
         meta.insert_resource(world.get_resource_id::<T>());
     }
 }
@@ -75,7 +75,7 @@ impl<T:Send+'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
     type State = ();
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
         meta.insert_resource_mut(world.get_resource_id::<T>());
     }
 

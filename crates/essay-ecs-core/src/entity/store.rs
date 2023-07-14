@@ -13,18 +13,6 @@ pub struct ComponentId(usize);
 #[derive(Debug,Clone,Copy,PartialEq,Hash,PartialOrd,Eq)]
 pub struct EntityId(u32, u32);
 
-pub struct Store {
-    meta: StoreMeta,
-
-    columns: Vec<Column>,
-
-    tables: Vec<Table>,
-
-    entities: Vec<Entity>,
-
-    free_list: Arc<Mutex<EntityAlloc>>,
-}
-
 #[derive(Debug)]
 pub struct Entity {
     id: EntityId,
@@ -58,7 +46,19 @@ pub trait Component: Send + Sync + 'static {}
 // implementation
 //
 
-impl Store {
+pub struct EntityStore {
+    meta: StoreMeta,
+
+    columns: Vec<Column>,
+
+    tables: Vec<Table>,
+
+    entities: Vec<Entity>,
+
+    free_list: Arc<Mutex<EntityAlloc>>,
+}
+
+impl EntityStore {
     pub fn new() -> Self {
         let mut store = Self {
             meta: StoreMeta::new(),
@@ -522,11 +522,11 @@ impl From<ColumnId> for ComponentId {
 mod tests {
     use crate::{entity::{bundle::InsertCursor, Component}};
 
-    use super::{Store, InsertBuilder, Bundle};
+    use super::{EntityStore, InsertBuilder, Bundle};
 
     #[test]
     fn spawn() {
-        let mut store = Store::new();
+        let mut store = EntityStore::new();
         assert_eq!(store.len(), 0);
 
         store.spawn(TestA(1));
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn entity_get() {
-        let mut store = Store::new();
+        let mut store = EntityStore::new();
         assert_eq!(store.len(), 0);
 
         let id_0 = store.spawn(TestA(1000));
@@ -595,7 +595,7 @@ mod tests {
 
     #[test]
     fn push_type() {
-        let mut store = Store::new();
+        let mut store = EntityStore::new();
         assert_eq!(store.len(), 0);
 
         store.spawn::<TestA>(TestA(1));
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     fn push_tuple() {
-        let mut store = Store::new();
+        let mut store = EntityStore::new();
         assert_eq!(store.len(), 0);
 
         store.spawn((TestA(1),TestB(2)));
@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn insert_extend() {
-        let mut store = Store::new();
+        let mut store = EntityStore::new();
         assert_eq!(store.len(), 0);
 
         let id = store.spawn(TestA(1));
@@ -658,7 +658,7 @@ mod tests {
 
     #[test]
     fn despawn() {
-        let mut store = Store::new();
+        let mut store = EntityStore::new();
         assert_eq!(store.len(), 0);
 
         let id_0 = store.spawn::<TestA>(TestA(1));

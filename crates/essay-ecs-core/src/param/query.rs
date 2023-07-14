@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::{SystemMeta, UnsafeWorld}, World};
+use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::{SystemMeta, UnsafeWorld}, Store};
 
 use super::Param;
 
@@ -31,7 +31,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
     type Arg<'w, 's> = Query<'w, 's, Q>;
     type State = ViewPlan;
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
         let plan = world.view_build::<Q>();
         
         for id in plan.components() {

@@ -1,5 +1,5 @@
 use crate::{
-    world::World, 
+    store::Store, 
     schedule::{SystemMeta, UnsafeWorld}
 };
 
@@ -11,14 +11,14 @@ pub trait Param {
     type Arg<'w, 's>: Param<State = Self::State>;
     type State: Send + Sync + 'static;
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State;
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State;
 
     fn arg<'w, 's>(
         world: &'w UnsafeWorld,
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's>;
 
-    fn flush(_world: &mut World, _state: &mut Self::State) {
+    fn flush(_world: &mut Store, _state: &mut Self::State) {
     }
 }
 
@@ -38,7 +38,7 @@ macro_rules! impl_param_tuple {
 
             fn init(
                 meta: &mut SystemMeta,
-                world: &mut World, 
+                world: &mut Store, 
             ) -> Self::State {
                 ($($param::init(meta, world),)*)
             }
@@ -53,7 +53,7 @@ macro_rules! impl_param_tuple {
             }
 
             fn flush(
-                world: &mut World, 
+                world: &mut Store, 
                 state: &mut Self::State
             ) {
                 let ($($param,)*) = state;
@@ -71,7 +71,7 @@ impl Param for ()
     type Arg<'w, 's> = ();
     type State = ();
 
-    fn init(_meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+    fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
         ()
     }
 

@@ -3,7 +3,7 @@ use std::{sync::{Arc}};
 use fixedbitset::FixedBitSet;
 
 use crate::{
-    Schedule, World,
+    Schedule, Store,
     system::SystemId,
 };    
 
@@ -92,8 +92,8 @@ impl Executor for MultithreadedExecutor {
     fn run(
         &mut self, 
         schedule: Schedule, 
-        world: World
-    ) -> Result<(Schedule, World), super::schedule::ScheduleErr> {
+        world: Store
+    ) -> Result<(Schedule, Store), super::schedule::ScheduleErr> {
         match &self.thread_pool {
             Some(thread_pool) => { 
                 unsafe {
@@ -269,10 +269,10 @@ impl ChildTask {
 mod tests {
     use std::{thread, time::Duration, sync::{Arc, Mutex}};
 
-    use crate::{World, Schedule, 
+    use crate::{Store, Schedule, 
         schedule::{Phase,IntoPhaseConfigs, 
             Executor, ExecutorFactory},
-        system::{IntoSystemConfig},
+        system::IntoSystemConfig,
     };
 
     use super::{MultithreadedExecutor, MultithreadedExecutorFactory};
@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn two_concurrent_no_phase() {
         let mut schedule = Schedule::new();
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let value = Arc::new(Mutex::new(Vec::<String>::new()));
 
@@ -322,7 +322,7 @@ mod tests {
         ).chained());
         schedule.set_default_phase(TestPhase::B);
 
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let value = Arc::new(Mutex::new(Vec::<String>::new()));
 
@@ -363,7 +363,7 @@ mod tests {
         ).chained());
         schedule.set_default_phase(TestPhase::B);
 
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let value = Arc::new(Mutex::new(Vec::<String>::new()));
 
@@ -404,7 +404,7 @@ mod tests {
         ).chained());
         schedule.set_default_phase(TestPhase::B);
 
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let value = Arc::new(Mutex::new(Vec::<String>::new()));
 
@@ -440,7 +440,7 @@ mod tests {
     #[should_panic(expected="parent panic received by thread pool")]
     fn system_panic() {
         let mut schedule = Schedule::new();
-        let mut world = World::new();
+        let mut world = Store::new();
 
         let value = Arc::new(Mutex::new(Vec::<String>::new()));
 

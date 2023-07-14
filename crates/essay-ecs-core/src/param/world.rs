@@ -1,9 +1,9 @@
-use crate::{schedule::{SystemMeta, UnsafeWorld}, World};
+use crate::{schedule::{SystemMeta, UnsafeWorld}, Store};
 
 use super::Param;
 
-impl Param for &World {
-    type Arg<'w, 's> = &'w World;
+impl Param for &Store {
+    type Arg<'w, 's> = &'w Store;
     type State = ();
 
     fn arg<'w, 's>(
@@ -13,7 +13,7 @@ impl Param for &World {
         world
     }
 
-    fn init(meta: &mut SystemMeta, _world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
         meta.set_exclusive();
 
         ()

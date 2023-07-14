@@ -637,10 +637,11 @@ mod test {
         entity::Component, 
         schedule::schedule::Executors, 
         system::IntoSystemConfig, 
-        Res, ResMut, Commands, World
+        Res, ResMut, Commands, Store
     };
 
-    use crate as essay_ecs_core;
+    mod ecs { pub mod core { pub use crate::*; }}
+    use ecs as essay_ecs;
 
     #[test]
     fn phase_groups() {
@@ -708,14 +709,14 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(Core, move |_w: &mut World| {
+        app.add_system(Core, move |_w: &mut Store| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(Core, move |_w: &mut World| {
+        app.add_system(Core, move |_w: &mut Store| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));

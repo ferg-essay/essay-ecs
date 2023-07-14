@@ -6,7 +6,7 @@ mod column;
 pub(crate) mod meta;
 
 pub use store::{
-    Store, ComponentId, Component,
+    EntityStore, ComponentId, Component,
     EntityId,
 };
 

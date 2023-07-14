@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{world::World, 
+use crate::{store::Store, 
     schedule::{SystemMeta, UnsafeWorld},
     system::{IntoSystem, System}, Local,
 };
@@ -18,7 +18,7 @@ pub trait ParamExcl {
     type Arg<'s>;
     type State: Send + Sync + 'static;
 
-    fn init(world: &mut World, meta: &mut SystemMeta) -> Self::State;
+    fn init(world: &mut Store, meta: &mut SystemMeta) -> Self::State;
 
     fn arg<'s>(
         state: &'s mut Self::State, 
@@ -45,7 +45,7 @@ where
 pub trait WorldFun<R, M> : Send + Sync + 'static {
     type Params: ParamExcl;
 
-    fn run(&mut self, world: &mut World, arg: ArgExcl<Self::Params>) -> R;
+    fn run(&mut self, world: &mut Store, arg: ArgExcl<Self::Params>) -> R;
 }
 
 //
@@ -60,7 +60,7 @@ where
 {
     type Out = R;
 
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
+    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) {
         meta.set_exclusive();
         self.state = Some(F::Params::init(world, meta));
     }
@@ -77,7 +77,7 @@ where
         panic!("can't run exclusive system in unsafe mode");
     }
 
-    fn flush(&mut self, world: &mut World) {
+    fn flush(&mut self, world: &mut Store) {
     }
 }    
 
@@ -106,13 +106,13 @@ macro_rules! impl_excl_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
         impl<F, R, $($param: ParamExcl,)*> WorldFun<R, fn(IsWorld,$($param,)*)> for F
-        where F:FnMut(&mut World, $($param,)*) -> R + Send + Sync + 'static +
-            FnMut(&mut World, $(ArgExcl<$param>,)*) -> R,
+        where F:FnMut(&mut Store, $($param,)*) -> R + Send + Sync + 'static +
+            FnMut(&mut Store, $(ArgExcl<$param>,)*) -> R,
             R: Send + Sync + 'static
         {
             type Params = ($($param,)*);
 
-            fn run(&mut self, world: &mut World, arg: ArgExcl<($($param,)*)>) -> R {
+            fn run(&mut self, world: &mut Store, arg: ArgExcl<($($param,)*)>) -> R {
                 let ($($param,)*) = arg;
                 self(world, $($param,)*)
             }
@@ -136,7 +136,7 @@ impl<'a, T: Default + Send + Sync + 'static> ParamExcl for Local<'a, T> {
     type State = T;
     type Arg<'s> = Local<'s, T>;
 
-    fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
+    fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Self::State {
         T::default()
     }
 
@@ -160,7 +160,7 @@ macro_rules! impl_param_excl_tuple {
             type State = ($(<$param as ParamExcl>::State,)*);
 
             fn init(
-                world: &mut World, 
+                world: &mut Store, 
                 meta: &mut SystemMeta
             ) -> Self::State {
                 meta.set_exclusive();
@@ -184,7 +184,7 @@ impl ParamExcl for ()
     type Arg<'s> = ();
     type State = ();
 
-    fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
+    fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Self::State {
         ()
     }
 
@@ -207,7 +207,8 @@ mod tests {
     use std::any::type_name;
     use std::marker::PhantomData;
 
-    use crate::{world::World, 
+    use crate::{
+        store::Store, 
         schedule::{SystemMeta},
         system::{IntoSystem, System}, Local, Schedule, core_app::CoreApp
     };
@@ -222,7 +223,7 @@ mod tests {
         //let mut schedule = Schedule::new();
 
         //core.run_system(|w: &mut World| println!("world!"));
-        core.run_system(|w: &mut World, l: Local<bool>| println!("world!"));
+        core.run_system(|w: &mut Store, l: Local<bool>| println!("world!"));
         /*
         set_global("init".to_string());
         system(&mut world, test_null);
@@ -244,7 +245,7 @@ mod tests {
         */
     }
 
-    fn system<R, M>(world: &mut World, fun: impl IntoSystem<R, M>)->String {
+    fn system<R, M>(world: &mut Store, fun: impl IntoSystem<R, M>)->String {
         /*
         set_global("init".to_string());
         let mut system = IntoSystem::into_system(fun);
@@ -334,7 +335,7 @@ mod tests {
             }
         }
 
-        fn init(_world: &mut World, _meta: &mut SystemMeta) -> Self::State {
+        fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Self::State {
             ()
         }
     }

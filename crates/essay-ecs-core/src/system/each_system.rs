@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{world::World, entity::{View, ComponentId}, 
+use crate::{store::Store, entity::{View, ComponentId}, 
     schedule::{SystemMeta, UnsafeWorld},
     system::{System, IntoSystem},
 };
@@ -57,7 +57,7 @@ where
 {
     type Out = ();
     
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut World) {
+    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) {
         let plan = world.view_build::<F::Item<'_>>();
 
         for id in plan.components() {
@@ -83,7 +83,7 @@ where
         }
     }
     
-    fn flush(&mut self, world: &mut World) {
+    fn flush(&mut self, world: &mut Store) {
         F::Params::flush(world, self.state.as_mut().unwrap());
     }
 }
@@ -139,11 +139,11 @@ impl_each_function!(P1, P2, P3, P4, P5, P6, P7);
 mod tests {
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{World, entity::Component, Schedule, util::test::TestValues};
+    use crate::{Store, entity::Component, Schedule, util::test::TestValues};
 
     #[test]
     fn test_each() {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         world.spawn(TestA(1));
 
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_each_ref() {
-        let mut world = World::new();
+        let mut world = Store::new();
 
         world.spawn(TestA(1));
 
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_each_a_b() {
-        let mut world = World::new();
+        let mut world = Store::new();
         /*
         world.spawn(TestA(1));
         world.spawn(TestB(2));
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_each_tuple() {
-        let mut world = World::new();
+        let mut world = Store::new();
         /*
         world.spawn(TestA(1));
         world.spawn(TestB(2));
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_each_tuple_rev() {
-        let mut world = World::new();
+        let mut world = Store::new();
         
         world.spawn(TestA(1));
         world.spawn(TestB(2));

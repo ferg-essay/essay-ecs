@@ -13,6 +13,7 @@ pub mod prelude {
             First, PreUpdate, Update, PostUpdate, Last,
 
             Plugin, 
-        }
+        },
+        event::{Event, Events, InEvent, OutEvent},
     };
 }

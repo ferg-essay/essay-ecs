@@ -1,5 +1,6 @@
 mod component;
 mod label;
+mod phase;
 use proc_macro::TokenStream;
 
 extern crate proc_macro;
@@ -25,5 +26,5 @@ pub fn derive_schedule_label(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(Phase, attributes(component))]
 pub fn derive_task_set(input: TokenStream) -> TokenStream {
-    label::derive_phase(input)
+    phase::derive_phase(input)
 }

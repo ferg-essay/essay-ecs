@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem, ops::{DerefMut, Deref}};
 
-use essay_ecs_core::{ResMut, Local, World, prelude::Param, schedule::{SystemMeta, UnsafeWorld}, Res};
+use essay_ecs_core::{ResMut, Local, Store, prelude::Param, schedule::{SystemMeta, UnsafeWorld}, Res};
 
 // see bevy_ecs/src/event.rs
 //
@@ -137,7 +137,7 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
         <Local<'s, InEventCursor<E>> as Param>::State
     );
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
         (
             Res::<Events<E>>::init(meta, world),
             Local::<InEventCursor<E>>::init(meta, world)
@@ -164,7 +164,7 @@ impl<'w, E: Event> Param for OutEvent<'w, E> {
 
     type State = <ResMut<'w, Events<E>> as Param>::State;
 
-    fn init(meta: &mut SystemMeta, world: &mut World) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
         ResMut::<Events<E>>::init(meta, world)
     }
 

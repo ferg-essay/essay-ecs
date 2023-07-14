@@ -1,13 +1,15 @@
-use essay_ecs_core::{ScheduleLabel, schedule::{ScheduleLabel, Executors}, World, Local, Schedule};
+use essay_ecs_core::{ScheduleLabel, schedule::{ScheduleLabel, Executors}, Store, Local, Schedule};
 
 use super::{plugin::Plugin, App};
+
+mod essay_ecs { pub mod core { pub use essay_ecs_core::*; }}
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ScheduleLabel)]
 pub struct Main;
 
 impl Main {
-    fn main_system(world: &mut World, mut is_init: Local<bool>) {
+    fn main_system(world: &mut Store, mut is_init: Local<bool>) {
         if ! *is_init {
             *is_init = true;
             let _ = world.try_run_schedule(PreStartup);
@@ -83,12 +85,14 @@ impl Plugin for MainSchedulePlugin {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::{Mutex, Arc}};
+    use std::sync::{Mutex, Arc};
 
     use essay_ecs_core::ScheduleLabel;
 
     use crate::app::{App, Update, Startup, main_schedule::{PostStartup, PreStartup, First, PreUpdate, PostUpdate, Last}};
 
+    mod essay_ecs { pub mod core { pub use essay_ecs_core::*; }}
+    
     #[test]
     fn app_hello() {
         let mut app = App::new();
