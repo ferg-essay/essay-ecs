@@ -520,7 +520,7 @@ impl From<ColumnId> for ComponentId {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::{bundle::InsertCursor, Component}};
+    use crate::entity::{bundle::InsertCursor, Component};
 
     use super::{EntityStore, InsertBuilder, Bundle};
 

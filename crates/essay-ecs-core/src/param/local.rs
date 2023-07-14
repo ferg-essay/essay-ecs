@@ -50,7 +50,7 @@ impl<'a, T: FromStore + Send + Sync + 'static> Param for Local<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{store::{Store}, schedule::Schedule, param::ResMut};
+    use crate::{store::Store, schedule::Schedule, param::ResMut};
 
     use super::Local;
 

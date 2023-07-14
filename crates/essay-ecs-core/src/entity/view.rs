@@ -4,7 +4,7 @@ use std::{marker::PhantomData, collections::HashSet};
 use super::{
     {EntityStore, ViewId}, 
     meta::{TableMeta, ViewTableType, ColumnId}, 
-    store::{Component}, table::TableRow, EntityId,
+    store::Component, table::TableRow, EntityId,
 };
 
 pub trait View : Send + Sync {

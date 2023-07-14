@@ -1,6 +1,6 @@
-use std::{any::type_name};
+use std::any::type_name;
 
-use crate::{store::{Store}, schedule::{SystemMeta, Phase, DefaultPhase, UnsafeWorld}};
+use crate::{store::Store, schedule::{SystemMeta, Phase, DefaultPhase, UnsafeWorld}};
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);

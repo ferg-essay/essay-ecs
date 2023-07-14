@@ -2,11 +2,11 @@ use core::fmt;
 use std::{hash::{Hash, Hasher}, any::type_name, collections::HashMap};
 
 use crate::{
-    system::{SystemId},
+    system::SystemId,
     util::DynLabel,
 };
 
-use super::{preorder::{Preorder, NodeId}};
+use super::preorder::{Preorder, NodeId};
 
 ///
 /// See SystemSet in bevy_ecs/schedule/schedule.rs

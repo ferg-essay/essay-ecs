@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::HashSet, cmp::{Ordering}};
+use std::{collections::HashSet, cmp::Ordering};
 
 use fixedbitset::FixedBitSet;
 use log::info;

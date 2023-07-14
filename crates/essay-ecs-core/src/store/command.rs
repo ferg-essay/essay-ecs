@@ -1,9 +1,8 @@
-use std::{collections::VecDeque};
+use std::collections::VecDeque;
 
-use crate::entity::EntityId;
-use crate::{entity::Component};
+use crate::entity::{Component, EntityId};
 
-use crate::store::{Store};
+use crate::store::Store;
 
 use super::entity_command::{Spawn, EntityCommands, SpawnEmpty};
 

@@ -18,4 +18,4 @@ pub use view::{
     View, ViewBuilder, ViewPlan, ViewCursor, ViewIterator,
 };
 
-pub use meta::{ViewId};
+pub use meta::ViewId;

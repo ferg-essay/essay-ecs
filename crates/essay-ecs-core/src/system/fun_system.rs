@@ -113,8 +113,9 @@ mod tests {
     use std::any::type_name;
     use std::marker::PhantomData;
 
-    use crate::{store::Store, 
-        system::{IntoSystem},
+    use crate::{
+        store::Store, 
+        system::IntoSystem,
         schedule::{Schedule, SystemMeta, UnsafeWorld},
     };
 

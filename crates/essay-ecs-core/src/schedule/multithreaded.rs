@@ -1,4 +1,4 @@
-use std::{sync::{Arc}};
+use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 
@@ -9,9 +9,9 @@ use crate::{
 
 use super::{
     thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, 
-    plan::{Plan}, 
+    plan::Plan, 
     schedule::{Executor, ExecutorFactory, ScheduleErr},
-    unsafe_cell::{UnsafeSendCell}, UnsafeWorld
+    unsafe_cell::UnsafeSendCell, UnsafeWorld
 };
 
 type ArcWorld = Arc<UnsafeSendCell<Option<UnsafeWorld>>>;

@@ -59,7 +59,7 @@ mod test {
 
     use crate::{core_app::{CoreApp, Core}, entity::Component, Commands, schedule::Executors, Schedules};
 
-    use super::{Query};
+    use super::Query;
 
     #[test]
     fn query_component() {
