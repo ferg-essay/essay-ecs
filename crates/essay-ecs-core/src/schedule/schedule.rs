@@ -26,11 +26,6 @@ pub type BoxedSystem<Out=()> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
 pub type BoxedCondition<Out=bool> = UnsafeSyncCell<Box<dyn System<Out=Out>>>;
 pub type BoxedLabel = Box<dyn ScheduleLabel>;
 
-pub struct Schedules {
-    schedule_map: HashMap<Box<dyn ScheduleLabel>, Schedule>,
-    default_executor: Box<dyn ExecutorFactory>,
-}
-
 pub struct Schedule {
     inner: Option<ScheduleInner>,
     executor: Option<Box<dyn Executor>>,
@@ -87,18 +82,9 @@ pub enum ScheduleErr {
     ChildPanic,
 }
 
-struct ScheduleInner {
-    phases: PhasePreorder,
-
-    systems: Vec<BoxedSystem>,
-    conditions: Vec<Vec<BoxedCondition>>,
-    uninit_systems: Vec<SystemId>,
-
-    planner: Planner,
-
-    executor_factory: Box<dyn ExecutorFactory>,
-
-    is_stale: bool,
+pub struct Schedules {
+    schedule_map: HashMap<Box<dyn ScheduleLabel>, Schedule>,
+    default_executor: Box<dyn ExecutorFactory>,
 }
 
 impl Schedules {
@@ -365,6 +351,20 @@ impl Schedule {
     fn set_executor_factory(&mut self, factory: Box<dyn ExecutorFactory>) {
         self.inner_mut().set_executor_factory(factory);
     }
+}
+
+struct ScheduleInner {
+    phases: PhasePreorder,
+
+    systems: Vec<BoxedSystem>,
+    conditions: Vec<Vec<BoxedCondition>>,
+    uninit_systems: Vec<SystemId>,
+
+    planner: Planner,
+
+    executor_factory: Box<dyn ExecutorFactory>,
+
+    is_stale: bool,
 }
 
 impl ScheduleInner {

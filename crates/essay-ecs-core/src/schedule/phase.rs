@@ -1,24 +1,19 @@
 use core::fmt;
-use std::{hash::{Hash, Hasher}, any::type_name, collections::HashMap};
-
-use crate::{
-    system::SystemId,
-    util::DynLabel,
+use std::{
+    any::type_name,
+    collections::HashMap,
+    hash::{Hash, Hasher},
 };
 
-use super::preorder::{Preorder, NodeId};
+use crate::{system::SystemId, util::DynLabel};
+
+use super::preorder::{NodeId, Preorder};
 
 ///
 /// See SystemSet in bevy_ecs/schedule/schedule.rs
-/// 
+///
 
-#[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
-pub struct PhaseId(usize);
-
-impl PhaseId {
-}
-
-pub trait Phase : Send + DynLabel + fmt::Debug {
+pub trait Phase: Send + DynLabel + fmt::Debug {
     fn name(&self) -> String {
         type_name::<Self>().to_string()
     }
@@ -26,17 +21,10 @@ pub trait Phase : Send + DynLabel + fmt::Debug {
     fn box_clone(&self) -> Box<dyn Phase>;
 }
 
-pub struct PhaseItem {
-    id: PhaseId,
-
-    system_id: Option<SystemId>,
-}
-
-pub(crate) struct PhasePreorder {
-    phase_map: HashMap<Box<dyn Phase>, PhaseId>,
-    phases: Vec<PhaseItem>,
-    default_phase: Option<PhaseId>,
-    preorder: Preorder,
+impl Phase for DefaultPhase {
+    fn box_clone(&self) -> Box<dyn Phase> {
+        Box::new(Clone::clone(self))
+    }
 }
 
 pub struct PhaseConfig {
@@ -44,8 +32,26 @@ pub struct PhaseConfig {
 }
 
 pub struct PhaseConfigs {
-    sets: Vec<PhaseConfig>,
+    phases: Vec<PhaseConfig>,
     is_chained: bool,
+}
+
+impl PhaseConfigs {
+    fn new() -> PhaseConfigs {
+        Self {
+            phases: Vec::new(),
+            is_chained: false,
+        }
+    }
+
+    fn add(&mut self, config: PhaseConfig) {
+        self.phases.push(config);
+    }
+
+    pub fn chained(mut self) -> PhaseConfigs {
+        self.is_chained = true;
+        self
+    }
 }
 
 pub trait IntoPhaseConfig {
@@ -63,16 +69,16 @@ pub trait IntoPhaseConfigs: Sized {
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct DefaultPhase;
 
-impl Phase for DefaultPhase {
-    fn box_clone(&self) -> Box<dyn Phase> {
-        Box::new(Clone::clone(self))
-    }
+//
+// PhasePreorder
+//
+
+pub(crate) struct PhasePreorder {
+    phase_map: HashMap<Box<dyn Phase>, PhaseId>,
+    phases: Vec<PhaseItem>,
+    default_phase: Option<PhaseId>,
+    preorder: Preorder,
 }
-
-
-//
-// TaskSetMeta
-//
 
 impl PhasePreorder {
     pub fn new() -> Self {
@@ -85,15 +91,16 @@ impl PhasePreorder {
     }
 
     pub fn add_phase(&mut self, config: PhaseConfig) -> PhaseId {
-        let PhaseConfig {
-            phase,
-        } = config; 
+        let PhaseConfig { phase } = config;
 
         self.add_node(phase)
     }
 
     pub fn add_phases(&mut self, config: PhaseConfigs) {
-        let PhaseConfigs { sets, is_chained } = config;
+        let PhaseConfigs {
+            phases: sets,
+            is_chained,
+        } = config;
 
         let mut set_iter = sets.into_iter();
         if is_chained {
@@ -102,10 +109,8 @@ impl PhasePreorder {
             for next in set_iter {
                 let next_id = self.add_phase(next);
 
-                self.preorder.add_arrow(
-                    NodeId::from(prev_id), 
-                    NodeId::from(next_id)
-                );
+                self.preorder
+                    .add_arrow(NodeId::from(prev_id), NodeId::from(next_id));
 
                 prev_id = next_id;
             }
@@ -127,9 +132,7 @@ impl PhasePreorder {
     }
 
     fn add_node(&mut self, phase: Box<dyn Phase>) -> PhaseId {
-        *self.phase_map
-            .entry(phase.box_clone())
-            .or_insert_with(|| {
+        *self.phase_map.entry(phase.box_clone()).or_insert_with(|| {
             let node_id = self.preorder.add_node(0);
             let id = PhaseId::from(node_id);
             self.phases.push(PhaseItem {
@@ -141,17 +144,14 @@ impl PhasePreorder {
     }
 
     pub(crate) fn uninit_phases(&self) -> Vec<PhaseId> {
-        self.phases.iter()
+        self.phases
+            .iter()
             .filter(|set| set.system_id.is_none())
             .map(|set| set.id)
             .collect()
     }
 
-    pub(crate) fn set_system_id(
-        &mut self, 
-        phase_id: PhaseId, 
-        system_id: SystemId
-    ) {
+    pub(crate) fn set_system_id(&mut self, phase_id: PhaseId, system_id: SystemId) {
         assert!(self.phases[phase_id.index()].system_id.is_none());
 
         self.phases[phase_id.index()].system_id = Some(system_id);
@@ -161,7 +161,8 @@ impl PhasePreorder {
         let mut preorder = self.preorder.clone();
         let order = preorder.sort();
 
-        order.iter()
+        order
+            .iter()
             .map(|id| self.phases[id.index()].system_id.unwrap())
             .collect()
     }
@@ -173,33 +174,13 @@ impl PhasePreorder {
         }
     }
 }
-
-impl PhaseConfigs {
-    fn new() -> PhaseConfigs {
-        Self {
-            sets: Vec::new(),
-            is_chained: false,
-        }
-    }
-
-    fn add(&mut self, config: PhaseConfig) {
-        self.sets.push(config);
-    }
-
-    pub fn chained(mut self) -> PhaseConfigs {
-        self.is_chained = true;
-        self
-    }
-}
 //
 // IntoTaskSetConfig
 //
 
 impl PhaseConfig {
     pub fn new(phase: Box<dyn Phase>) -> Self {
-        Self {
-            phase
-        }
+        Self { phase }
     }
 }
 impl IntoPhaseConfig for PhaseConfig {
@@ -208,7 +189,7 @@ impl IntoPhaseConfig for PhaseConfig {
     }
 }
 
-impl<T:Phase> IntoPhaseConfig for T {
+impl<T: Phase> IntoPhaseConfig for T {
     fn into_config(self) -> PhaseConfig {
         PhaseConfig::new(Box::new(self))
     }
@@ -226,6 +207,9 @@ impl IntoPhaseConfigs for PhaseConfigs {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
+pub struct PhaseId(usize);
+
 impl PhaseId {
     pub fn index(&self) -> usize {
         self.0
@@ -242,6 +226,12 @@ impl From<NodeId> for PhaseId {
     fn from(value: NodeId) -> Self {
         PhaseId(value.0)
     }
+}
+
+pub struct PhaseItem {
+    id: PhaseId,
+
+    system_id: Option<SystemId>,
 }
 
 impl PartialEq for dyn Phase {
@@ -290,24 +280,196 @@ impl_task_set_tuple!(P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11);
 
 #[cfg(test)]
 mod tests {
-    use crate::schedule::schedule::Schedule;
+    use essay_ecs_macros::Phase;
 
-    use super::Phase;
+    use crate::{schedule::schedule::Schedule, util::test::TestValues, IntoPhaseConfigs, Store};
+    use std::{
+        thread,
+        time::Duration,
+    };
+
+    use crate::{
+        core_app::{Core, CoreApp},
+        schedule::schedule::Executors,
+        system::IntoSystemConfig,
+    };
+
+    mod essay_ecs {
+        pub mod core {
+            pub mod schedule {
+                pub use crate::schedule::*;
+            }
+        }
+    }
 
     #[test]
-    fn add_default_task_set() {
+    fn set_default_phase() {
         let mut schedule = Schedule::new();
-        schedule.set_default_phase(TestSet::A);
+        schedule.set_default_phase(TestPhases::A);
     }
 
-    #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-    enum TestSet {
+    #[test]
+    fn phase_a_b_c() {
+        let mut values = TestValues::new();
+
+        let mut world = Store::new();
+
+        // A, default
+        let mut schedule = new_schedule_a_b_c();
+
+        let mut ptr = values.clone();
+        schedule.add_system((move || { 
+            ptr.push("a"); 
+        }).phase(TestPhases::A));
+        
+        let mut ptr = values.clone();
+        schedule.add_system(move || { 
+            ptr.push("b"); 
+        });
+
+        schedule.tick(&mut world).unwrap();
+        assert_eq!(values.take(), "a, b");
+
+        // C, default
+        let mut schedule = new_schedule_a_b_c();
+
+        let mut ptr = values.clone();
+        schedule.add_system((move || { 
+            ptr.push("c"); 
+        }).phase(TestPhases::C));
+        
+        let mut ptr = values.clone();
+        schedule.add_system(move || { 
+            ptr.push("b"); 
+        });
+
+        schedule.tick(&mut world).unwrap();
+        assert_eq!(values.take(), "b, c");
+
+        // default, A
+        let mut schedule = new_schedule_a_b_c();
+
+        let mut ptr = values.clone();
+        schedule.add_system(move || { 
+            ptr.push("b"); 
+        });
+        
+        let mut ptr = values.clone();
+        schedule.add_system((move || { 
+            ptr.push("a"); 
+        }).phase(TestPhases::A));
+
+        schedule.tick(&mut world).unwrap();
+        assert_eq!(values.take(), "a, b");
+
+        // default, C
+        let mut schedule = new_schedule_a_b_c();
+
+        let mut ptr = values.clone();
+        schedule.add_system(move || { 
+            ptr.push("b"); 
+        });
+        
+        let mut ptr = values.clone();
+        schedule.add_system((move || { 
+            ptr.push("c"); 
+        }).phase(TestPhases::C));
+
+        schedule.tick(&mut world).unwrap();
+        assert_eq!(values.take(), "b, c");
+    }
+
+    fn new_schedule_a_b_c() -> Schedule {
+        let mut schedule = Schedule::new();
+        schedule.add_phases((
+            TestPhases::A,
+            TestPhases::B,
+            TestPhases::C,
+        ).chained());
+        schedule.set_default_phase(TestPhases::B);
+
+        schedule
+    }
+
+    #[test]
+    fn phase_groups() {
+        let mut app = CoreApp::new();
+
+        app.set_executor(Executors::Multithreaded);
+        app.insert_resource("test".to_string());
+
+        let mut values = TestValues::new();
+
+        let mut ptr = values.clone();
+        app.add_system(
+            Core,
+            (move || {
+                ptr.push(&format!("[C"));
+                thread::sleep(Duration::from_millis(100));
+                ptr.push(&format!("C]"));
+            })
+            .phase(TestPhases::C),
+        );
+
+        let mut ptr = values.clone();
+        app.add_system(
+            Core,
+            (move || {
+                ptr.push(&format!("[C"));
+                thread::sleep(Duration::from_millis(100));
+                ptr.push(&format!("C]"));
+            })
+            .phase(TestPhases::C),
+        );
+
+        let mut ptr = values.clone();
+        app.add_system(Core, move || {
+            ptr.push(&format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            ptr.push(&format!("B]"));
+        });
+
+        let mut ptr = values.clone();
+        app.add_system(Core, move || {
+            ptr.push(&format!("[B"));
+            thread::sleep(Duration::from_millis(100));
+            ptr.push(&format!("B]"));
+        });
+
+        let mut ptr = values.clone();
+        app.add_system(
+            Core,
+            (move || {
+                ptr.push(&format!("[A"));
+                thread::sleep(Duration::from_millis(100));
+                ptr.push(&format!("A]"));
+            })
+            .phase(TestPhases::A),
+        );
+
+        let mut ptr = values.clone();
+        app.add_system(
+            Core,
+            (move || {
+                ptr.push(&format!("[A"));
+                thread::sleep(Duration::from_millis(100));
+                ptr.push(&format!("A]"));
+            })
+            .phase(TestPhases::A),
+        );
+
+        app.tick();
+
+        assert_eq!(
+            values.take(),
+            "[A, [A, A], A], [B, [B, B], B], [C, [C, C], C]"
+        );
+    }
+
+    #[derive(Phase, PartialEq, Hash, Eq, Clone, Debug)]
+    enum TestPhases {
         A,
-    }
-
-    impl Phase for TestSet {
-        fn box_clone(&self) -> Box<dyn Phase> {
-            Box::new(Clone::clone(self))
-        }
+        B,
+        C,
     }
 }
