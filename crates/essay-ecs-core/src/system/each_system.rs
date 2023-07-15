@@ -139,24 +139,27 @@ impl_each_function!(P1, P2, P3, P4, P5, P6, P7);
 mod tests {
     use std::{rc::Rc, cell::RefCell};
 
-    use crate::{Store, entity::Component, Schedule, util::test::TestValues};
+    use crate::{Store, entity::Component, Schedule, util::test::TestValues, core_app::CoreApp, Commands};
 
     #[test]
     fn test_each() {
-        let mut world = Store::new();
+        let mut app = CoreApp::new();
 
-        world.spawn(TestA(1));
+        app.run_system(|mut cmd: Commands| cmd.spawn(TestA(1)) );
 
-        let _values = TestValues::new();
+        let values = TestValues::new();
 
-        let mut schedule = Schedule::new();
-        schedule.add_system(system_each_ref);
-        //schedule.update();
-        /*
+
+        //let mut schedule = Schedule::new();
+        //app.add_system(system_each_ref);
+        app.tick();
+        
         let ptr = values.clone();
-        world.eval(move |t :&mut TestA| {
-            ptr.borrow_mut().push(format!("{:?}", t));
-        });
+        assert_eq!(
+            app.query::<&TestA>().collect::<Vec<&TestA>>(),
+            vec![&TestA(1)]
+        );
+        /*
 
         world.spawn(TestA(2));
 
@@ -395,7 +398,7 @@ mod tests {
         v.join(", ")
     }
 
-    #[derive(PartialEq, Debug)]
+    #[derive(Clone, Copy, PartialEq, Debug)]
     struct TestA(u32);
 
     impl Component for TestA {}
