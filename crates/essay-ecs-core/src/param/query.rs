@@ -67,7 +67,7 @@ mod test {
 
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
         let ptr = values.clone();
-        app.add_system(Core, move |q: Query<&TestA>| { 
+        app.system(Core, move |q: Query<&TestA>| { 
             for t in q.iter() {
                 ptr.lock().unwrap().push(format!("{:?}", t)); 
             }
@@ -104,28 +104,28 @@ mod test {
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
-        app.add_system(Core, move |_q: Query<&TestA>| {
+        app.system(Core, move |_q: Query<&TestA>| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
 
         let ptr = values.clone();
-        app.add_system(Core, move |_q: Query<&TestA>| {
+        app.system(Core, move |_q: Query<&TestA>| {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
         });
         
         let ptr = values.clone();
-        app.add_system(Core, move |_q: Query<&mut TestA>| {
+        app.system(Core, move |_q: Query<&mut TestA>| {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
         });
         
         let ptr = values.clone();
-        app.add_system(Core, move |_q: Query<&mut TestA>| {
+        app.system(Core, move |_q: Query<&mut TestA>| {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));

@@ -9,7 +9,7 @@ use essay_ecs_core::core_app::{CoreApp, Core};
 fn main() {
     let mut app = CoreApp::new();
 
-    app.add_system(Core, || println!("Hello, world") );
+    app.system(Core, || println!("Hello, world") );
 
     // evaluate all systems in the application
     app.tick();

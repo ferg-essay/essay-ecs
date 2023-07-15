@@ -195,7 +195,7 @@ mod test {
         let mut values = TestValues::new();
         let mut ptr = values.clone();
 
-        app.add_system(Core, move |mut reader: InEvent<TestEvent>| {
+        app.system(Core, move |mut reader: InEvent<TestEvent>| {
             for event in reader.iter() {
                 ptr.push(&format!("{:?}", event));
             }
@@ -229,7 +229,7 @@ mod test {
         let mut values = TestValues::new();
         let mut ptr = values.clone();
 
-        app.add_system(Core, move |mut reader: InEvent<TestEvent>| {
+        app.system(Core, move |mut reader: InEvent<TestEvent>| {
             for event in reader.iter() {
                 ptr.push(&format!("{:?}", event));
             }

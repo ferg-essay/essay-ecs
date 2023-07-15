@@ -11,7 +11,7 @@ fn test_hello() {
 
     let ptr = arc.clone();
 
-    app.add_system(Core, move || ptr.lock().unwrap().push("hello, world".into()));
+    app.system(Core, move || ptr.lock().unwrap().push("hello, world".into()));
 
     assert_eq!(take(&arc), "");
 }

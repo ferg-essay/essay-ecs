@@ -8,8 +8,8 @@ impl TestValues {
         TestValues(Arc::new(Mutex::new(Vec::new())))
     }
 
-    pub fn push(&mut self, value: &str) {
-        self.0.lock().unwrap().push(value.to_string());
+    pub fn push(&mut self, value: impl AsRef<str>) {
+        self.0.lock().unwrap().push(value.as_ref().to_string());
     }
 
     pub fn take(&mut self) -> String {

@@ -430,10 +430,7 @@ impl ScheduleInner {
     }
 
     pub(crate) fn plan(&mut self) -> Plan {
-        // self.planner.plan()
-        let phase_order = self.planner.phases_mut().sort();
-
-        self.planner.plan(phase_order)
+        self.planner.plan()
     }
 
     pub(crate) fn flush(&mut self, world: &mut Store) {
@@ -639,7 +636,7 @@ mod tests {
             TestPhase::A,
             TestPhase::B,
             TestPhase::C,
-        ).chained());
+        ).chain());
         // schedule.set_default_phase(TestPhase::B);
 
         schedule

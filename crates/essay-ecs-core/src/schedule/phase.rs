@@ -62,7 +62,7 @@ pub trait IntoPhaseConfig {
 pub trait IntoPhaseConfigs: Sized {
     fn into_config(self) -> PhaseConfigs;
 
-    fn chained(self) -> PhaseConfigs {
+    fn chain(self) -> PhaseConfigs {
         self.into_config().chained()
     }
 }
@@ -134,7 +134,6 @@ impl PhasePreorder {
             let id = PhaseId::from(node_id);
             self.phases.push(PhaseItem {
                 id,
-                phases: vec![id],
                 first_id: None,
                 last_id: None,
             });
@@ -150,12 +149,6 @@ impl PhasePreorder {
             .collect()
     }
 
-    pub(crate) fn set_system_id(&mut self, phase_id: PhaseId, system_id: SystemId) {
-        assert!(self.phases[phase_id.index()].first_id.is_none());
-
-        self.phases[phase_id.index()].first_id = Some(system_id);
-    }
-
     pub(crate) fn sort(&self) -> Vec<PhaseId> {
         let mut preorder = self.preorder.clone();
         let order = preorder.sort();
@@ -166,13 +159,6 @@ impl PhasePreorder {
             .collect()
     }
 
-    pub(crate) fn get_server_id(&self, phase_id: Option<PhaseId>) -> Option<SystemId> {
-        match phase_id {
-            Some(phase_id) => self.phases[phase_id.0].first_id,
-            None => None,
-        }
-    }
-
     pub(crate) fn add_phase_group(&self, phase_ids: Vec<PhaseId>) -> PhaseId {
         if phase_ids.len() == 0 {
             PhaseId::zero()
@@ -181,6 +167,16 @@ impl PhasePreorder {
         } else {
             todo!()
         }
+    }
+
+    ///
+    /// return SystemId of the phase markers with arrows into the phase
+    /// 
+    pub(crate) fn incoming_systems(&self, phase_id: PhaseId) -> Vec<SystemId> {
+        self.preorder.incoming(NodeId::from(phase_id))
+            .iter()
+            .map(|n| { self.phases[n.0].last() })
+            .collect::<Vec<SystemId>>()
     }
 }
 
@@ -242,15 +238,6 @@ impl PhaseId {
     pub(crate) fn zero() -> PhaseId {
         PhaseId(0)
     }
-
-    pub(crate) fn none() -> PhaseId {
-        PhaseId(usize::MAX)
-    }
-
-    pub(crate) fn is_none(&self) -> bool {
-        self.0 == usize::MAX
-
-    }
 }
 
 impl From<PhaseId> for NodeId {
@@ -268,22 +255,12 @@ impl From<NodeId> for PhaseId {
 #[derive(Clone)]
 pub struct PhaseItem {
     id: PhaseId,
-    phases: Vec<PhaseId>,
 
     first_id: Option<SystemId>,
     last_id: Option<SystemId>,
 }
 
 impl PhaseItem {
-    fn new(id: PhaseId) -> Self {
-        Self {
-            id,
-            phases: Vec::new(),
-            first_id: None,
-            last_id: None,
-        }
-    }
-
     pub(crate) fn first(&self) -> SystemId {
         self.first_id.unwrap()
     }
@@ -449,7 +426,7 @@ mod tests {
         let mut values = TestValues::new();
 
         let mut ptr = values.clone();
-        app.add_system(
+        app.system(
             Core,
             (move || {
                 ptr.push(&format!("[C"));
@@ -460,7 +437,7 @@ mod tests {
         );
 
         let mut ptr = values.clone();
-        app.add_system(
+        app.system(
             Core,
             (move || {
                 ptr.push(&format!("[C"));
@@ -471,21 +448,21 @@ mod tests {
         );
 
         let mut ptr = values.clone();
-        app.add_system(Core, move || {
+        app.system(Core, move || {
             ptr.push(&format!("[B"));
             thread::sleep(Duration::from_millis(100));
             ptr.push(&format!("B]"));
         });
 
         let mut ptr = values.clone();
-        app.add_system(Core, move || {
+        app.system(Core, move || {
             ptr.push(&format!("[B"));
             thread::sleep(Duration::from_millis(100));
             ptr.push(&format!("B]"));
         });
 
         let mut ptr = values.clone();
-        app.add_system(
+        app.system(
             Core,
             (move || {
                 ptr.push(&format!("[A"));
@@ -496,7 +473,7 @@ mod tests {
         );
 
         let mut ptr = values.clone();
-        app.add_system(
+        app.system(
             Core,
             (move || {
                 ptr.push(&format!("[A"));
@@ -548,7 +525,7 @@ mod tests {
             TestPhases::A,
             TestPhases::B,
             TestPhases::C,
-        ).chained());
+        ).chain());
         //schedule.set_default_phase(TestPhases::B);
 
         schedule

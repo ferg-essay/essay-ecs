@@ -1,5 +1,3 @@
-use std::{any::Any, sync::mpsc};
-
 use crate::{Schedule, Store};
 
 use super::{plan::Plan, multithreaded::MultithreadedExecutor, UnsafeWorld, schedule::ScheduleErr};

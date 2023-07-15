@@ -315,7 +315,7 @@ mod tests {
             TestPhase::A,
             TestPhase::B,
             TestPhase::C,
-        ).chained());
+        ).chain());
         //schedule.set_default_phase(TestPhase::B);
 
         let mut world = Store::new();
@@ -356,7 +356,7 @@ mod tests {
             TestPhase::A,
             TestPhase::B,
             TestPhase::C,
-        ).chained());
+        ).chain());
         //schedule.set_default_phase(TestPhase::B);
 
         let mut world = Store::new();
@@ -397,7 +397,7 @@ mod tests {
             TestPhase::A,
             TestPhase::B,
             TestPhase::C,
-        ).chained());
+        ).chain());
         //schedule.set_default_phase(TestPhase::B);
 
         let mut world = Store::new();

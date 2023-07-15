@@ -32,20 +32,20 @@ impl CoreApp {
         }
     }
 
-    pub fn add_system<M>(
+    pub fn system<M>(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>,
-        into_system: impl IntoSystemConfig<M>
+        system: impl IntoSystemConfig<M>
     ) -> &mut Self {
         self.resource_mut::<Schedules>().add_system(
             label,
-            into_system
+            system
         );
     
         self
     }
 
-    pub fn add_phases(
+    pub fn phase(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>,
         into_phases: impl IntoPhaseConfigs
