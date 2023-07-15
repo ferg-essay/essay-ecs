@@ -5,7 +5,7 @@ use crate::{
     schedule::{ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeWorld}, 
     entity::{View, ViewIterator}, 
     Schedules, IntoSystem, 
-    system::System, store::FromStore,
+    system::System, store::FromStore, IntoPhaseConfigs,
 };
 
 pub struct CoreApp {
@@ -40,6 +40,19 @@ impl CoreApp {
         self.resource_mut::<Schedules>().add_system(
             label,
             into_system
+        );
+    
+        self
+    }
+
+    pub fn add_phases(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
+        into_phases: impl IntoPhaseConfigs
+    ) -> &mut Self {
+        self.resource_mut::<Schedules>().add_phases(
+            label,
+            into_phases
         );
     
         self

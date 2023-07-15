@@ -10,7 +10,8 @@ use crate::{
 use super::{
     thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, 
     plan::Plan, 
-    schedule::{Executor, ExecutorFactory, ScheduleErr},
+    schedule::{ScheduleErr},
+    executor::{Executor, ExecutorFactory},
     unsafe_cell::UnsafeSendCell, UnsafeWorld
 };
 
@@ -166,22 +167,18 @@ impl ParentTask {
 
                 let meta = schedule.meta(id);
 
-                if ! meta.is_exclusive() {
-                    sender.send(id);
-
-                    n_child += 1;
-                } else if meta.is_flush() {
-                    assert_eq!(n_active, 1);
-
-                    schedule.flush(world);
-
+                if meta.is_marker() {
                     completed.push(id);
-                } else {
+                } else if meta.is_exclusive() {
                     assert_eq!(n_active, 1);
 
                     unsafe { schedule.run_system(id, world); }
 
                     completed.push(id);
+                } else {
+                    sender.send(id);
+
+                    n_child += 1;
                 }
             }
 
@@ -271,8 +268,7 @@ mod tests {
 
     use crate::{Store, Schedule, 
         schedule::{Phase,IntoPhaseConfigs, 
-            Executor, ExecutorFactory},
-        system::IntoSystemConfig,
+            Executor, ExecutorFactory}, IntoSystemConfig,
     };
 
     use super::{MultithreadedExecutor, MultithreadedExecutorFactory};
@@ -320,7 +316,7 @@ mod tests {
             TestPhase::B,
             TestPhase::C,
         ).chained());
-        schedule.set_default_phase(TestPhase::B);
+        //schedule.set_default_phase(TestPhase::B);
 
         let mut world = Store::new();
 
@@ -361,7 +357,7 @@ mod tests {
             TestPhase::B,
             TestPhase::C,
         ).chained());
-        schedule.set_default_phase(TestPhase::B);
+        //schedule.set_default_phase(TestPhase::B);
 
         let mut world = Store::new();
 
@@ -402,7 +398,7 @@ mod tests {
             TestPhase::B,
             TestPhase::C,
         ).chained());
-        schedule.set_default_phase(TestPhase::B);
+        //schedule.set_default_phase(TestPhase::B);
 
         let mut world = Store::new();
 

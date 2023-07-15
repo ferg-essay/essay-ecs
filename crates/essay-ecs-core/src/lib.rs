@@ -13,12 +13,10 @@ pub use essay_ecs_macros::{
 
 pub use schedule::{
     IntoPhaseConfig, IntoPhaseConfigs,
-    Schedule, Schedules,
+    Schedule, Schedules, IntoSystemConfig,
 };
 
-pub use system::{
-    IntoSystem, IntoSystemConfig,
-};
+pub use system::IntoSystem;
 
 pub use param::{
     Local,
@@ -36,12 +34,10 @@ pub mod prelude {
         param::{Param, Res, ResMut},
 
         schedule::{
-            IntoPhaseConfig, IntoPhaseConfigs,
+            IntoPhaseConfig, IntoPhaseConfigs, IntoSystemConfig,
         },
 
-        system::{
-            IntoSystem, IntoSystemConfig,
-        },
+        system::IntoSystem, 
 
         store::Commands,
     };

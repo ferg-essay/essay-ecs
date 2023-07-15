@@ -3,10 +3,12 @@ use std::{collections::{HashMap, HashSet}, hash};
 
 use crate::{resource::ResourceId, entity::ComponentId, system::SystemId};
 
-use super::{preorder::{Preorder, NodeId}, plan::Plan};
+use super::{preorder::{Preorder, NodeId}, plan::Plan, phase::{PhaseItem, PhaseId, PhasePreorder}, Phase};
 
 
 pub struct Planner {
+    phases: PhasePreorder,
+
     systems: Vec<SystemMeta>,
 
     preorder: Preorder,
@@ -14,191 +16,10 @@ pub struct Planner {
     order: Vec<SystemId>,
 }
 
-#[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
-pub struct Priority(u32);
-
-pub struct SystemMeta {
-    id: SystemId,
-    name: String,
-    phase: Option<SystemId>,
-
-    priority: Priority,
-
-    is_exclusive: bool,
-    is_flush: bool,
-
-    resources: HashSet<ResourceId>,
-    mut_resources: HashSet<ResourceId>,
-
-    components: HashSet<ComponentId>,
-    mut_components: HashSet<ComponentId>,
-}
-
-impl SystemMeta {
-    pub(crate) fn new(
-        id: SystemId, 
-        name: String,
-        phase: Option<SystemId>,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            phase,
-            priority: Default::default(),
-
-            is_flush: false,
-            is_exclusive: false,
-
-            resources: Default::default(),
-            mut_resources: Default::default(),
-
-            components: Default::default(),
-            mut_components: Default::default(),
-        }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            id: SystemId(0),
-            name: "empty".to_string(),
-            priority: Default::default(),
-            phase: None,
-
-            is_flush: false,
-            is_exclusive: false,
-
-            resources: Default::default(),
-            mut_resources: Default::default(),
-
-            components: Default::default(),
-            mut_components: Default::default(),
-        }
-    }
-
-    pub fn id(&self) -> SystemId {
-        self.id
-    }
-
-    pub fn set_exclusive(&mut self) {
-        self.is_exclusive = true;
-    }
-
-    pub fn is_exclusive(&self) -> bool {
-        self.is_exclusive
-    }
-
-    pub(crate) fn set_flush(&mut self) {
-        self.is_flush = true;
-    }
-
-    pub(crate) fn is_flush(&self) -> bool {
-        self.is_flush
-    }
-
-    pub fn priority(&self) -> Priority {
-        self.priority
-    }
-
-    pub fn set_priority(&mut self, priority: Priority) {
-        self.priority = priority;
-    }
-
-    pub fn add_priority(&mut self, delta: u32) {
-        self.priority = self.priority.add(delta);
-    }
-
-    pub fn sub_priority(&mut self, delta: u32) {
-        self.priority = self.priority.sub(delta);
-    }
-
-    pub fn insert_resource(&mut self, id: ResourceId) {
-        self.resources.insert(id);
-    }
-
-    pub fn insert_resource_mut(&mut self, id: ResourceId) {
-        self.mut_resources.insert(id);
-    }
-
-    pub fn insert_component(&mut self, id: ComponentId) {
-        self.components.insert(id);
-    }
-
-    pub fn insert_component_mut(&mut self, id: ComponentId) {
-        self.mut_components.insert(id);
-    }
-    
-    pub(crate) fn add_phase_arrows(
-        &self, 
-        preorder: &mut Preorder, 
-        prev_map: &HashMap<SystemId, SystemId>
-    ) {
-        if let Some(phase) = &self.phase {
-            preorder.add_arrow(
-                NodeId::from(self.id), 
-                NodeId::from(*phase)
-            );
-
-            if let Some(prev) = prev_map.get(&phase) {
-                preorder.add_arrow(
-                    NodeId::from(*prev), 
-                    NodeId::from(self.id)
-                );
-            }
-        }
-    }
-
-    pub(crate) fn set_phase(&mut self, system_id: SystemId) {
-        self.phase = Some(system_id);
-    }
-}
-
-impl fmt::Debug for SystemMeta {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SystemMeta")
-         .field("id", &self.id)
-         .field("name", &self.name)
-         .field("phase", &self.phase)
-         .field("is_exclusive", &self.is_exclusive)
-         .field("is_flush", &self.is_exclusive)
-         .field("resources", &self.resources)
-         .field("mut_resources", &self.mut_resources)
-         .finish()
-    }
-}
-
-pub struct PhasePlan {
-    phase: Option<SystemId>,
-
-    group_map: HashMap<AccessGroup, AccessGroupId>,
-    groups: Vec<AccessGroup>,
-
-    exclusive: Option<AccessGroupId>,
-
-    resource_mut_map: HashMap<ResourceId, Vec<AccessGroupId>>,
-    component_mut_map: HashMap<ComponentId, Vec<AccessGroupId>>,
-}
-
-pub struct AccessGroup {
-    phase: Option<SystemId>,
-    
-    is_exclusive: bool,
-    is_flush: bool, 
-
-    resources: Vec<ResourceId>,
-    mut_resources: Vec<ResourceId>,
-
-    components: Vec<ComponentId>,
-    mut_components: Vec<ComponentId>,
-
-    systems: Vec<SystemId>,
-
-    first: Option<SystemId>,
-    last: Option<SystemId>,
-}
-
 impl Planner {
     pub(crate) fn new() -> Self {
         Self {
+            phases: PhasePreorder::new(),
             systems: Default::default(),
             // uninit_systems: Default::default(),
             preorder: Preorder::new(),
@@ -210,7 +31,7 @@ impl Planner {
         &mut self, 
         id: SystemId,
         type_name: String,
-        phase_id: Option<SystemId>,
+        phase_id: PhaseId,
     ) -> SystemId {
         let node_id = self.preorder.add_node(0);
         assert_eq!(id.index(), node_id.index());
@@ -228,17 +49,22 @@ impl Planner {
         id
     }
 
-    pub(crate) fn sort(&mut self, phase_order: Vec<SystemId>) {
+    pub(crate) fn sort(&mut self) {
+        let phase_order = self.phases.sort();
+
         let mut preorder = self.preorder.clone();
 
+        /*
         let prev_map = self.prev_map(
             &mut preorder, 
             phase_order
         );
+        */
+        self.add_phase_arrows(&mut preorder, phase_order);
 
         for meta in &self.systems {
-            if ! meta.is_flush() {
-                meta.add_phase_arrows(&mut preorder, &prev_map);
+            if ! meta.is_marker() {
+                self.add_system_phase_arrows(&mut preorder, meta);
             }
         }
 
@@ -247,49 +73,66 @@ impl Planner {
             .collect();
     }
 
-    pub(crate) fn plan(&self, phase_order: Vec<SystemId>) -> Plan {
+    pub(crate) fn plan(&self, phase_order: Vec<PhaseId>) -> Plan {
         let mut preorder = self.preorder.clone();
 
-        preorder = PhasePlan::plan(self, preorder, &None);
+        preorder = PhasePlan::plan(self, preorder, PhaseId::zero());
 
         for phase in &phase_order {
-            preorder = PhasePlan::plan(self, preorder, &Some(*phase));
+            preorder = PhasePlan::plan(self, preorder, *phase);
         }
-
-        // let mut preorder = PhasePlan::plan(self);
-
-        //let mut preorder = self.preorder.clone();
-
         /*
-        let mut access_set = HashSet::<AccessGroup>::new();
-
-        let access_groups: Vec<AccessGroup> = self.systems.iter()
-            .map(|m| AccessGroup::from(m))
-            .collect();
-        */
-        
-        //self.add_to_access_set(access_set, meta);
-        //println!("Meta {:?}", meta);
-            /*
-            if ! meta.is_flush() {
-                meta.add_phase_arrows(&mut preorder, &prev_map);
-            }
-            */
-
         let prev_map = self.prev_map(
             &mut preorder, 
             phase_order
         );
+        */
 
         for meta in &self.systems {
-            // self.add_to_access_group(meta);
-            // println!("Meta {:?}", meta);
-            if ! meta.is_flush() {
-                meta.add_phase_arrows(&mut preorder, &prev_map);
+            if ! meta.is_marker() {
+                self.add_system_phase_arrows(&mut preorder, meta);
             }
         }
 
         Plan::new(&mut preorder)
+    }
+
+    fn add_system_phase_arrows(&self, preorder: &mut Preorder, meta: &SystemMeta) {
+        let phase = &self.phases[meta.phase_id];
+
+        preorder.add_arrow(
+            NodeId::from(phase.first()),
+            NodeId::from(meta.id), 
+        );
+
+        preorder.add_arrow(
+            NodeId::from(meta.id), 
+            NodeId::from(phase.last())
+        );
+    }
+
+    fn add_phase_arrows(
+        &self, 
+        preorder: &mut Preorder,
+        phase_order: Vec<PhaseId>
+    ) {
+        let mut iter = phase_order.iter();
+
+        let Some(prev_id) = iter.next() else { return };
+
+        let mut prev_id = prev_id;
+
+        for phase_id in iter {
+            let prev_phase = &self.phases[*prev_id];
+            let next_phase = &self.phases[*phase_id];
+
+            preorder.add_arrow(
+                NodeId::from(prev_phase.last()),
+                NodeId::from(next_phase.first()),
+            );
+
+            prev_id = phase_id;
+        }
     }
 
     fn prev_map(
@@ -325,16 +168,196 @@ impl Planner {
     pub(crate) fn meta_mut(&mut self, id: SystemId) -> &mut SystemMeta {
         &mut self.systems[id.index()]
     }
+
+    pub(crate) fn add_phase(&mut self, phase: &Box<dyn Phase>) -> PhaseId {
+        self.phases.add_box_phase(phase)
+    }
+
+    pub(crate) fn phases_mut(&mut self) -> &mut PhasePreorder {
+        &mut self.phases
+    }
 }
 
 impl Default for Planner {
     fn default() -> Self {
         Self { 
+            phases: PhasePreorder::new(),
             systems: Default::default(), 
             preorder: Default::default(),
             order: Default::default(),
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
+pub struct Priority(u32);
+
+pub struct SystemMeta {
+    id: SystemId,
+    name: String,
+
+    phase_id: PhaseId,
+
+    priority: Priority,
+
+    is_exclusive: bool,
+    is_marker: bool,
+
+    resources: HashSet<ResourceId>,
+    mut_resources: HashSet<ResourceId>,
+
+    components: HashSet<ComponentId>,
+    mut_components: HashSet<ComponentId>,
+}
+
+impl SystemMeta {
+    pub(crate) fn new(
+        id: SystemId, 
+        name: String,
+        phase_id: PhaseId,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            phase_id,
+            priority: Default::default(),
+
+            is_marker: false,
+            is_exclusive: false,
+
+            resources: Default::default(),
+            mut_resources: Default::default(),
+
+            components: Default::default(),
+            mut_components: Default::default(),
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            id: SystemId(0),
+            name: "empty".to_string(),
+            priority: Default::default(),
+            phase_id: PhaseId::zero(),
+
+            is_marker: false,
+            is_exclusive: false,
+
+            resources: Default::default(),
+            mut_resources: Default::default(),
+
+            components: Default::default(),
+            mut_components: Default::default(),
+        }
+    }
+
+    pub fn id(&self) -> SystemId {
+        self.id
+    }
+
+    pub fn set_exclusive(&mut self) {
+        self.is_exclusive = true;
+    }
+
+    pub fn is_exclusive(&self) -> bool {
+        self.is_exclusive
+    }
+
+    pub(crate) fn set_marker(&mut self) {
+        self.is_marker = true;
+    }
+
+    pub(crate) fn is_marker(&self) -> bool {
+        self.is_marker
+    }
+
+    pub fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    pub fn set_priority(&mut self, priority: Priority) {
+        self.priority = priority;
+    }
+
+    pub fn add_priority(&mut self, delta: u32) {
+        self.priority = self.priority.add(delta);
+    }
+
+    pub fn sub_priority(&mut self, delta: u32) {
+        self.priority = self.priority.sub(delta);
+    }
+
+    pub fn insert_resource(&mut self, id: ResourceId) {
+        self.resources.insert(id);
+    }
+
+    pub fn insert_resource_mut(&mut self, id: ResourceId) {
+        self.mut_resources.insert(id);
+    }
+
+    pub fn insert_component(&mut self, id: ComponentId) {
+        self.components.insert(id);
+    }
+
+    pub fn insert_component_mut(&mut self, id: ComponentId) {
+        self.mut_components.insert(id);
+    }
+    
+    /*
+    pub(crate) fn add_phase_arrows(
+        &self, 
+        preorder: &mut Preorder, 
+        prev_map: &HashMap<SystemId, SystemId>
+    ) {
+        for phase in &self.phases {
+            preorder.add_arrow(
+                NodeId::from(phase.first()),
+                NodeId::from(self.id), 
+            );
+
+            preorder.add_arrow(
+                NodeId::from(self.id), 
+                NodeId::from(phase.last())
+            );
+        }
+    }
+    */
+
+    //pub(crate) fn set_phase(&mut self, system_id: SystemId) {
+    //    self.phases = Some(system_id);
+    //}
+}
+
+impl fmt::Debug for SystemMeta {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SystemMeta")
+         .field("id", &self.id)
+         .field("name", &self.name)
+         // .field("phases", &self.phases)
+         .field("is_exclusive", &self.is_exclusive)
+         .field("is_flush", &self.is_exclusive)
+         .field("resources", &self.resources)
+         .field("mut_resources", &self.mut_resources)
+         .finish()
+    }
+}
+
+pub struct AccessGroup {
+    phase_id: PhaseId,
+    
+    is_exclusive: bool,
+    is_flush: bool, 
+
+    resources: Vec<ResourceId>,
+    mut_resources: Vec<ResourceId>,
+
+    components: Vec<ComponentId>,
+    mut_components: Vec<ComponentId>,
+
+    systems: Vec<SystemId>,
+
+    first: Option<SystemId>,
+    last: Option<SystemId>,
 }
 
 impl Priority {
@@ -367,14 +390,26 @@ impl From<u32> for Priority {
     }
 }
 
+pub struct PhasePlan {
+    phase_id: PhaseId,
+
+    group_map: HashMap<AccessGroup, AccessGroupId>,
+    groups: Vec<AccessGroup>,
+
+    exclusive: Option<AccessGroupId>,
+
+    resource_mut_map: HashMap<ResourceId, Vec<AccessGroupId>>,
+    component_mut_map: HashMap<ComponentId, Vec<AccessGroupId>>,
+}
+
 impl PhasePlan {
     fn plan(
         planner: &Planner, 
         mut preorder: Preorder,
-        phase: &Option<SystemId>
+        phase_id: PhaseId
     ) -> Preorder {
         let mut phase_plan = Self {
-            phase: *phase,
+            phase_id,
 
             group_map: Default::default(),
             groups: Default::default(),
@@ -393,7 +428,7 @@ impl PhasePlan {
     }
 
     fn add_systems(&mut self, metas: &Vec<SystemMeta>) {
-        for meta in metas.iter().filter(|m| m.phase == self.phase) {
+        for meta in metas.iter().filter(|m| m.phase_id == self.phase_id) {
             let group = AccessGroup::from(meta);
             let id = AccessGroupId(self.groups.len());
 
@@ -554,10 +589,10 @@ impl AccessGroup {
 impl From<&SystemMeta> for AccessGroup {
     fn from(meta: &SystemMeta) -> Self {
         let mut group = AccessGroup {
-            phase: meta.phase,
+            phase_id: meta.phase_id,
 
             is_exclusive: meta.is_exclusive, 
-            is_flush: meta.is_flush,
+            is_flush: meta.is_marker,
 
             resources: meta.resources.iter().map(|s| *s).collect(),
             mut_resources: meta.mut_resources.iter().map(|s| *s).collect(),
@@ -580,9 +615,10 @@ impl From<&SystemMeta> for AccessGroup {
         group
     }
 }
+
 impl PartialEq for AccessGroup {
     fn eq(&self, other: &Self) -> bool {
-        self.phase == other.phase
+        self.phase_id == other.phase_id
         && self.is_exclusive == other.is_exclusive
         && self.is_flush == other.is_flush
         && self.resources == other.resources
@@ -596,7 +632,7 @@ impl Eq for AccessGroup {}
 
 impl hash::Hash for AccessGroup {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.phase.hash(state);
+        self.phase_id.hash(state);
 
         self.is_exclusive.hash(state);
         self.is_flush.hash(state);
@@ -612,7 +648,7 @@ impl hash::Hash for AccessGroup {
 impl fmt::Debug for AccessGroup {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AccessGroup")
-        .field("phase", &self.phase)
+        .field("phase", &self.phase_id)
         .field("is_exclusive", &self.is_exclusive)
         .field("is_flush", &self.is_flush)
         .field("resources", &self.resources)
@@ -635,9 +671,7 @@ mod test {
     use crate::{
         core_app::{CoreApp, Core}, 
         entity::Component, 
-        schedule::schedule::Executors, 
-        system::IntoSystemConfig, 
-        Res, ResMut, Commands, Store
+        Res, ResMut, Commands, Store, schedule::Executors, IntoSystemConfig, IntoPhaseConfigs
     };
 
     mod ecs { pub mod core { pub use crate::*; }}
@@ -650,6 +684,8 @@ mod test {
         app.set_executor(Executors::Multithreaded);
         app.insert_resource("test".to_string());
 
+        app.add_phases(Core, (TestPhases::A, TestPhases::B, TestPhases::C).chained());
+
         let values = Arc::new(Mutex::new(Vec::<String>::new()));
 
         let ptr = values.clone();
@@ -657,42 +693,42 @@ mod test {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
-        }).phase(CorePhases::Last));
+        }).phase(TestPhases::C));
         
         let ptr = values.clone();
         app.add_system(Core, (move || {
             push(&ptr, format!("[C"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("C]"));
-        }).phase(CorePhases::Last));
+        }).phase(TestPhases::C));
         
         let ptr = values.clone();
-        app.add_system(Core, move || {
+        app.add_system(Core, (move || {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
-        });
+        }).phase(TestPhases::B));
         
         let ptr = values.clone();
-        app.add_system(Core, move || {
+        app.add_system(Core, (move || {
             push(&ptr, format!("[B"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("B]"));
-        });
+        }).phase(TestPhases::B));
 
         let ptr = values.clone();
         app.add_system(Core, (move || {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
-        }).phase(CorePhases::First));
+        }).phase(TestPhases::A));
         
         let ptr = values.clone();
         app.add_system(Core, (move || {
             push(&ptr, format!("[A"));
             thread::sleep(Duration::from_millis(100));
             push(&ptr, format!("A]"));
-        }).phase(CorePhases::First));
+        }).phase(TestPhases::A));
 
         app.tick();
 
@@ -1047,8 +1083,9 @@ mod test {
     }
 
     #[derive(Phase, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    enum CorePhases {
-        First,
-        Last,
+    enum TestPhases {
+        A,
+        B,
+        C,
     }
 }

@@ -29,40 +29,6 @@ pub trait IntoSystem<Out, M>: Sized {
     fn into_system(this: Self) -> Self::System;
 }
 
-pub struct SystemConfig {
-    pub(crate) system: Box<dyn System<Out = ()>>,
-
-    pub(crate) phase: Option<Box<dyn Phase>>,
-
-    pub(crate) conditions: Vec<Box<dyn System<Out = bool>>>,
-}
-
-pub struct _SystemConfigs {
-    sets: Vec<SystemConfig>,
-}
-
-pub trait IntoSystemConfig<M>: Sized {
-    fn into_config(self) -> SystemConfig;
-
-    fn phase(self, phase: impl Phase) -> SystemConfig {
-        let mut config = self.into_config();
-        config.phase = Some(Box::new(phase));
-        config
-    }
-
-    fn no_phase(self) -> SystemConfig {
-        let mut config = self.into_config();
-        config.phase = None;
-        config
-    }
-
-    fn run_if<N>(self, condition: impl IntoSystem<bool, N>) -> SystemConfig {
-        let mut config = self.into_config();
-        config.conditions.push(Box::new(IntoSystem::into_system(condition)));
-        config
-    }
-}
-
 impl SystemId {
     pub fn index(&self) -> usize {
         self.0
@@ -77,40 +43,5 @@ where
 
     fn into_system(this: Self) -> Self::System {
         this
-    }
-}
-
-impl SystemConfig {
-    fn new(system: Box<dyn System<Out=()>>) -> Self {
-        Self {
-            system,
-            phase: Some(Box::new(DefaultPhase)),
-            conditions: Vec::new(),
-        }
-    }
-}
-
-//struct IsSelf;
-
-impl IntoSystemConfig<()> for SystemConfig
-{
-    fn into_config(self) -> SystemConfig {
-        self
-    }
-}
-
-impl IntoSystemConfig<()> for Box<dyn System<Out=()>>
-{
-    fn into_config(self) -> SystemConfig {
-        SystemConfig::new(self)
-    }
-}
-
-impl<S,M> IntoSystemConfig<M> for S
-where
-    S: IntoSystem<(), M>
-{
-    fn into_config(self) -> SystemConfig {
-        SystemConfig::new(Box::new(IntoSystem::into_system(self)))
     }
 }

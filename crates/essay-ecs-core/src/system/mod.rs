@@ -5,5 +5,5 @@ mod store_fun_system;
 mod each_system;
 
 pub use system::{
-    SystemId, System, IntoSystem, SystemConfig, IntoSystemConfig,
+    SystemId, System, IntoSystem,
 };

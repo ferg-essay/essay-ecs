@@ -1,3 +1,5 @@
+mod executor;
+mod system;
 mod planner;
 mod unsafe_cell;
 mod multithreaded;
@@ -12,7 +14,15 @@ use essay_ecs_macros::Phase;
 pub use planner::SystemMeta;
 
 pub use schedule::{
-    Schedules, Schedule, ScheduleLabel, BoxedLabel, Executors, Executor, ExecutorFactory,
+    Schedules, Schedule, ScheduleLabel, BoxedLabel,
+};
+
+pub use system::{
+    IntoSystemConfig,
+};
+
+pub use executor::{
+    Executors, Executor, ExecutorFactory,
 };
 
 pub use unsafe_cell::UnsafeWorld;
