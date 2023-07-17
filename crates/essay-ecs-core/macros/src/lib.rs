@@ -7,8 +7,6 @@ extern crate proc_macro;
 extern crate syn;
 extern crate quote;
 
-
-
 #[proc_macro_derive(SystemParam, attributes(ticker_param))]
 pub fn derive_ticker_param(input: TokenStream) -> TokenStream {
     input

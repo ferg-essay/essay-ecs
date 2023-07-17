@@ -306,13 +306,15 @@ impl PhasePlan {
     /// 
     fn add_systems(&mut self, metas: &Vec<SystemMeta>) {
         for meta in metas.iter() {
-            let group = AccessGroup::from(meta);
             let id = AccessGroupId(self.groups.len());
+            let mut group = AccessGroup::from(meta);
+            group.id = id;
 
             let id = *self.group_map.entry(group).or_insert(id);
 
             if id.0 == self.groups.len() { // adding new AccessGroup
-                let group = AccessGroup::from(meta);
+                let mut group = AccessGroup::from(meta);
+                group.id = id;
 
                 if group.is_marker {
                     // markers aren't grouped
@@ -374,6 +376,20 @@ impl PhasePlan {
 
                 if let Some(mut_ids) = self.resource_mut_map.get(&id) {
                     let mut_ids = mut_ids.clone();
+
+                    self.arrows_from_tail(preorder, &mut_ids, group);
+                }
+            }
+
+            // write -> write for resources
+            for id in &group.mut_resources {
+                let id = *id;
+
+                if let Some(mut_ids) = self.resource_mut_map.get(&id) {
+                    let mut_ids = mut_ids.iter()
+                        .filter(|id| id.i() < group.id.i())
+                        .map(|id| *id)
+                        .collect::<Vec<AccessGroupId>>();
 
                     self.arrows_from_tail(preorder, &mut_ids, group);
                 }
@@ -441,6 +457,8 @@ impl PhasePlan {
 /// an AccessGroup.
 /// 
 pub struct AccessGroup {
+    id: AccessGroupId,
+
     phase_id: PhaseId,
     
     is_exclusive: bool,
@@ -505,6 +523,7 @@ impl AccessGroup {
 impl From<&SystemMeta> for AccessGroup {
     fn from(meta: &SystemMeta) -> Self {
         let mut group = AccessGroup {
+            id: AccessGroupId(usize::MAX),
             phase_id: meta.phase_id,
 
             is_exclusive: meta.is_exclusive, 
@@ -580,6 +599,12 @@ impl fmt::Debug for AccessGroup {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct AccessGroupId(usize);
+
+impl AccessGroupId {
+    fn i(&self) -> usize {
+        self.0
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
 pub struct Priority(u32);
@@ -760,6 +785,40 @@ mod test {
         app.tick();
 
         assert_eq!(values.take(), "[A-test, [B-10, B-10], A-test]");
+    }
+
+    ///
+    /// Systems with disjoint ResMut<A> and ResMut<B> can execute in parallel
+    /// 
+    #[test]
+    fn resmut_overlap_sequential() {
+        let mut app = CoreApp::new();
+
+        app.set_executor(Executors::Multithreaded);
+        app.insert_resource(ResA);
+        app.insert_resource(ResB);
+        app.insert_resource(ResC);
+
+        let mut values = TestValues::new();
+
+        let mut ptr = values.clone();
+        app.system(Core, move |_a: ResMut<ResA>, _b: ResMut<ResB>| {
+            ptr.push("[AB");
+            thread::sleep(Duration::from_millis(100));
+            ptr.push("AB]");
+        });
+        
+        let mut ptr = values.clone();
+        app.system(Core, move |_a: ResMut<ResA>, _c: ResMut<ResC>| {
+            thread::sleep(Duration::from_millis(10));
+            ptr.push("[BC");
+            thread::sleep(Duration::from_millis(50));
+            ptr.push("BC]");
+        });
+
+        app.tick();
+
+        assert_eq!(values.take(), "[AB, AB], [BC, BC]");
     }
 
     ///
@@ -984,9 +1043,16 @@ mod test {
         assert_eq!(values.take(), "[A, A], [B, B]");
     }
 
+    struct ResA;
+    struct ResB;
+    struct ResC;
+
+
     struct TestA(u32);
     struct TestB(u32);
+    struct TestC(u32);
 
     impl Component for TestA {}
     impl Component for TestB {}
+    impl Component for TestC {}
 }

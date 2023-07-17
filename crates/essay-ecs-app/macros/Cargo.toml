@@ -1,5 +1,5 @@
 [package]
-name = "essay-ecs-core-macros"
+name = "essay-ecs-app-macros"
 version = "0.1.0"
 
 [lib]

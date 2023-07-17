@@ -324,7 +324,7 @@ impl_task_set_tuple!(P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11);
 
 #[cfg(test)]
 mod tests {
-    use essay_ecs_macros::Phase;
+    use essay_ecs_core_macros::Phase;
 
     use crate::{schedule::schedule::Schedule, util::test::TestValues, IntoPhaseConfigs, Store, IntoSystemConfig};
     use std::{

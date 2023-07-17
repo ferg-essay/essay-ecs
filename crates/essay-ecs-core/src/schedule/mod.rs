@@ -9,7 +9,7 @@ mod phase;
 mod preorder;
 mod schedule;
 
-use essay_ecs_macros::Phase;
+use essay_ecs_core_macros::Phase;
 
 pub use planner::SystemMeta;
 

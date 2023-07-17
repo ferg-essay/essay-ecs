@@ -14,6 +14,8 @@ pub mod prelude {
 
             Plugin, 
         },
-        event::{Event, Events, InEvent, OutEvent},
+        event::{Events, InEvent, OutEvent},
     };
+
+    pub use essay_ecs_app_macros::Event;
 }

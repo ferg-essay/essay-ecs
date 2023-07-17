@@ -7,7 +7,7 @@ pub mod system;
 pub mod store;
 pub mod resource;
 
-pub use essay_ecs_macros::{
+pub use essay_ecs_core_macros::{
     Component, ScheduleLabel, Phase
 };
 
@@ -28,7 +28,7 @@ pub use store::{
 };
 
 pub mod prelude {
-    pub use essay_ecs_macros::{Component, ScheduleLabel, Phase};
+    pub use essay_ecs_core_macros::{Component, ScheduleLabel, Phase};
 
     pub use crate::{
         param::{Param, Res, ResMut},

@@ -8,14 +8,13 @@ use crate::{
     util::DynLabel, IntoSystemConfig};
 
 use super::{
-    phase::{IntoPhaseConfig, IntoPhaseConfigs, PhasePreorder, PhaseId, PhaseConfig, DefaultPhase, PhaseItem}, 
-    Phase, 
+    phase::{IntoPhaseConfig, IntoPhaseConfigs, PhaseId}, 
     preorder::NodeId, 
     SystemMeta, 
     plan::Plan, 
     unsafe_cell::UnsafeSyncCell, 
     planner::Planner, 
-    multithreaded::MultithreadedExecutor, UnsafeWorld, executor::{Executor, ExecutorFactory}, system::SystemConfig
+    UnsafeWorld, executor::{Executor, ExecutorFactory}, system::SystemConfig
 };
 
 ///

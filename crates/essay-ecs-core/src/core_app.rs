@@ -1,4 +1,4 @@
-use essay_ecs_macros::ScheduleLabel;
+use essay_ecs_core_macros::ScheduleLabel;
 
 use crate::{
     Store, Schedule, IntoSystemConfig, 
@@ -8,13 +8,21 @@ use crate::{
     system::System, store::FromStore, IntoPhaseConfigs,
 };
 
+mod ecs { pub mod core { pub use crate::*; }}
+use ecs as essay_ecs;
+
+///
+/// ECS application only using the essay_ecs_core crate.
+/// 
+/// Primarily for testing, but it also serves as a focus to visualize 
+/// the core API.
+/// 
+/// Applications should generally use essay_ecs::App instead. 
+/// 
 pub struct CoreApp {
     world: Store,
     main_schedule: Box<dyn ScheduleLabel>,
 }
-
-mod ecs { pub mod core { pub use crate::*; }}
-use ecs as essay_ecs;
 
 impl CoreApp {
     pub fn new() -> Self {
@@ -99,7 +107,7 @@ impl CoreApp {
         self.world.resource_mut::<Schedules>().get_mut(label)
     }
 
-    pub fn run_system<M>(&mut self, into_system: impl IntoSystem<(),M>) -> &mut Self {
+    pub fn run_system<M>(&mut self, into_system: impl IntoSystem<(), M>) -> &mut Self {
         let mut system = IntoSystem::into_system(into_system);
         
         let mut meta = SystemMeta::empty();
