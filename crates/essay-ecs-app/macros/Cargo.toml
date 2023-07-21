@@ -1,6 +1,6 @@
 [package]
 name = "essay-ecs-app-macros"
-version = "0.1.0"
+version = "0.1.13"
 
 [lib]
 proc-macro = true

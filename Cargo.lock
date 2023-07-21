@@ -83,7 +83,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs"
-version = "0.1.1-dev"
+version = "0.1.13"
 dependencies = [
  "env_logger",
  "essay-ecs-app",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs-app"
-version = "0.1.0"
+version = "0.1.13"
 dependencies = [
  "env_logger",
  "essay-ecs-app-macros",
@@ -103,7 +103,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs-app-macros"
-version = "0.1.0"
+version = "0.1.13"
 dependencies = [
  "quote",
  "syn",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs-core"
-version = "0.1.0"
+version = "0.1.13"
 dependencies = [
  "concurrent-queue",
  "essay-ecs-core-macros",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs-core-macros"
-version = "0.1.0"
+version = "0.1.13"
 dependencies = [
  "quote",
  "syn",
