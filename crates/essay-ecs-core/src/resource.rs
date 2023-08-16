@@ -30,7 +30,10 @@ impl Resources {
     pub(crate) fn get_resource_id<T:'static>(&self) -> ResourceId {
         let type_id = TypeId::of::<T>();
 
-        *self.resource_map.get(&type_id).unwrap()
+        match self.resource_map.get(&type_id) {
+            Some(id) => *id,
+            None => panic!("{:?} is an unknown resource", type_name::<T>()),
+        }
     }
 
     pub fn get<T: 'static>(&self) -> Option<&T> {

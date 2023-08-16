@@ -97,11 +97,15 @@ impl App {
         self
     }
 
-    pub fn get_resource<T:Send+'static>(&mut self) -> Option<&T> {
+    pub fn contains_resource<T: Send + 'static>(&mut self) -> bool {
+        self.world.contains_resource::<T>()
+    }
+
+    pub fn get_resource<T:Send + 'static>(&mut self) -> Option<&T> {
         self.world.get_resource::<T>()
     }
 
-    pub fn get_mut_resource<T:Send+'static>(&mut self) -> Option<&mut T> {
+    pub fn get_mut_resource<T:Send + 'static>(&mut self) -> Option<&mut T> {
         self.world.get_resource_mut::<T>()
     }
 
