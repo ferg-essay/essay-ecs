@@ -1,4 +1,4 @@
-use std::{collections::HashSet, any::type_name};
+use std::{collections::HashSet, any::{type_name, Any}};
 
 use super::app::App;
 
@@ -9,7 +9,7 @@ pub trait Plugin {
     fn build(&self, app: &mut App);
 
     fn name(&self) -> &str {
-        std::any::type_name::<Self>()
+        type_name::<Self>()
     }
 
     fn is_unique(&self) -> bool {
@@ -24,23 +24,37 @@ pub trait Plugin {
 }
 
 pub(crate) struct Plugins {
-    plugins: Vec<Box<dyn Plugin>>,
+    plugins: Vec<Box<dyn DynPlugin>>,
     names: HashSet<String>,
 }
 
 impl Plugins {
-    pub(crate) fn add_name(&mut self, plugin: &Box<dyn Plugin>) {
+    pub(crate) fn add_name<P: Plugin>(&mut self, plugin: &P) {
         if plugin.is_unique() && !self.names.insert(plugin.name().to_string()) {
             panic!("Attemped to add duplicate plugin {}", plugin.name());
         }
     }
 
-    pub(crate) fn push(&mut self, plugin: Box<dyn Plugin>) {
-        self.plugins.push(plugin);
+    pub(crate) fn push<P: Plugin + 'static>(&mut self, plugin: P) {
+        self.plugins.push(Box::new(PluginItem::new(plugin)));
     }
 
     pub(crate) fn contains_plugin<T:Plugin>(&self) -> bool {
         self.names.contains(type_name::<T>())
+    }
+
+    pub(crate) fn get_plugin<P: Plugin + 'static>(&self) -> Option<&P> {
+        let name = type_name::<P>();
+
+        for plugin in &self.plugins {
+            if plugin.name() == name {
+                let any : &dyn Any = plugin.as_any();
+
+                return any.downcast_ref::<P>();
+            }
+        }
+
+        None
     }
 
     pub(crate) fn finish(&self, app: &mut App) {
@@ -63,6 +77,43 @@ impl Default for Plugins {
             names: Default::default()
         }
     }
+}
+
+struct PluginItem<P: Plugin> {
+    plugin: P,
+}
+
+impl<P: Plugin + 'static> PluginItem<P> {
+    fn new(plugin: P) -> Self {
+        Self {
+            plugin
+        }
+    }
+}
+
+impl<P: Plugin + 'static> DynPlugin for PluginItem<P> {
+    fn name(&self) -> &str {
+        self.plugin.name()
+    }
+
+    fn cleanup(&self, app: &mut App) {
+        self.plugin.cleanup(app);
+    }
+
+    fn finish(&self, app: &mut App) {
+        self.plugin.finish(app);
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        &self.plugin
+    }
+}
+
+trait DynPlugin {
+    fn name(&self) -> &str;
+    fn finish(&self, app: &mut App);
+    fn cleanup(&self, app: &mut App);
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[cfg(test)]

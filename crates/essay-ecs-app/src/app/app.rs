@@ -159,7 +159,7 @@ impl App {
     //
 
     pub fn plugin<P: Plugin + 'static>(&mut self, plugin: P) -> &mut Self {
-        let plugin: Box<dyn Plugin> = Box::new(plugin);
+        //let plugin: Box<dyn Plugin> = Box::new(plugin);
 
         self.plugins.add_name(&plugin);
         plugin.build(self);
@@ -170,6 +170,10 @@ impl App {
 
     pub fn contains_plugin<P:Plugin>(&self) -> bool {
         self.plugins.contains_plugin::<P>()
+    }
+
+    pub fn get_plugin<P:Plugin + 'static>(&self) -> Option<&P> {
+        self.plugins.get_plugin::<P>()
     }
 
     pub fn setup(&mut self) -> &mut Self {
