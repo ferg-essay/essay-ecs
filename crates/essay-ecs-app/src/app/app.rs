@@ -168,12 +168,20 @@ impl App {
         self
     }
 
+    pub fn plugin_mut<P: Plugin + 'static>(&mut self, plugin: P) -> &mut P {
+        self.plugin(plugin).get_plugin_mut().unwrap()
+    }
+
     pub fn contains_plugin<P:Plugin>(&self) -> bool {
         self.plugins.contains_plugin::<P>()
     }
 
     pub fn get_plugin<P:Plugin + 'static>(&self) -> Option<&P> {
         self.plugins.get_plugin::<P>()
+    }
+
+    pub fn get_plugin_mut<P:Plugin + 'static>(&mut self) -> Option<&mut P> {
+        self.plugins.get_plugin_mut::<P>()
     }
 
     pub fn setup(&mut self) -> &mut Self {

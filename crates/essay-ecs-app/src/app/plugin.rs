@@ -57,6 +57,20 @@ impl Plugins {
         None
     }
 
+    pub(crate) fn get_plugin_mut<P: Plugin + 'static>(&mut self) -> Option<&mut P> {
+        let name = type_name::<P>();
+
+        for plugin in &mut self.plugins {
+            if plugin.name() == name {
+                let any : &mut dyn Any = plugin.as_any_mut();
+
+                return any.downcast_mut::<P>();
+            }
+        }
+
+        None
+    }
+
     pub(crate) fn finish(&self, app: &mut App) {
         for plugin in &self.plugins {
             plugin.finish(app);
@@ -107,6 +121,10 @@ impl<P: Plugin + 'static> DynPlugin for PluginItem<P> {
     fn as_any(&self) -> &dyn Any {
         &self.plugin
     }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        &mut self.plugin
+    }
 }
 
 trait DynPlugin {
@@ -114,6 +132,7 @@ trait DynPlugin {
     fn finish(&self, app: &mut App);
     fn cleanup(&self, app: &mut App);
     fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 #[cfg(test)]
