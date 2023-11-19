@@ -67,6 +67,12 @@ struct Registry {
     tasks: Vec<TaskInfo>,
 }
 
+impl Registry {
+    fn close(&self) {
+        self.queue.close();
+    }
+}
+
 struct TaskInfo {
     _handle: Option<JoinHandle<()>>,
 }
@@ -391,7 +397,7 @@ impl Drop for ChildGuard<'_> {
     fn drop(&mut self) {
         if ! self.is_close {
             self.child.sender.send(Err(ScheduleErr::ChildPanic)).unwrap();
-            self.child.registry.queue.close();
+            self.child.registry.close();
         }
     }
 }
@@ -418,13 +424,13 @@ impl<'a> TaskSender<'a> {
     }
 
     fn close(&self) {
-        self.thread.registry.queue.close();
+        self.thread.registry.close();
     }
 }
 
 impl<'a> Drop for TaskSender<'a> {
     fn drop(&mut self) {
-        self.thread.registry.queue.close();
+        self.thread.registry.close();
     }
 }
 

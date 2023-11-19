@@ -176,9 +176,15 @@ impl Schedule {
     */
 
     pub fn tick(&mut self, world: &mut Store) -> Result<(), ScheduleErr> {
+        let mut is_init = false;
         while self.inner_mut().is_stale {
             self.inner_mut().is_stale = false;
             self.init(world);
+            is_init = true;
+        }
+
+        if is_init {
+            self.executor = None; // force drop/close
             let plan = self.plan();
             self.executor = Some(
                 self.inner_mut().executor_factory.create(plan)
