@@ -1,7 +1,7 @@
 use core::fmt;
 use std::mem::{self, ManuallyDrop};
 use std::ptr::NonNull;
-use std::{cmp};
+use std::cmp;
 use std::alloc::Layout;
 
 use super::meta::{ColumnId, ColumnType, StoreMeta};

@@ -81,7 +81,7 @@ where
     }
 }    
 
-impl<F:'static, R:'static, M:'static> IntoSystem<R,fn(M,IsWorld)> for F
+impl<F:'static, R:'static, M:'static> IntoSystem<R, fn(M,IsWorld)> for F
 where
     F: WorldFun<R,M> + Send + Sync + 'static,
     R: Send + Sync + 'static,

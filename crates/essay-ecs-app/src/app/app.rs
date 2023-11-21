@@ -97,11 +97,11 @@ impl App {
         self
     }
 
-    pub fn contains_resource<T: Send + 'static>(&mut self) -> bool {
+    pub fn contains_resource<T: Send + 'static>(&self) -> bool {
         self.world.contains_resource::<T>()
     }
 
-    pub fn get_resource<T:Send + 'static>(&mut self) -> Option<&T> {
+    pub fn get_resource<T:Send + 'static>(&self) -> Option<&T> {
         self.world.get_resource::<T>()
     }
 
@@ -109,7 +109,7 @@ impl App {
         self.world.get_resource_mut::<T>()
     }
 
-    pub fn resource<T: Send + 'static>(&mut self) -> &T {
+    pub fn resource<T: Send + 'static>(&self) -> &T {
         match self.world.get_resource::<T>() {
             Some(value) => value,
             None => panic!("unassigned resource {:?}", type_name::<T>()),
