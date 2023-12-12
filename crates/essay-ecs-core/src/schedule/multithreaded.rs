@@ -175,6 +175,10 @@ impl ParentTask {
                     unsafe { schedule.run_system(id, world); }
 
                     completed.push(id);
+                } else if n_ready == 1 && n_active == 1 {
+                    unsafe { schedule.run_system(id, world); }
+
+                    completed.push(id);
                 } else {
                     sender.send(id);
 
