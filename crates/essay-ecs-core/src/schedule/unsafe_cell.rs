@@ -56,11 +56,11 @@ impl<T> UnsafeSendCell<T> {
 unsafe impl<T> Send for UnsafeSendCell<T> {}
 unsafe impl<T> Sync for UnsafeSendCell<T> {}
 
-pub struct UnsafeWorld(UnsafeCell<Store>);
+pub struct UnsafeStore(UnsafeCell<Store>);
 
-impl UnsafeWorld {
+impl UnsafeStore {
     pub fn new(world: Store) -> Self {
-        UnsafeWorld(UnsafeCell::new(world))
+        UnsafeStore(UnsafeCell::new(world))
     }
 
     pub(crate) unsafe fn get_ref(&self) -> &Store {
@@ -80,7 +80,7 @@ impl UnsafeWorld {
     }
 }
 
-impl Deref for UnsafeWorld {
+impl Deref for UnsafeStore {
     type Target = Store;
 
     fn deref(&self) -> &Self::Target {
@@ -88,7 +88,7 @@ impl Deref for UnsafeWorld {
     }
 }
 
-impl DerefMut for UnsafeWorld {
+impl DerefMut for UnsafeStore {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.get_mut()
     }

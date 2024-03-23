@@ -1,19 +1,19 @@
 use std::marker::PhantomData;
 
-use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::{SystemMeta, UnsafeWorld}, Store};
+use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::{SystemMeta, UnsafeStore}, Store};
 
 use super::Param;
 
 
 pub struct Query<'w, 's, Q:View> {
-    world: &'w UnsafeWorld,
+    world: &'w UnsafeStore,
     plan: &'s ViewPlan,
     marker: PhantomData<Q>,
 }
 
 //impl<'w, 's, Q: View> Query<'w, 's, Q> {
 impl<'w, 's, Q:View> Query<'w, 's, Q> {
-    fn new(world: &'w UnsafeWorld, plan: &'s ViewPlan) -> Self {
+    fn new(world: &'w UnsafeStore, plan: &'s ViewPlan) -> Self {
         Self {
             world,
             plan,
@@ -46,7 +46,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
     }
 
     fn arg<'w, 's>(
-        world: &'w UnsafeWorld,
+        world: &'w UnsafeStore,
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's> {
         Query::new(world, state)

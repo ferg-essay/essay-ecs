@@ -25,7 +25,7 @@ pub use executor::{
     Executors, Executor, ExecutorFactory,
 };
 
-pub use unsafe_cell::UnsafeWorld;
+pub use unsafe_cell::UnsafeStore;
 
 pub use phase::{
     DefaultPhase, Phase, IntoPhaseConfig, IntoPhaseConfigs,

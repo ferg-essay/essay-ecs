@@ -1,6 +1,6 @@
 use crate::{Schedule, Store};
 
-use super::{plan::Plan, multithreaded::MultithreadedExecutor, UnsafeWorld, schedule::ScheduleErr};
+use super::{plan::Plan, multithreaded::MultithreadedExecutor, UnsafeStore, schedule::ScheduleErr};
 
 
 pub trait Executor: Send {
@@ -57,7 +57,7 @@ impl Executor for SingleExecutor {
         mut schedule: Schedule, 
         world: Store
     ) -> Result<(Schedule, Store), ScheduleErr> {
-        let mut world = UnsafeWorld::new(world);
+        let mut world = UnsafeStore::new(world);
 
         for id in self.0.order() {
             let meta = schedule.meta(*id);

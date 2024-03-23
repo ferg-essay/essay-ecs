@@ -14,7 +14,7 @@ use super::{
     plan::Plan, 
     unsafe_cell::UnsafeSyncCell, 
     planner::Planner, 
-    UnsafeWorld, executor::{Executor, ExecutorFactory}, system::SystemConfig
+    UnsafeStore, executor::{Executor, ExecutorFactory}, system::SystemConfig
 };
 
 ///
@@ -230,11 +230,11 @@ impl Schedule {
         self.inner_mut().flush(world);
     }
 
-    pub(crate) unsafe fn run_system(&self, id: SystemId, world: &mut UnsafeWorld) {
+    pub(crate) unsafe fn run_system(&self, id: SystemId, world: &mut UnsafeStore) {
         self.inner().systems[id.index()].as_mut().run(world);
     }
 
-    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeWorld) {
+    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) {
         self.inner().run_unsafe(id, world)
     }
 
@@ -456,7 +456,7 @@ impl ScheduleInner {
     }
     */
 
-    unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeWorld) {
+    unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) {
         if self.conditions[id.index()].iter()
             .fold(true, |v, cond| {
             cond.as_mut().run_unsafe(world) && v
@@ -486,7 +486,7 @@ impl System for PhaseSystem {
         meta.set_marker();
     }
 
-    unsafe fn run_unsafe(&mut self, _world: &UnsafeWorld) -> Self::Out {
+    unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Self::Out {
         panic!("PhaseSystem[{:?}] can't be called directly", self.0);
     }
 

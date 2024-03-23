@@ -5,11 +5,7 @@ use std::any::type_name;
 /// 
 
 use essay_ecs_core::{
-    Schedule, Schedules,
-    IntoSystemConfig,
-    schedule::ScheduleLabel,
-    Store,
-    store::FromStore, IntoPhaseConfigs,
+    schedule::ScheduleLabel, store::FromStore, IntoPhaseConfigs, IntoSystem, IntoSystemConfig, Schedule, Schedules, Store
 };
 
 use crate::{event::{Event, Events}, First};
@@ -243,6 +239,10 @@ impl App {
         runner(app);
     }
 
+    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> O {
+        self.world.eval(into_system)
+    }
+
     #[cfg(test)]
     pub fn spawn<T: Bundle>(&mut self, value: T) -> EntityId {
         self.world.spawn(value)
@@ -273,7 +273,7 @@ fn run_once(mut app: App) {
 mod tests {
     use std::sync::{Mutex, Arc};
 
-    use essay_ecs_core::{Component, Commands};
+    use essay_ecs_core::{Commands, Component, Res};
 
     use crate::{app::{app::App, Update, Startup}, event::{Event, OutEvent, InEvent}, PreUpdate};
 
@@ -414,6 +414,17 @@ mod tests {
         assert_eq!(take(&value), "TestEvent(2)");
         app.tick();
         assert_eq!(take(&value), "TestEvent(3)");
+    }
+
+    #[test]
+    fn eval() {
+        let mut app = App::new();
+
+        assert_eq!(7, app.eval(|| 7));
+
+        app.insert_resource(TestA(11));
+
+        assert_eq!(11, app.eval(|test: Res<TestA>| test.0));
     }
 
     #[derive(Component)]

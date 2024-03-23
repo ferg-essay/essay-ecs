@@ -1,6 +1,10 @@
 use crate::{
-    entity::{EntityStore, ViewIterator, View, Bundle, EntityId, ViewPlan, Component}, 
-    schedule::{ScheduleLabel, Schedules}, resource::{Resources, ResourceId}, Schedule,
+    entity::{Bundle, Component, EntityId, EntityStore, View, ViewIterator, ViewPlan}, 
+    resource::{ResourceId, Resources}, 
+    schedule::{ScheduleLabel, Schedules, SystemMeta, UnsafeStore}, 
+    system::System,
+    IntoSystem, 
+    Schedule,
 };
 
 use super::{entity_ref::EntityMut, EntityRef};
@@ -216,6 +220,21 @@ impl Store {
 
         Ok(value)
     }   
+
+    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> O {
+        let mut system = IntoSystem::into_system(into_system);
+        
+        let mut meta = SystemMeta::empty();
+    
+        let mut store = UnsafeStore::new(self.take());
+        system.init(&mut meta, &mut store);
+        let value = system.run(&mut store);
+        system.flush(&mut store);
+
+        self.replace(store.take());
+
+        value
+    }
 
     pub(crate) fn take(&mut self) -> Self {
         let inner = self.0.take();

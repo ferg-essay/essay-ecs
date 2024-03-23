@@ -1,6 +1,6 @@
 use crate::{
     store::Store, 
-    schedule::{SystemMeta, UnsafeWorld}
+    schedule::{SystemMeta, UnsafeStore}
 };
 
 //
@@ -14,7 +14,7 @@ pub trait Param {
     fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State;
 
     fn arg<'w, 's>(
-        world: &'w UnsafeWorld,
+        world: &'w UnsafeStore,
         state: &'s mut Self::State, 
     ) -> Self::Arg<'w, 's>;
 
@@ -44,7 +44,7 @@ macro_rules! impl_param_tuple {
             }
 
             fn arg<'w, 's>(
-                world: &'w UnsafeWorld,
+                world: &'w UnsafeStore,
                 state: &'s mut Self::State,
             ) -> Self::Arg<'w, 's> {
                 let ($($param,)*) = state;
@@ -76,7 +76,7 @@ impl Param for ()
     }
 
     fn arg<'w, 's>(
-        _world: &'w UnsafeWorld, 
+        _world: &'w UnsafeStore, 
         _state: &'s mut Self::State,
     ) -> Self::Arg<'w, 's> {
         ()

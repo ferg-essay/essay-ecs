@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     store::Store, 
-    schedule::{SystemMeta, UnsafeWorld},
+    schedule::{SystemMeta, UnsafeStore},
     system::{IntoSystem, System},
 };
 
@@ -46,7 +46,7 @@ where
         self.state = Some(F::Param::init(meta, world));
     }
 
-    unsafe fn run_unsafe(&mut self, world: &UnsafeWorld) -> Self::Out {
+    unsafe fn run_unsafe(&mut self, world: &UnsafeStore) -> Self::Out {
         let arg = F::Param::arg(
             world,
             self.state.as_mut().unwrap(),
@@ -116,7 +116,7 @@ mod tests {
     use crate::{
         store::Store, 
         system::IntoSystem,
-        schedule::{Schedule, SystemMeta, UnsafeWorld},
+        schedule::{Schedule, SystemMeta, UnsafeStore},
     };
 
     use super::Param;
@@ -225,7 +225,7 @@ mod tests {
         type State = ();
 
         fn arg<'w, 's>(
-            _world: &'w UnsafeWorld,
+            _world: &'w UnsafeStore,
             _state: &'s mut Self::State,
         ) -> Self::Arg<'w, 's> {
             Self {

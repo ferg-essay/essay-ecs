@@ -1,4 +1,4 @@
-use crate::{schedule::{SystemMeta, UnsafeWorld}, Store};
+use crate::{schedule::{SystemMeta, UnsafeStore}, Store};
 
 use super::Param;
 
@@ -7,7 +7,7 @@ impl Param for &Store {
     type State = ();
 
     fn arg<'w, 's>(
-        world: &'w UnsafeWorld,
+        world: &'w UnsafeStore,
         _state: &'s mut Self::State,
     ) -> Self::Arg<'w, 's> {
         world

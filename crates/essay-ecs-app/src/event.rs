@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem, ops::{DerefMut, Deref}};
 
-use essay_ecs_core::{ResMut, Local, Store, prelude::Param, schedule::{SystemMeta, UnsafeWorld}, Res};
+use essay_ecs_core::{ResMut, Local, Store, prelude::Param, schedule::{SystemMeta, UnsafeStore}, Res};
 
 // see bevy_ecs/src/event.rs
 //
@@ -145,7 +145,7 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
     }
 
     fn arg<'w1, 's1>(
-        world: &'w1 UnsafeWorld,
+        world: &'w1 UnsafeStore,
         state: &'s1 mut Self::State, 
     ) -> Self::Arg<'w1, 's1> {
         let (e_st, c_st) = state;
@@ -169,7 +169,7 @@ impl<'w, E: Event> Param for OutEvent<'w, E> {
     }
 
     fn arg<'w1, 's1>(
-        world: &'w1 UnsafeWorld,
+        world: &'w1 UnsafeStore,
         state: &'s1 mut Self::State, 
     ) -> Self::Arg<'w1, 's1> {
 
@@ -184,6 +184,8 @@ mod test {
     use essay_ecs_core::core_app::{CoreApp, Core};
 
     use essay_ecs_core::util::test::TestValues;
+
+    use crate::event::OutEvent;
 
     use super::{Event, Events, InEvent};
 
@@ -269,6 +271,37 @@ mod test {
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(3));
         app.tick();
         assert_eq!(values.take(), "TestEvent(3)");
+        app.tick();
+        assert_eq!(values.take(), "");
+    }
+
+    #[test]
+    fn test_write_update() {
+        let mut app = CoreApp::new();
+        app.init_resource::<Events<TestEvent>>();
+
+        let mut values = TestValues::new();
+        let mut ptr = values.clone();
+
+        app.system(Core, move |mut reader: InEvent<TestEvent>| {
+            for event in reader.iter() {
+                ptr.push(&format!("{:?}", event));
+            }
+        });
+
+        app.system(Core, move |mut writer: OutEvent<TestEvent>| {
+            writer.send(TestEvent(1));
+        });
+
+        // no events
+        app.tick();
+        assert_eq!(values.take(), "");
+
+        app.resource_mut::<Events<TestEvent>>().update_inner();
+        app.tick();
+        assert_eq!(values.take(), "");
+
+        app.resource_mut::<Events<TestEvent>>().update_inner();
         app.tick();
         assert_eq!(values.take(), "");
     }

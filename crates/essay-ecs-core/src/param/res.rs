@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{schedule::{SystemMeta, UnsafeWorld}, Store};
+use crate::{schedule::{SystemMeta, UnsafeStore}, Store};
 
 use super::Param;
 
@@ -20,7 +20,7 @@ impl<T:Send+'static> Param for Res<'_, T> {
     type State = ();
 
     fn arg<'w, 's>(
-        world: &'w UnsafeWorld,
+        world: &'w UnsafeStore,
         _state: &'s mut Self::State,
     ) -> Res<'w, T> {
         Res {
@@ -37,6 +37,12 @@ impl<T:'static> Deref for Res<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<T:'static> AsRef<T> for Res<'_, T> {
+    fn as_ref(&self) -> &T {
         self.value
     }
 }
@@ -80,7 +86,7 @@ impl<T:Send+'static> Param for ResMut<'_, T> {
     }
 
     fn arg<'w, 's>(
-        world: &'w UnsafeWorld,
+        world: &'w UnsafeStore,
         _state: &'s mut Self::State,
     ) -> ResMut<'w, T> {
         ResMut {
