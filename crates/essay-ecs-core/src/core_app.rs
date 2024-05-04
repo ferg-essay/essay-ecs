@@ -122,6 +122,10 @@ impl CoreApp {
         self
     }
 
+    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> O {
+        self.store.eval(into_system)
+    }
+
     pub fn tick(&mut self) -> &mut Self {
         self.store.run_schedule(&self.main_schedule);
 

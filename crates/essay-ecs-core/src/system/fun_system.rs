@@ -107,6 +107,10 @@ impl_system_function!(P1, P2, P3, P4);
 impl_system_function!(P1, P2, P3, P4, P5);
 impl_system_function!(P1, P2, P3, P4, P5, P6);
 impl_system_function!(P1, P2, P3, P4, P5, P6, P7);
+impl_system_function!(P1, P2, P3, P4, P5, P6, P7, P8);
+impl_system_function!(P1, P2, P3, P4, P5, P6, P7, P8, P9);
+impl_system_function!(P1, P2, P3, P4, P5, P6, P7, P8, P9, P10);
+impl_system_function!(P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11);
 
 #[cfg(test)]
 mod tests {
