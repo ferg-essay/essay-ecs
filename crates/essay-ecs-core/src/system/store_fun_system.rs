@@ -5,8 +5,6 @@ use crate::{store::Store,
     system::{IntoSystem, System}, Local,
 };
 
-use crate::param::{Param, Arg};
-
 // IsFun prevents collision
 pub struct IsWorld;
 
@@ -77,7 +75,7 @@ where
         panic!("can't run exclusive system in unsafe mode");
     }
 
-    fn flush(&mut self, world: &mut Store) {
+    fn flush(&mut self, _world: &mut Store) {
     }
 }    
 
@@ -209,21 +207,21 @@ mod tests {
 
     use crate::{
         store::Store, 
-        schedule::{SystemMeta},
-        system::{IntoSystem, System}, Local, Schedule, core_app::CoreApp
+        schedule::SystemMeta,
+        system::IntoSystem, 
     };
 
     use super::ParamExcl;
 
-    static mut G_VALUE : Option<String> = None;
+    static mut _G_VALUE : Option<String> = None;
 
     #[test]
     fn arg_tuples() {
-        let mut core = CoreApp::new();
+        //let mut core = CoreApp::new();
         //let mut schedule = Schedule::new();
 
         //core.run_system(|w: &mut World| println!("world!"));
-        core.run_system(|w: &mut Store, l: Local<bool>| println!("world!"));
+        //core.run_system(|w: &mut Store, l: Local<bool>| println!("world!"));
         /*
         set_global("init".to_string());
         system(&mut world, test_null);
@@ -245,7 +243,7 @@ mod tests {
         */
     }
 
-    fn system<R, M>(world: &mut Store, fun: impl IntoSystem<R, M>)->String {
+    fn _system<R, M>(_world: &mut Store, _fun: impl IntoSystem<R, M>)->String {
         /*
         set_global("init".to_string());
         let mut system = IntoSystem::into_system(fun);
@@ -257,59 +255,59 @@ mod tests {
         todo!();
     }
 
-    fn test_null() {
-       set_global("test-null".to_string());
+    fn _test_null() {
+       _set_global("test-null".to_string());
     }
 
-    fn test_arg1(arg1: TestArg<u8>) {
-        set_global(format!("test-arg1 {}", arg1.name)); 
+    fn _test_arg1(arg1: TestArg<u8>) {
+        _set_global(format!("test-arg1 {}", arg1._name)); 
     }
 
-    fn test_arg2(arg1: TestArg<u8>, arg2: TestArg<u16>) {
-        set_global(format!("test-arg2 {} {}", arg1.name, arg2.name)); 
+    fn _test_arg2(arg1: TestArg<u8>, arg2: TestArg<u16>) {
+        _set_global(format!("test-arg2 {} {}", arg1._name, arg2._name)); 
     }
 
-    fn test_arg3(arg1: TestArg<u8>, arg2: TestArg<u16>, arg3: TestArg<u32>) {
-        set_global(format!("test-arg3 {} {} {}", arg1.name, arg2.name, arg3.name)); 
+    fn _test_arg3(arg1: TestArg<u8>, arg2: TestArg<u16>, arg3: TestArg<u32>) {
+        _set_global(format!("test-arg3 {} {} {}", arg1._name, arg2._name, arg3._name)); 
     }
 
-    fn test_arg4(arg1: TestArg<u8>, arg2: TestArg<u16>, arg3: TestArg<u32>, arg4: TestArg<u64>) {
-        set_global(format!("test-arg4 {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name)); 
+    fn _test_arg4(arg1: TestArg<u8>, arg2: TestArg<u16>, arg3: TestArg<u32>, arg4: TestArg<u64>) {
+        _set_global(format!("test-arg4 {} {} {} {}",
+            arg1._name, arg2._name, arg3._name, arg4._name)); 
     }
 
-    fn test_arg5(arg1: TestArg<u8>, arg2: TestArg<u16>,
+    fn _test_arg5(arg1: TestArg<u8>, arg2: TestArg<u16>,
         arg3: TestArg<u32>, arg4: TestArg<u64>,
         arg5: TestArg<i8>
     ) {
-        set_global(format!("test-arg5 {} {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name)); 
+        _set_global(format!("test-arg5 {} {} {} {} {}",
+            arg1._name, arg2._name, arg3._name, arg4._name, arg5._name)); 
     }
 
-    fn test_arg6(arg1: TestArg<u8>, arg2: TestArg<u16>,
+    fn _test_arg6(arg1: TestArg<u8>, arg2: TestArg<u16>,
         arg3: TestArg<u32>, arg4: TestArg<u64>,
         arg5: TestArg<i8>, arg6: TestArg<i16>,
     ) {
-        set_global(format!("test-arg6 {} {} {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name, arg6.name)); 
+        _set_global(format!("test-arg6 {} {} {} {} {} {}",
+            arg1._name, arg2._name, arg3._name, arg4._name, arg5._name, arg6._name)); 
     }
 
-    fn test_arg7(arg1: TestArg<u8>, arg2: TestArg<u16>,
+    fn _test_arg7(arg1: TestArg<u8>, arg2: TestArg<u16>,
         arg3: TestArg<u32>, arg4: TestArg<u64>,
         arg5: TestArg<i8>, arg6: TestArg<i16>, arg7: TestArg<i32>,
     ) {
-        set_global(format!("test-arg7 {} {} {} {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name, arg6.name,
-            arg7.name)); 
+        _set_global(format!("test-arg7 {} {} {} {} {} {} {}",
+            arg1._name, arg2._name, arg3._name, arg4._name, arg5._name, arg6._name,
+            arg7._name)); 
     }
 
-    fn set_global(value: String) {
-        unsafe { G_VALUE = Some(value); }
+    fn _set_global(value: String) {
+        unsafe { _G_VALUE = Some(value); }
     }
 
-    fn get_global() -> String {
+    fn _get_global() -> String {
         unsafe { 
-            match &G_VALUE {
+            match &_G_VALUE {
                 Some(value) => String::from(value),
                 None => panic!("no value")
             }
@@ -318,7 +316,7 @@ mod tests {
 
     #[derive(Debug)]
     struct TestArg<V> {
-        name: String,
+        _name: String,
         marker: PhantomData<V>,
     }
 
@@ -330,7 +328,7 @@ mod tests {
             _state: &'s mut Self::State,
         ) -> Self::Arg<'s> {
             Self {
-                name: type_name::<V>().to_string(),
+                _name: type_name::<V>().to_string(),
                 marker: PhantomData,
             }
         }

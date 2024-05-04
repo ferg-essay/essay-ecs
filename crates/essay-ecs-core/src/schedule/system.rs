@@ -23,7 +23,7 @@ impl SystemConfigs {
         self
     }
 
-    fn run_if<N>(self, condition: impl IntoSystem<bool, N>) -> SystemConfigs {
+    fn run_if<N>(self, _condition: impl IntoSystem<bool, N>) -> SystemConfigs {
         /*
         config.conditions.push(Box::new(IntoSystem::into_system(condition)));
         config
@@ -31,7 +31,7 @@ impl SystemConfigs {
 
         todo!();
 
-        self
+        //self
     }
 }
 

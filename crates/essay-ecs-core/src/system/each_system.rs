@@ -137,9 +137,7 @@ impl_each_function!(P1, P2, P3, P4, P5, P6, P7);
 
 #[cfg(test)]
 mod tests {
-    use std::{rc::Rc, cell::RefCell};
-
-    use crate::{Store, entity::Component, Schedule, util::test::TestValues, core_app::CoreApp, Commands};
+    use crate::{Store, entity::Component, core_app::CoreApp, Commands};
 
     #[test]
     fn test_each() {
@@ -147,14 +145,14 @@ mod tests {
 
         app.run_system(|mut cmd: Commands| cmd.spawn(TestA(1)) );
 
-        let values = TestValues::new();
+        // let values = TestValues::new();
 
 
         //let mut schedule = Schedule::new();
         //app.add_system(system_each_ref);
         app.tick();
         
-        let ptr = values.clone();
+        // let ptr = values.clone();
         assert_eq!(
             app.query::<&TestA>().collect::<Vec<&TestA>>(),
             vec![&TestA(1)]
@@ -185,7 +183,7 @@ mod tests {
 
         world.spawn(TestA(1));
 
-        let values = Rc::new(RefCell::new(Vec::<String>::new()));
+        // let values = Rc::new(RefCell::new(Vec::<String>::new()));
 
         //app.add_system(system_each_ref);
         /*
@@ -200,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_each_a_b() {
-        let mut world = Store::new();
+        // let mut world = Store::new();
         /*
         world.spawn(TestA(1));
         world.spawn(TestB(2));
@@ -224,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_each_tuple() {
-        let mut world = Store::new();
+        // let mut world = Store::new();
         /*
         world.spawn(TestA(1));
         world.spawn(TestB(2));
@@ -386,17 +384,6 @@ mod tests {
         println!("system-each-in {:?} {:?}", test, Deref::deref(&input));
     }
     */
-
-    fn system_each_ref(test: &mut TestA) {
-        println!("system-each {:?}", test);
-    }
-
-
-    fn take(values: &Rc<RefCell<Vec<String>>>) -> String {
-        let v : Vec<String> = values.borrow_mut().drain(..).collect();
-
-        v.join(", ")
-    }
 
     #[derive(Clone, Copy, PartialEq, Debug)]
     struct TestA(u32);

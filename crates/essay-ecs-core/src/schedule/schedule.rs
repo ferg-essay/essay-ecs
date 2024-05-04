@@ -137,7 +137,7 @@ impl Schedule {
     pub fn add_phase(&mut self, into_config: impl IntoPhaseConfig) { // -> PhaseItem {
         let config = into_config.into_config();
 
-        let id = self.inner_mut().add_phase(config);
+        self.inner_mut().add_phase(config);
         /*
         self.init_phases();
 
@@ -377,7 +377,7 @@ impl ScheduleInner {
     pub fn add_phase(&mut self, into_config: impl IntoPhaseConfig) { // -> PhaseItem {
         let config = into_config.into_config();
 
-        let id = self.planner.phases_mut().add_phase(config);
+        self.planner.phases_mut().add_phase(config);
         /*
         self.init_phases();
 
