@@ -437,6 +437,7 @@ mod tests {
     struct TestB(u32);
 
     #[derive(Debug)]
+    #[allow(unused)]    
     struct TestEvent(u32);
 
     impl Event for TestEvent {}

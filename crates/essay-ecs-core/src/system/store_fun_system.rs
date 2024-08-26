@@ -306,12 +306,15 @@ mod tests {
     }
 
     fn _get_global() -> String {
+        todo!();
+        /*
         unsafe { 
             match &_G_VALUE {
                 Some(value) => String::from(value),
                 None => panic!("no value")
             }
         }
+        */
     }
 
     #[derive(Debug)]

@@ -1048,11 +1048,13 @@ mod test {
     struct ResC;
 
 
+    #[allow(unused)]
     struct TestA(u32);
+    #[allow(unused)]
     struct TestB(u32);
-    struct TestC(u32);
+    // struct TestC(u32);
 
     impl Component for TestA {}
     impl Component for TestB {}
-    impl Component for TestC {}
+    // impl Component for TestC {}
 }

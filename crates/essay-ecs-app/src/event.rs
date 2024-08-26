@@ -307,6 +307,7 @@ mod test {
     }
 
     #[derive(Debug)]
+    #[allow(unused)]
     pub struct TestEvent(usize);
 
     impl Event for TestEvent {}

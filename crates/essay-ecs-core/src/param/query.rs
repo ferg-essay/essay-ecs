@@ -147,6 +147,7 @@ mod test {
     }
 
     #[derive(Debug)]
+    #[allow(unused)]
     pub struct TestA(u32);
 
     impl Component for TestA {}
