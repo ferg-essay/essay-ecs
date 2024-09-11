@@ -1,6 +1,14 @@
 use std::{marker::PhantomData, mem, ops::{DerefMut, Deref}};
 
-use essay_ecs_core::{ResMut, Local, Store, prelude::Param, schedule::{SystemMeta, UnsafeStore}, Res};
+use essay_ecs_core::{
+    error::Result,
+    Local, 
+    ResMut, 
+    Store, 
+    prelude::Param, 
+    schedule::{SystemMeta, UnsafeStore}, 
+    Res
+};
 
 // see bevy_ecs/src/event.rs
 //
@@ -147,13 +155,13 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
     fn arg<'w1, 's1>(
         world: &'w1 UnsafeStore,
         state: &'s1 mut Self::State, 
-    ) -> Self::Arg<'w1, 's1> {
+    ) -> Result<Self::Arg<'w1, 's1>> {
         let (e_st, c_st) = state;
 
-        InEvent {
-            events: Res::<Events<E>>::arg(world, e_st),
-            cursor: Local::<InEventCursor<E>>::arg(world, c_st),
-        }
+        Ok(InEvent {
+            events: Res::<Events<E>>::arg(world, e_st)?,
+            cursor: Local::<InEventCursor<E>>::arg(world, c_st)?,
+        })
     }
 }
 
@@ -171,11 +179,11 @@ impl<'w, E: Event> Param for OutEvent<'w, E> {
     fn arg<'w1, 's1>(
         world: &'w1 UnsafeStore,
         state: &'s1 mut Self::State, 
-    ) -> Self::Arg<'w1, 's1> {
+    ) -> Result<Self::Arg<'w1, 's1>> {
 
-        OutEvent {
-            events: ResMut::<Events<E>>::arg(world, state),
-        }
+        Ok(OutEvent {
+            events: ResMut::<Events<E>>::arg(world, state)?,
+        })
     }
 }
 
@@ -204,22 +212,22 @@ mod test {
         });
 
         // no events
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         // event read once
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(1));
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "TestEvent(1)");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         // multiple events
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(2));
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(3));
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "TestEvent(2), TestEvent(3)");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
     }
 
@@ -238,40 +246,40 @@ mod test {
         });
 
         // no events
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         // event read after update
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(1));
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "TestEvent(1)");
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         // two updates make event inaccessible
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(2));
         app.resource_mut::<Events<TestEvent>>().update_inner();
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         app.resource_mut::<Events<TestEvent>>().send(TestEvent(3));
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "TestEvent(3)");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
     }
 
@@ -294,15 +302,15 @@ mod test {
         });
 
         // no events
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
 
         app.resource_mut::<Events<TestEvent>>().update_inner();
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(values.take(), "");
     }
 

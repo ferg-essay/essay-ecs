@@ -5,7 +5,10 @@ use std::any::type_name;
 /// 
 
 use essay_ecs_core::{
-    schedule::ScheduleLabel, store::FromStore, IntoPhaseConfigs, IntoSystem, IntoSystemConfig, Schedule, Schedules, Store
+    error::Result,
+    schedule::ScheduleLabel, 
+    store::FromStore, 
+    IntoPhaseConfigs, IntoSystem, IntoSystemConfig, Schedule, Schedules, Store
 };
 
 use crate::{event::{Event, Events}, First};
@@ -19,7 +22,7 @@ pub struct App {
     world: Store,
     plugins: Plugins,
     main_schedule: Box<dyn ScheduleLabel>,
-    runner: Box<dyn FnOnce(App) + Send>,
+    runner: Box<dyn FnOnce(App) -> Result<()> + Send>,
 }
 
 impl App {
@@ -219,27 +222,25 @@ impl App {
         self
     }
 
-    pub fn tick(&mut self) -> &mut Self {
-        self.world.run_schedule(&self.main_schedule);
-
-        self
+    pub fn tick(&mut self) -> Result<()> {
+        self.world.run_schedule(&self.main_schedule)
     }
 
-    pub fn runner(&mut self, runner: impl FnOnce(App) + 'static + Send) -> &mut Self {
+    pub fn runner(&mut self, runner: impl FnOnce(App) -> Result<()> + 'static + Send) -> &mut Self {
         self.runner = Box::new(runner);
 
         self
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<()> {
         let mut app = std::mem::replace(self, App::empty());
 
         let runner = std::mem::replace(&mut app.runner, Box::new(run_once));
 
-        runner(app);
+        runner(app)
     }
 
-    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> O {
+    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> Result<O> {
         self.world.eval(into_system)
     }
 
@@ -261,11 +262,11 @@ impl Default for App {
     }
 }
 
-fn run_once(mut app: App) {
+fn run_once(mut app: App) -> Result<()> {
     app.finish();
     app.cleanup();
 
-    app.tick();
+    app.tick()
 }
 
 
@@ -289,10 +290,10 @@ mod tests {
         let ptr = Arc::clone(&value);
         app.system(Update, move || ptr.lock().unwrap().push("update".to_string()));
         assert_eq!(take(&value), "");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update");
-        app.tick();
-        app.tick();
+        app.tick().unwrap();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -308,10 +309,10 @@ mod tests {
         let ptr = Arc::clone(&value);
         app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "startup, update");
-        app.tick();
-        app.tick();
+        app.tick().unwrap();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -328,7 +329,7 @@ mod tests {
         app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
-        app.run();
+        app.run().unwrap();
         assert_eq!(take(&value), "startup, update");
     }
 
@@ -347,11 +348,13 @@ mod tests {
 
         app.runner(|mut app| {
             for _ in 0..3 {
-                app.tick();
+                app.tick()?;
             }
+
+            Ok(())
         });
 
-        app.run();
+        app.run().unwrap();
         assert_eq!(take(&value), "startup, update, update, update");
     }
 
@@ -383,7 +386,7 @@ mod tests {
         app.system(Update, move |_comp: &CompA| push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "spawn, update");
     }
 
@@ -408,11 +411,11 @@ mod tests {
             }
         });
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "TestEvent(1)");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "TestEvent(2)");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "TestEvent(3)");
     }
 
@@ -420,11 +423,11 @@ mod tests {
     fn eval() {
         let mut app = App::new();
 
-        assert_eq!(7, app.eval(|| 7));
+        assert_eq!(7, app.eval(|| 7).unwrap());
 
         app.insert_resource(TestA(11));
 
-        assert_eq!(11, app.eval(|test: Res<TestA>| test.0));
+        assert_eq!(11, app.eval(|test: Res<TestA>| test.0).unwrap());
     }
 
     #[derive(Component)]

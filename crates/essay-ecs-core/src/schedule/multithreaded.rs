@@ -3,15 +3,15 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 
 use crate::{
+    error::Result,
     Schedule, Store,
     system::SystemId,
 };    
 
 use super::{
+    executor::{Executor, ExecutorFactory},
     thread_pool::{ThreadPool, TaskSender, ThreadPoolBuilder}, 
     plan::Plan, 
-    schedule::{ScheduleErr},
-    executor::{Executor, ExecutorFactory},
     unsafe_cell::UnsafeSendCell, UnsafeStore
 };
 
@@ -65,7 +65,7 @@ impl MultithreadedExecutor {
 
         let pool = ThreadPoolBuilder::new().parent(
             move |sender| {
-                parent_task.run(&sender).unwrap()
+                Ok(parent_task.run(&sender)?)
         }).child(move || {
             let child_task = ChildTask::new(
                 Arc::clone(&arc_schedule_child),
@@ -82,10 +82,12 @@ impl MultithreadedExecutor {
         }
     }
 
-    fn close(&mut self) {
+    fn close(&mut self) -> Result<()> {
         if let Some(mut pool) = self.thread_pool.take() {
-            pool.close().unwrap();
+            pool.close()?;
         }
+
+        Ok(())
     }
 }
 
@@ -94,7 +96,7 @@ impl Executor for MultithreadedExecutor {
         &mut self, 
         schedule: Schedule, 
         world: Store
-    ) -> Result<(Schedule, Store), super::schedule::ScheduleErr> {
+    ) -> Result<(Schedule, Store)> {
         match &self.thread_pool {
             Some(thread_pool) => { 
                 unsafe {
@@ -109,26 +111,26 @@ impl Executor for MultithreadedExecutor {
     
                 Ok((schedule.unwrap(), world.unwrap().take()))
             },
-            None => { panic!("thread pool is closed"); }
+            None => { Err("thread pool is closed".into()) }
         }
     }
 }
 
 impl Drop for MultithreadedExecutor {
     fn drop(&mut self) {
-        self.close();
+        self.close().unwrap();
     }
 }
 
 impl ParentTask {
-    fn run(&self, sender: &TaskSender) -> Result<(),ScheduleErr> {
+    fn run(&self, sender: &TaskSender) -> Result<()> {
         if let Some(schedule) = unsafe { self.schedule.as_mut() } {
             if let Some(world) = unsafe { self.world.as_mut() } {
                 return self.run_impl(sender, schedule, world)
             }
         }
 
-        panic!("unset world");
+        Err(format!("unset world\n\tin {}:{}", file!(), line!()).into())
     }
 
     fn run_impl(
@@ -136,7 +138,7 @@ impl ParentTask {
         sender: &TaskSender,
         schedule: &mut Schedule,
         world: &mut UnsafeStore
-    ) -> Result<(), ScheduleErr> {
+    ) -> Result<()> {
         let n = self.plan.len();
         let mut n_active: usize = 0;
         let mut n_remaining = self.plan.len();
@@ -172,11 +174,12 @@ impl ParentTask {
                 } else if meta.is_exclusive() {
                     assert_eq!(n_active, 1);
 
-                    unsafe { schedule.run_system(id, world); }
+                    unsafe { schedule.run_system(id, world)?; }
 
                     completed.push(id);
                 } else if n_ready == 1 && n_active == 1 {
-                    unsafe { schedule.run_system(id, world); }
+                    // only one task in this ready-set
+                    unsafe { schedule.run_system(id, world)?; }
 
                     completed.push(id);
                 } else {
@@ -253,16 +256,14 @@ impl ChildTask {
         }
     }
 
-    fn run(&self, id: SystemId) -> Result<(), ScheduleErr> {
+    fn run(&self, id: SystemId) -> Result<()> {
         if let Some(schedule) = unsafe { self.schedule.get_ref() } {
             if let Some(world) = unsafe { self.world.get_ref() } {
-                unsafe { schedule.run_unsafe(id, world); }
-
-                return Ok(());
+                return unsafe { schedule.run_unsafe(id, world) };
             }
         }
 
-        panic!("unset world");
+        Err(format!("unset world\n\tin {}:{}", file!(), line!()).into())
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::{
     entity::{Bundle, Component, EntityId, EntityStore, View, ViewIterator, ViewPlan}, 
+    error::Result,
     resource::{ResourceId, Resources}, 
     schedule::{ScheduleLabel, Schedules, SystemMeta, UnsafeStore}, 
     system::System,
@@ -190,38 +191,38 @@ impl Store {
             .insert(label, schedule);
     }
 
-    pub fn run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) {
-        self.try_run_schedule(label).unwrap();
+    pub fn run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<()> {
+        self.try_run_schedule(label)
     }
 
-    pub fn try_run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<(), SchedErr> {
+    pub fn try_run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<()> {
         self.try_eval_schedule(label, |world, schedule| {
-            schedule.tick(world).unwrap();
+            schedule.tick(world)
         })
     }
 
     pub fn try_eval_schedule<R>(
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>,
-        fun: impl FnOnce(&mut Store, &mut Schedule) -> R
-    ) -> Result<R, SchedErr> {
+        fun: impl FnOnce(&mut Store, &mut Schedule) -> Result<R>
+    ) -> Result<R> {
         let label = label.as_ref();
 
         let Some((label, mut schedule))
             = self.get_resource_mut::<Schedules>()
                 .and_then(|s| s.remove_entry(label))
         else {
-            return Err(SchedErr::UnknownSchedule(format!("{:?}", label)));
+            return Err(format!("{:?} is an unknown label", label).into());
         };
 
-        let value = fun(self, &mut schedule);
+        let value = fun(self, &mut schedule)?;
 
         self.resource_mut::<Schedules>().insert(label, schedule);
 
         Ok(value)
     }   
 
-    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> O {
+    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> Result<O> {
         let mut system = IntoSystem::into_system(into_system);
         
         let mut meta = SystemMeta::empty();
@@ -257,11 +258,6 @@ impl<T:Default> FromStore for T {
     fn init(_world: &mut Store) -> T {
         T::default()
     }
-}
-
-#[derive(Debug)]
-pub enum SchedErr {
-    UnknownSchedule(String),
 }
 
 #[cfg(test)]

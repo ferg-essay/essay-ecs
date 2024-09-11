@@ -690,7 +690,7 @@ mod tests {
     #[derive(Debug, PartialEq)]
     struct TestC(u32);
 
-    trait TestComponent:'static {}
+    // trait TestComponent:'static {}
     
     impl Component for TestA {}
     impl Component for TestB {}

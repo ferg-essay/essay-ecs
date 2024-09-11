@@ -1,6 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{schedule::{SystemMeta, UnsafeStore}, Store};
+use crate::{
+    error::Result,
+    schedule::{SystemMeta, UnsafeStore}, 
+    Store
+};
 
 use super::Param;
 
@@ -22,10 +26,10 @@ impl<T:Send+'static> Param for Res<'_, T> {
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
         _state: &'s mut Self::State,
-    ) -> Res<'w, T> {
-        Res {
+    ) -> Result<Res<'w, T>> {
+        Ok(Res {
             value: world.get_resource::<T>().unwrap(),
-        }
+        })
     }
 
     fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
@@ -54,8 +58,8 @@ impl<T: Send + 'static> Param for Option<Res<'_, T>> {
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
         _state: &'s mut Self::State,
-    ) -> Option<Res<'w, T>> {
-        world.get_resource::<T>().map(|r| Res { value: r })
+    ) -> Result<Option<Res<'w, T>>> {
+        Ok(world.get_resource::<T>().map(|r| Res { value: r }))
     }
 
     fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
@@ -106,10 +110,10 @@ impl<T:Send+'static> Param for ResMut<'_, T> {
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
         _state: &'s mut Self::State,
-    ) -> ResMut<'w, T> {
-        ResMut {
+    ) -> Result<ResMut<'w, T>> {
+        Ok(ResMut {
             value: unsafe { world.as_mut().get_resource_mut().unwrap() }
-        }
+        })
     }
 }
 
@@ -120,9 +124,9 @@ impl<T: Send + 'static> Param for Option<ResMut<'_, T>> {
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
         _state: &'s mut Self::State,
-    ) -> Option<ResMut<'w, T>> {
+    ) -> Result<Option<ResMut<'w, T>>> {
         unsafe {
-            world.as_mut().get_resource_mut::<T>().map(|r| ResMut { value: r })
+            Ok(world.as_mut().get_resource_mut::<T>().map(|r| ResMut { value: r }))
         }
     }
 
@@ -143,7 +147,7 @@ mod test {
 
         app.insert_resource(TestResource(3));
 
-        assert_eq!(3, app.eval(|r: Res<TestResource>| r.0));
+        assert_eq!(3, app.eval(|r: Res<TestResource>| r.0).unwrap());
     }
 
     #[test]
@@ -157,14 +161,14 @@ mod test {
                 Some(r) => r.0,
                 None => 0, 
             }
-        }));
+        }).unwrap());
 
         assert_eq!(0, app.eval(|opt: Option<Res<BogusResource>>| {
             match opt {
                 Some(r) => r.0,
                 None => 0, 
             }
-        }));
+        }).unwrap());
     }
 
     #[test]
@@ -177,15 +181,15 @@ mod test {
             if let Some(mut r) = opt {
                 r.0 = 15;
             }
-        });
+        }).unwrap();
 
-        assert_eq!(15, app.eval(|res: Res<TestResource>| res.0));
+        assert_eq!(15, app.eval(|res: Res<TestResource>| res.0).unwrap());
 
         app.eval(|opt: Option<ResMut<BogusResource>>| {
             if let Some(mut r) = opt {
                 r.0 = 15;
             }
-        });
+        }).unwrap();
     }
 
     struct TestResource(usize);

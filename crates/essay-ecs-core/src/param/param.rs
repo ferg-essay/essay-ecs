@@ -1,4 +1,5 @@
 use crate::{
+    error::Result,
     store::Store, 
     schedule::{SystemMeta, UnsafeStore}
 };
@@ -11,14 +12,15 @@ pub trait Param {
     type Arg<'w, 's>: Param<State = Self::State>;
     type State: Send + Sync + 'static;
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State;
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Self::State;
 
     fn arg<'w, 's>(
-        world: &'w UnsafeStore,
+        store: &'w UnsafeStore,
         state: &'s mut Self::State, 
-    ) -> Self::Arg<'w, 's>;
+    ) -> Result<Self::Arg<'w, 's>>;
 
-    fn flush(_world: &mut Store, _state: &mut Self::State) {
+    #[allow(unused)]
+    fn flush(store: &mut Store, state: &mut Self::State) {
     }
 }
 
@@ -46,10 +48,10 @@ macro_rules! impl_param_tuple {
             fn arg<'w, 's>(
                 world: &'w UnsafeStore,
                 state: &'s mut Self::State,
-            ) -> Self::Arg<'w, 's> {
+            ) -> Result<Self::Arg<'w, 's>> {
                 let ($($param,)*) = state;
 
-                ($($param::arg(world, $param),)*)
+                Ok(($($param::arg(world, $param)?,)*))
             }
 
             fn flush(
@@ -78,8 +80,8 @@ impl Param for ()
     fn arg<'w, 's>(
         _world: &'w UnsafeStore, 
         _state: &'s mut Self::State,
-    ) -> Self::Arg<'w, 's> {
-        ()
+    ) -> Result<Self::Arg<'w, 's>> {
+        Ok(())
     }
 }
 

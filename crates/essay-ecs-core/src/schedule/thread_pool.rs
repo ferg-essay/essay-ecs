@@ -7,87 +7,20 @@ use std::{
 use concurrent_queue::{ConcurrentQueue, PopError};
 use log::info;
 
-use crate::system::SystemId;
+use crate::{
+    error::{Error, Result},
+    system::SystemId
+};
 
-use super::schedule::ScheduleErr;
-
+//
+// ThreadPoolBuilder
+//
 
 pub struct ThreadPoolBuilder {
-    parent_task: Option<Box<dyn Fn(&TaskSender) + Send>>,
+    parent_task: Option<Box<dyn Fn(&TaskSender) -> Result<()> + Send>>,
     child_task_builder: Option<Box<dyn Fn() -> Box<dyn Fn(SystemId) + Send>>>,
     n_threads: Option<usize>,
 }
-
-pub struct ThreadPool {
-    //threads: Vec<Thread>,
-    executive: Option<JoinHandle<()>>,
-
-    executive_sender: Sender<MainMessage>,
-    executive_reader: Receiver<MainMessage>,
-}
-
-pub struct ParentThread {
-    task: Box<dyn Fn(&TaskSender) + Send>,
-
-    main_reader: Receiver<MainMessage>,
-    main_sender: Sender<MainMessage>,
-
-    registry: Arc<Registry>,
-
-    task_receiver: Receiver<Result<SystemId, ScheduleErr>>,
-    handles: Vec<JoinHandle<()>>,
-}
-
-struct ChildThread {
-    task: Box<dyn Fn(SystemId) + Send>,
-    registry: Arc<Registry>,
-    sender: Sender<Result<SystemId, ScheduleErr>>,
-}
-
-pub struct TaskSender<'a> {
-    thread: &'a ParentThread,
-}
-
-#[derive(Debug)]
-enum MainMessage {
-    Start,
-    Complete,
-    Exit,
-    _Error,
-    Panic,
-}
-
-enum TaskMessage {
-    Start(SystemId),
-    _Exit,
-}
-
-struct Registry {
-    queue: ConcurrentQueue<TaskMessage>,
-    tasks: Vec<TaskInfo>,
-}
-
-impl Registry {
-    fn close(&self) {
-        self.queue.close();
-    }
-}
-
-struct TaskInfo {
-    _handle: Option<JoinHandle<()>>,
-}
-
-impl TaskInfo {
-    pub fn new() -> Self {
-        TaskInfo {
-            _handle: None,
-        }
-    }
-}
-
-//
-// Implementation
-//
 
 impl ThreadPoolBuilder {
     pub fn new() -> Self {
@@ -100,7 +33,7 @@ impl ThreadPoolBuilder {
 
     pub fn parent<F>(mut self, task: F) -> Self
     where
-        F: Fn(&TaskSender) + Send + 'static
+        F: Fn(&TaskSender) -> Result<()> + Send + 'static
     {
         self.parent_task = Some(Box::new(task));
 
@@ -194,33 +127,97 @@ impl ThreadPoolBuilder {
     }
 }
 
+pub struct ThreadPool {
+    //threads: Vec<Thread>,
+    executive: Option<JoinHandle<()>>,
+
+    executive_sender: Sender<MainMessage>,
+    executive_reader: Receiver<MainMessage>,
+}
+
+struct ChildThread {
+    task: Box<dyn Fn(SystemId) + Send>,
+    registry: Arc<Registry>,
+    sender: Sender<Result<SystemId>>,
+}
+
+pub struct TaskSender<'a> {
+    thread: &'a ParentThread,
+}
+
+#[derive(Debug)]
+enum MainMessage {
+    Start,
+    Complete,
+    Exit,
+    Error(Error),
+    Panic(Error),
+}
+
+enum TaskMessage {
+    Start(SystemId),
+    _Exit,
+}
+
+struct Registry {
+    queue: ConcurrentQueue<TaskMessage>,
+    tasks: Vec<TaskInfo>,
+}
+
+impl Registry {
+    fn close(&self) {
+        self.queue.close();
+    }
+}
+
+struct TaskInfo {
+    _handle: Option<JoinHandle<()>>,
+}
+
+impl TaskInfo {
+    pub fn new() -> Self {
+        TaskInfo {
+            _handle: None,
+        }
+    }
+}
+
+//
+// Implementation
+//
+
 impl ThreadPool {
-    pub fn start(&self) -> Result<(), ScheduleErr> {
-        self.executive_sender.send(MainMessage::Start).unwrap();
+    pub fn start(&self) -> Result<()> {
+        if let Err(err) = self.executive_sender.send(MainMessage::Start) {
+            return Err(err.to_string().into());
+        }
         
         loop {
             match self.executive_reader.recv() {
                 Ok(MainMessage::Exit) => {
-                    panic!("unexpected exit");
+                    return Err(format!("unexpected exit\n\tin {}:{}", file!(), line!()).into());
+                    // panic!("unexpected exit");
                 }
                 Ok(MainMessage::Complete) => {
                     return Ok(());
                 }
-                Ok(MainMessage::Panic) => {
-                    panic!("parent panic received by thread pool");
+                Ok(MainMessage::Panic(error)) => {
+                    return Err(error);
+                }
+                Ok(MainMessage::Error(error)) => {
+                    return Err(error);
                 }
                 Ok(msg) => {
-                    panic!("invalid executive message {:?}", msg);
+                    return Err(format!("invalid executive message {:?}", msg).into());
                 }
                 Err(err) => {
-                    println!("executor receive error {:?}", err);
-                    return Err(ScheduleErr::RecvErr(err));
+                    return Err(format!("{:?}\n\tat {}:{}", err, file!(), line!()).into())
                 }
             }
         }
     }
 
-    pub fn close(&mut self) -> Result<(), ScheduleErr> {
+    pub fn close(&mut self) -> Result<()> {
         match self.executive.take() {
             Some(handle) => {
                 match self.executive_sender.send(MainMessage::Exit) {
@@ -233,7 +230,9 @@ impl ThreadPool {
                 // TODO: timed?
                 match handle.join() {
                     Ok(_) => Ok(()),
-                    Err(err) => Err(ScheduleErr::Err(err)),
+                    Err(err) => {
+                        Err(format!("{:?}\n\tin ThreadPool::close()", err).into())
+                    },
                 }
             },
             None => Ok(()),
@@ -250,8 +249,24 @@ impl Drop for ThreadPool {
     }
 }
 
+//
+// ParentThread
+//
+
+pub struct ParentThread {
+    task: Box<dyn Fn(&TaskSender) -> Result<()> + Send>,
+
+    main_reader: Receiver<MainMessage>,
+    main_sender: Sender<MainMessage>,
+
+    registry: Arc<Registry>,
+
+    task_receiver: Receiver<Result<SystemId>>,
+    handles: Vec<JoinHandle<()>>,
+}
+
 impl ParentThread {
-    pub fn run(&mut self) -> Result<(), ScheduleErr> {
+    pub fn run(&mut self) -> Result<()> {
         let mut guard = ParentGuard::new(self);
 
         let sender = TaskSender { thread: &self };
@@ -259,13 +274,22 @@ impl ParentThread {
         loop {
             match self.main_reader.recv() {
                 Ok(MainMessage::Start) => {
-                    (self.task)(&sender);
-
-                    match self.main_sender.send(MainMessage::Complete) {
-                        Ok(_) => {},
-                        Err(err) => {
-                            info!("error sending MainMessage::Complete {:#?}", err);
-                            return Err(ScheduleErr::SendError);
+                    match (self.task)(&sender) {
+                        Ok(_) => {
+                            match self.main_sender.send(MainMessage::Complete) {
+                                Ok(_) => {},
+                                Err(err) => {
+                                    return Err(format!("error sending MainMessage::Complete {:#?}", err).into());
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            match self.main_sender.send(MainMessage::Error(error)) {
+                                Ok(_) => {},
+                                Err(err) => {
+                                    return Err(format!("error sending MainMessage::Error {:#?}", err).into());
+                               }
+                            }
                         }
                     }
                 }
@@ -274,15 +298,14 @@ impl ParentThread {
                     match self.main_sender.send(MainMessage::Complete) {
                         Ok(_) => {},
                         Err(err) => {
-                            info!("error sending MainMessage::Exit {:#?}", err);
-                            return Err(ScheduleErr::SendError);
+                            return Err(format!("error sending MainMessage::Exit {:#?}", err).into());
                         }
                     }
                     guard.close();
                     return Ok(());
                 }
                 Ok(_) => {
-                    self.main_sender.send(MainMessage::Panic).unwrap();
+                    self.main_sender.send(MainMessage::Panic("invalid executor".into())).unwrap();
                     panic!("invalid executor message");
                 }
                 Err(err) => {
@@ -320,23 +343,16 @@ impl<'a> ParentGuard<'a> {
 impl Drop for ParentGuard<'_> {
     fn drop(&mut self) {
         if ! self.is_close {
-            self.parent.main_sender.send(MainMessage::Panic).unwrap();
+            self.parent.main_sender.send(MainMessage::Panic(format!("parent not closed\n\tat {}:{}", file!(), line!()).into())).unwrap();
         }
     }
 }
-/*
-impl<T> From<mpsc::SendError<T>> for ScheduleErr {
-    fn from(value: mpsc::SendError<T>) -> Self {
-        ScheduleErr::SendErr(value)
-    }
-}
-*/
 
 impl ChildThread {
     pub fn new(
         task: Box<dyn Fn(SystemId) + Send>,
         registry: Arc<Registry>, 
-        sender: Sender<Result<SystemId,ScheduleErr>>,
+        sender: Sender<Result<SystemId>>,
     ) -> Self {
         Self {
             task,
@@ -396,7 +412,7 @@ impl<'a> ChildGuard<'a> {
 impl Drop for ChildGuard<'_> {
     fn drop(&mut self) {
         if ! self.is_close {
-            self.child.sender.send(Err(ScheduleErr::ChildPanic)).unwrap();
+            self.child.sender.send(Err("ChildPanic".into())).unwrap();
             self.child.registry.close();
         }
     }
@@ -470,6 +486,8 @@ mod tests {
             sender.read();
 
             ptr.lock().unwrap().push(format!("P]"));
+
+            Ok(())
         }).child(move || {
             let ptr3 = ptr2.clone();
 
@@ -508,6 +526,8 @@ mod tests {
             sender.read();
 
             ptr.lock().unwrap().push(format!("P]"));
+
+            Ok(())
         }).child(move || {
             let ptr3 = ptr2.clone();
 
@@ -576,6 +596,8 @@ mod tests {
             sender.read();
 
             ptr.lock().unwrap().push(format!("P]"));
+
+            Ok(())
         }).child(move || {
             let ptr3 = ptr2.clone();
 

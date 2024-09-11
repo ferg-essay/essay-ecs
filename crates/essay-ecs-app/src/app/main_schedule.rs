@@ -102,10 +102,10 @@ mod tests {
         let ptr = Arc::clone(&value);
         app.system(Update, move || ptr.lock().unwrap().push("update".to_string()));
         assert_eq!(take(&value), "");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update");
-        app.tick();
-        app.tick();
+        app.tick().unwrap();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -121,10 +121,10 @@ mod tests {
         let ptr = Arc::clone(&value);
         app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "startup, update");
-        app.tick();
-        app.tick();
+        app.tick().unwrap();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -147,10 +147,10 @@ mod tests {
         app.system(Update, move || push(&ptr, "update"));
         assert_eq!(take(&value), "");
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "pre-startup, startup, post-startup, update");
-        app.tick();
-        app.tick();
+        app.tick().unwrap();
+        app.tick().unwrap();
         assert_eq!(take(&value), "update, update");
     }
 
@@ -188,11 +188,11 @@ mod tests {
         app.system(Bogus, move || push(&ptr, "bogus"));
 
         assert_eq!(take(&value), "");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "pre-startup, startup, post-startup, first, pre-update, update, post-update, last");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "first, pre-update, update, post-update, last");
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&value), "first, pre-update, update, post-update, last");
     }
 

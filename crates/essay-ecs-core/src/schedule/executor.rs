@@ -1,14 +1,18 @@
-use crate::{Schedule, Store};
+use crate::{error::Result, Schedule, Store};
 
-use super::{plan::Plan, multithreaded::MultithreadedExecutor, UnsafeStore, schedule::ScheduleErr};
+use super::{
+    multithreaded::MultithreadedExecutor, 
+    plan::Plan, 
+    UnsafeStore, 
+};
 
 
 pub trait Executor: Send {
     fn run(
         &mut self, 
         schedule: Schedule, 
-        world: Store
-    ) -> Result<(Schedule, Store), ScheduleErr>;
+        store: Store
+    ) -> Result<(Schedule, Store)>;
 }
 
 pub trait ExecutorFactory: Send + 'static {
@@ -56,7 +60,7 @@ impl Executor for SingleExecutor {
         &mut self, 
         mut schedule: Schedule, 
         world: Store
-    ) -> Result<(Schedule, Store), ScheduleErr> {
+    ) -> Result<(Schedule, Store)> {
         let mut world = UnsafeStore::new(world);
 
         for id in self.0.order() {
@@ -66,7 +70,7 @@ impl Executor for SingleExecutor {
                 schedule.flush(&mut world);
             }
             else {
-                unsafe { schedule.run_system(*id, &mut world); }
+                unsafe { schedule.run_system(*id, &mut world)?; }
             }
         }
 

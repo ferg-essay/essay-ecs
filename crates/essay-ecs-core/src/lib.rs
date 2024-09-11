@@ -1,3 +1,4 @@
+pub mod error;
 pub mod param;
 pub mod core_app;
 pub mod util;

@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{store::Store, 
+use crate::{
+    error::Result,
     schedule::{SystemMeta, UnsafeStore},
+    store::Store, 
     system::{IntoSystem, System}, Local,
 };
 
@@ -63,16 +65,17 @@ where
         self.state = Some(F::Params::init(world, meta));
     }
 
-    fn run(&mut self, world: &mut UnsafeStore) -> Self::Out {
+    fn run(&mut self, world: &mut UnsafeStore) -> Result<Self::Out> {
         let arg = F::Params::arg(
             self.state.as_mut().unwrap(),
         );
 
-        self.fun.run(world, arg)
+        Ok(self.fun.run(world, arg))
     }
 
-    unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Self::Out {
-        panic!("can't run exclusive system in unsafe mode");
+    unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Result<Self::Out> {
+        // TODO: location
+        Err("can't run exclusive system in unsafe mode".into())
     }
 
     fn flush(&mut self, _world: &mut Store) {

@@ -1,8 +1,9 @@
-use std::marker::PhantomData;
+use std::{any::type_name, marker::PhantomData};
 
 use crate::{
-    store::Store, 
+    error::Result,
     schedule::{SystemMeta, UnsafeStore},
+    store::Store, 
     system::{IntoSystem, System},
 };
 
@@ -21,6 +22,8 @@ where
 {
     fun: F,
     state: Option<<F::Param as Param>::State>,
+
+    name: String,
     marker: PhantomData<fn() -> M>,
 }
 
@@ -42,21 +45,25 @@ where
 {
     type Out = F::Out;
 
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) {
-        self.state = Some(F::Param::init(meta, world));
+    fn init(&mut self, meta: &mut SystemMeta, store: &mut Store) {
+        self.state = Some(F::Param::init(meta, store));
     }
 
-    unsafe fn run_unsafe(&mut self, world: &UnsafeStore) -> Self::Out {
-        let arg = F::Param::arg(
-            world,
-            self.state.as_mut().unwrap(),
-        );
+    unsafe fn run_unsafe(&mut self, store: &UnsafeStore) -> Result<Self::Out> {
+        // Ok(self.fun.run(F::Param::arg(store, self.state.as_mut().unwrap())?))
 
-        self.fun.run(arg)
+        match F::Param::arg(store, self.state.as_mut().unwrap()) {
+            Ok(arg) => {
+                Ok(self.fun.run(arg))
+            }
+            Err(err) => {
+                Err(format!("{}\n\tin {}", err.message(), self.name).into())
+            }
+        }
     }
 
-    fn flush(&mut self, world: &mut Store) {
-        F::Param::flush(world, self.state.as_mut().unwrap());
+    fn flush(&mut self, store: &mut Store) {
+        F::Param::flush(store, self.state.as_mut().unwrap());
     }
 }    
 
@@ -68,11 +75,14 @@ where
 {
     type System = FunctionSystem<F, M>;
 
+    #[track_caller]
     fn into_system(this: Self) -> Self::System {
         FunctionSystem {
             fun: this,
             state: None,
-            marker: Default::default()
+
+            name: type_name::<F>().to_string(),
+            marker: Default::default(),
         }
     }
 }
@@ -118,109 +128,148 @@ mod tests {
     use std::marker::PhantomData;
 
     use crate::{
-        store::Store, 
-        system::IntoSystem,
-        schedule::{Schedule, SystemMeta, UnsafeStore},
+        core_app::{Core, CoreApp}, 
+        error::Result,
+        schedule::{SystemMeta, UnsafeStore}, 
+        store::Store,
     };
 
     use super::Param;
 
-    static mut G_VALUE : Option<String> = None;
+    #[test]
+    fn arg_tuples() -> Result<()> {
+        let mut app = CoreApp::new();
+
+        assert_eq!(
+            app.eval(test_null)?,
+            "test-null"
+        );
+
+        assert_eq!(
+            app.eval(test_arg1)?,
+            "test-arg1 u8"
+        );
+
+        assert_eq!(
+            app.eval(test_arg2)?,
+            "test-arg2 u8 u16"
+        );
+
+        assert_eq!(
+            app.eval(test_arg3)?,
+            "test-arg3 u8 u16 u32"
+        );
+
+        assert_eq!(
+            app.eval(test_arg4)?,
+            "test-arg4 u8 u16 u32 u64"
+        );
+
+        assert_eq!(
+            app.eval(test_arg5)?,
+            "test-arg5 u8 u16 u32 u64 i8"
+        );
+
+        assert_eq!(
+            app.eval(test_arg6)?,
+            "test-arg6 u8 u16 u32 u64 i8 i16"
+        );
+
+        assert_eq!(
+            app.eval(test_arg7)?,
+            "test-arg7 u8 u16 u32 u64 i8 i16 i32"
+        );
+
+        Ok(())
+    }
 
     #[test]
-    fn arg_tuples() {
-        let mut world = Store::new();
+    fn bogus_arg_in_eval() {
+        let mut app = CoreApp::new();
 
-        set_global("init".to_string());
-        system(&mut world, test_null);
-        assert_eq!(get_global(), "test-null");
-        system(&mut world, test_arg1);
-        assert_eq!(get_global(), "test-arg1 u8");
-        system(&mut world, test_arg2);
-        assert_eq!(get_global(), "test-arg2 u8 u16");
-        system(&mut world, test_arg3);
-        assert_eq!(get_global(), "test-arg3 u8 u16 u32");
-        system(&mut world, test_arg4);
-        assert_eq!(get_global(), "test-arg4 u8 u16 u32 u64");
-        system(&mut world, test_arg5);
-        assert_eq!(get_global(), "test-arg5 u8 u16 u32 u64 i8");
-        system(&mut world, test_arg6);
-        assert_eq!(get_global(), "test-arg6 u8 u16 u32 u64 i8 i16");
-        system(&mut world, test_arg7);
-        assert_eq!(get_global(), "test-arg7 u8 u16 u32 u64 i8 i16 i32");
+        assert_eq!(
+            app.eval(bogus_arg1).err().unwrap().message(),
+            "bogus-arg\n\tin essay_ecs_core::system::fun_system::tests::bogus_arg1"
+        );
     }
 
-    fn system<M>(world: &mut Store, fun: impl IntoSystem<(),M>)->String {
-        set_global("init".to_string());
-        let mut schedule = Schedule::new();
-        schedule.add_system(fun);
-        schedule.tick(world).unwrap();
+    #[test]
+    fn bogus_arg_in_tick() {
+        let mut app = CoreApp::new();
 
-        get_global()
+        app.system(Core, bogus_arg_null);
+        //app.tick().unwrap();
+        
+        assert_eq!(
+            app.tick().unwrap_err().message(),
+            "BogusArg test internal arg error\n\tin essay_ecs_core::system::fun_system::tests::bogus_arg_null"
+        );
     }
 
-    fn test_null() {
-       set_global("test-null".to_string());
+    fn test_null() -> String {
+       "test-null".to_string()
     }
 
-    fn test_arg1(arg1: TestArg<u8>) {
-        set_global(format!("test-arg1 {}", arg1.name)); 
+    fn test_arg1(arg1: TestArg<u8>) -> String {
+        format!("test-arg1 {}", arg1.name)
     }
 
-    fn test_arg2(arg1: TestArg<u8>, arg2: TestArg<u16>) {
-        set_global(format!("test-arg2 {} {}", arg1.name, arg2.name)); 
+    fn test_arg2(arg1: TestArg<u8>, arg2: TestArg<u16>) -> String {
+        format!("test-arg2 {} {}", arg1.name, arg2.name)
     }
 
-    fn test_arg3(arg1: TestArg<u8>, arg2: TestArg<u16>, arg3: TestArg<u32>) {
-        set_global(format!("test-arg3 {} {} {}", arg1.name, arg2.name, arg3.name)); 
+    fn test_arg3(
+        arg1: TestArg<u8>, 
+        arg2: TestArg<u16>, 
+        arg3: TestArg<u32>
+    ) -> String {
+        format!("test-arg3 {} {} {}", arg1.name, arg2.name, arg3.name)
     }
 
-    fn test_arg4(arg1: TestArg<u8>, arg2: TestArg<u16>, arg3: TestArg<u32>, arg4: TestArg<u64>) {
-        set_global(format!("test-arg4 {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name)); 
+    fn test_arg4(
+        arg1: TestArg<u8>, 
+        arg2: TestArg<u16>, 
+        arg3: TestArg<u32>, 
+        arg4: TestArg<u64>
+    ) -> String {
+        format!("test-arg4 {} {} {} {}",
+            arg1.name, arg2.name, arg3.name, arg4.name)
     }
 
     fn test_arg5(arg1: TestArg<u8>, arg2: TestArg<u16>,
         arg3: TestArg<u32>, arg4: TestArg<u64>,
         arg5: TestArg<i8>
-    ) {
-        set_global(format!("test-arg5 {} {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name)); 
+    ) -> String {
+        format!("test-arg5 {} {} {} {} {}",
+            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name)
     }
 
     fn test_arg6(arg1: TestArg<u8>, arg2: TestArg<u16>,
         arg3: TestArg<u32>, arg4: TestArg<u64>,
         arg5: TestArg<i8>, arg6: TestArg<i16>,
-    ) {
-        set_global(format!("test-arg6 {} {} {} {} {} {}",
-            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name, arg6.name)); 
+    ) -> String {
+        format!("test-arg6 {} {} {} {} {} {}",
+            arg1.name, arg2.name, arg3.name, arg4.name, arg5.name, arg6.name)
     }
 
     fn test_arg7(arg1: TestArg<u8>, arg2: TestArg<u16>,
         arg3: TestArg<u32>, arg4: TestArg<u64>,
         arg5: TestArg<i8>, arg6: TestArg<i16>, arg7: TestArg<i32>,
-    ) {
-        set_global(format!("test-arg7 {} {} {} {} {} {} {}",
+    ) -> String {
+        format!("test-arg7 {} {} {} {} {} {} {}",
             arg1.name, arg2.name, arg3.name, arg4.name, arg5.name, arg6.name,
-            arg7.name)); 
+            arg7.name)
     }
 
-    fn set_global(value: String) {
-        unsafe { G_VALUE = Some(value); }
+    fn bogus_arg1(_arg: BogusArg) -> String {
+        "bogus-arg".to_string()
     }
 
-    fn get_global() -> String {
-        todo!();
-        /*
-        unsafe { 
-            match &G_VALUE {
-                Some(value) => String::from(value),
-                None => panic!("no value")
-            }
-        }
-        */
+    fn bogus_arg_null(_arg: BogusArg) {
+        println!("tick");
+        panic!("Shouldn't execute here")
     }
-
+ 
     #[derive(Debug)]
     struct TestArg<V> {
         name: String,
@@ -232,16 +281,35 @@ mod tests {
         type State = ();
 
         fn arg<'w, 's>(
-            _world: &'w UnsafeStore,
+            _store: &'w UnsafeStore,
             _state: &'s mut Self::State,
-        ) -> Self::Arg<'w, 's> {
-            Self {
+        ) -> Result<Self::Arg<'w, 's>> {
+            Ok(Self {
                 name: type_name::<V>().to_string(),
                 marker: PhantomData,
-            }
+            })
+        }
+
+        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Self::State {
+        }
+    }
+ 
+    #[derive(Debug)]
+    struct BogusArg {
+    }
+
+    impl Param for BogusArg {
+        type Arg<'w, 's> = BogusArg;
+        type State = ();
+
+        fn arg<'w, 's>(
+            _world: &'w UnsafeStore,
+            _state: &'s mut Self::State,
+        ) -> Result<Self::Arg<'w, 's>> {
+            Err("BogusArg test internal arg error".into())
         }
 
         fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
         }
     }
- }
+}

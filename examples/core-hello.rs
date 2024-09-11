@@ -12,6 +12,6 @@ fn main() {
     app.system(Core, || println!("Hello, world") );
 
     // evaluate all systems in the application
-    app.tick();
-    app.tick();
+    app.tick().unwrap();
+    app.tick().unwrap();
 }

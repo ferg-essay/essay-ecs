@@ -845,6 +845,6 @@ mod tests {
         meta.add_view(&columns)
     }
 
-    struct TestA(usize);
-    struct TestB(usize);
+    struct TestA(());
+    struct TestB(());
 }

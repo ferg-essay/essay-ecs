@@ -1,6 +1,10 @@
 use std::any::type_name;
 
-use crate::{store::Store, schedule::{SystemMeta, UnsafeStore}};
+use crate::{
+    error::Result,
+    store::Store, 
+    schedule::{SystemMeta, UnsafeStore}
+};
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);
@@ -12,12 +16,12 @@ pub trait System: Send + Sync + 'static {
         type_name::<Self>()
     }
 
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store);
+    fn init(&mut self, meta: &mut SystemMeta, store: &mut Store);
 
-    unsafe fn run_unsafe(&mut self, world: &UnsafeStore) -> Self::Out;
+    unsafe fn run_unsafe(&mut self, store: &UnsafeStore) -> Result<Self::Out>;
 
-    fn run(&mut self, world: &mut UnsafeStore) -> Self::Out {
-        unsafe { self.run_unsafe(&world) }
+    fn run(&mut self, store: &mut UnsafeStore) -> Result<Self::Out> {
+        unsafe { self.run_unsafe(&store) }
     }
 
     fn flush(&mut self, world: &mut Store);

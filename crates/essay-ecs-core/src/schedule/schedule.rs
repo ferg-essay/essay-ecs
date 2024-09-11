@@ -1,8 +1,9 @@
 use core::fmt;
 
-use std::{hash::{Hash, Hasher}, collections::HashMap, any::Any, sync::mpsc};
+use std::{hash::{Hash, Hasher}, collections::HashMap};
 
 use crate::{
+    error::Result,
     system::{SystemId, System}, 
     store::Store, 
     util::DynLabel, IntoSystemConfig};
@@ -99,7 +100,7 @@ impl Schedules {
         &mut self, 
         label: impl AsRef<dyn ScheduleLabel>, 
         world: &mut Store
-    ) -> Result<(), ScheduleErr> {
+    ) -> Result<()> {
         let schedule = self.schedule_map.get_mut(label.as_ref()).unwrap();
         
         schedule.tick(world)
@@ -175,7 +176,7 @@ impl Schedule {
     }
     */
 
-    pub fn tick(&mut self, world: &mut Store) -> Result<(), ScheduleErr> {
+    pub fn tick(&mut self, world: &mut Store) -> Result<()> {
         let mut is_init = false;
         while self.inner_mut().is_stale {
             self.inner_mut().is_stale = false;
@@ -196,9 +197,9 @@ impl Schedule {
 
         let executor = match &mut self.executor {
             Some(executor) => executor,
-            None => { panic!("missing executor"); }
+            None => { return Err(format!("missing executor\n\tin {}", module_path!()).into()); }
         };
-
+        
         let (exec_schedule, exec_world) = executor.run(exec_schedule, exec_world)?;
 
         self.replace(exec_schedule);
@@ -230,11 +231,15 @@ impl Schedule {
         self.inner_mut().flush(world);
     }
 
-    pub(crate) unsafe fn run_system(&self, id: SystemId, world: &mut UnsafeStore) {
-        self.inner().systems[id.index()].as_mut().run(world);
+    pub(crate) unsafe fn run_system(
+        &self, 
+        id: SystemId, 
+        world: &mut UnsafeStore
+    ) -> Result<()> {
+        self.inner().systems[id.index()].as_mut().run(world)
     }
 
-    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) {
+    pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) -> Result<()> {
         self.inner().run_unsafe(id, world)
     }
 
@@ -456,24 +461,16 @@ impl ScheduleInner {
     }
     */
 
-    unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) {
+    unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) -> Result<()> {
         if self.conditions[id.index()].iter()
             .fold(true, |v, cond| {
-            cond.as_mut().run_unsafe(world) && v
+            cond.as_mut().run_unsafe(world).unwrap() && v
         }) {
-            self.systems[id.index()].as_mut().run_unsafe(world);
+            self.systems[id.index()].as_mut().run_unsafe(world)
+        } else {
+            Ok(())
         }
     }
-}
-
-#[derive(Debug)]
-pub enum ScheduleErr {
-    Misc,
-    Err(Box<dyn Any + Send>),
-    RecvErr(mpsc::RecvError),
-    SendError,
-    ParentPanic,
-    ChildPanic,
 }
 
 struct PhaseSystem(PhaseId);
@@ -486,8 +483,8 @@ impl System for PhaseSystem {
         meta.set_marker();
     }
 
-    unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Self::Out {
-        panic!("PhaseSystem[{:?}] can't be called directly", self.0);
+    unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Result<Self::Out> {
+        Err(format!("PhaseSystem[{:?}] can't be called directly", self.0).into())
     }
 
     fn flush(&mut self, _world: &mut Store) {

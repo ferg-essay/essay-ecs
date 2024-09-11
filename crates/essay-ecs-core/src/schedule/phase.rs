@@ -483,7 +483,7 @@ mod tests {
             .phase(TestPhases::A),
         );
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(
             values.take(),

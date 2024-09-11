@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
-use crate::{store::Store, entity::{View, ComponentId}, 
+use crate::{
+    entity::{View, ComponentId}, 
+    error::Result,
     schedule::{SystemMeta, UnsafeStore},
+    store::Store,
     system::{System, IntoSystem},
 };
 
@@ -72,15 +75,17 @@ where
         self.state = Some(F::Params::init(meta, world))
     }
     
-    unsafe fn run_unsafe<'w>(&mut self, world: &UnsafeStore) {
+    unsafe fn run_unsafe<'w>(&mut self, world: &UnsafeStore) -> Result<()> {
         for entity in world.as_mut().view::<F::Item<'_>>() {
             let args = F::Params::arg(
                 world,
                 self.state.as_mut().unwrap(),
             );
     
-            self.fun.run(entity, args);
+            self.fun.run(entity, args?);
         }
+
+        Ok(())
     }
     
     fn flush(&mut self, world: &mut Store) {
@@ -150,7 +155,7 @@ mod tests {
 
         //let mut schedule = Schedule::new();
         //app.add_system(system_each_ref);
-        app.tick();
+        app.tick().unwrap();
         
         // let ptr = values.clone();
         assert_eq!(

@@ -686,7 +686,7 @@ mod test {
             ptr.push(format!("C]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A, A], [B, B], [C, [C, C], C]");
     }
@@ -717,7 +717,7 @@ mod test {
             ptr.push(format!("S-{}]", res.get()));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[S-test, [S-test, S-test], S-test]");
         
@@ -749,7 +749,7 @@ mod test {
             ptr.push(format!("B-{}]", res.get()));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A-test, A-test], [B-test, B-test]");
     }
@@ -782,7 +782,7 @@ mod test {
             ptr.push(format!("B-{}]", res.get()));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A-test, [B-10, B-10], A-test]");
     }
@@ -816,7 +816,7 @@ mod test {
             ptr.push("BC]");
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[AB, AB], [BC, BC]");
     }
@@ -861,7 +861,7 @@ mod test {
             ptr.push(format!("B]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A, A], [B, B], [C, [C, C], C]");
     }
@@ -892,7 +892,7 @@ mod test {
             ptr.push(format!("A]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A, [A, A], A]");
         
@@ -924,7 +924,7 @@ mod test {
             ptr.push(format!("B]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A, A], [B, B]");
         
@@ -957,7 +957,7 @@ mod test {
             ptr.push(format!("S]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[S, S], [S, S]");
         
@@ -1004,7 +1004,7 @@ mod test {
             ptr.push(format!("C]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A, A], [B, B], [C, [C, C], C]");
         
@@ -1038,7 +1038,7 @@ mod test {
             ptr.push(format!("B]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(values.take(), "[A, A], [B, B]");
     }

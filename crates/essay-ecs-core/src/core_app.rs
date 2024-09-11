@@ -1,9 +1,10 @@
 use essay_ecs_core_macros::ScheduleLabel;
 
 use crate::{
-    Store, Schedule, IntoSystemConfig, 
-    schedule::{ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeStore}, 
     entity::{View, ViewIterator}, 
+    error::Result,
+    schedule::{ScheduleLabel, SystemMeta, ExecutorFactory, UnsafeStore}, 
+    Store, Schedule, IntoSystemConfig, 
     Schedules, IntoSystem, 
     system::System, store::FromStore, IntoPhaseConfigs,
 };
@@ -114,7 +115,7 @@ impl CoreApp {
         
         let mut store = UnsafeStore::new(self.store.take());
         system.init(&mut meta, &mut store);
-        system.run(&mut store);
+        system.run(&mut store).unwrap();
         system.flush(&mut store);
 
         self.store.replace(store.take());
@@ -122,14 +123,12 @@ impl CoreApp {
         self
     }
 
-    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> O {
+    pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> Result<O> {
         self.store.eval(into_system)
     }
 
-    pub fn tick(&mut self) -> &mut Self {
-        self.store.run_schedule(&self.main_schedule);
-
-        self
+    pub fn tick(&mut self) -> Result<()> {
+        self.store.run_schedule(&self.main_schedule)
     }
 
     pub fn set_executor(&mut self, executor: impl ExecutorFactory + 'static) -> &mut Self {
@@ -154,4 +153,19 @@ impl Default for CoreApp {
 
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct Core;
+
+#[cfg(test)]
+mod test {
+    use super::{Core, CoreApp};
+
+    #[test]
+    fn test_schedule() {
+        let mut app = CoreApp::new();
+
+        app.system(Core, || println!("tick!"));
+
+        app.tick().unwrap();
+
+    }
+}
 

@@ -5,5 +5,5 @@ pub fn main() {
 
     app.system(Update, || println!("Hello"));
 
-    app.tick();
+    app.tick().unwrap();
 }

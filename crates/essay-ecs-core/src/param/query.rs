@@ -1,6 +1,11 @@
 use std::marker::PhantomData;
 
-use crate::{entity::{View, ViewPlan, ComponentId, ViewIterator}, schedule::{SystemMeta, UnsafeStore}, Store};
+use crate::{
+    entity::{View, ViewPlan, ComponentId, ViewIterator}, 
+    error::Result,
+    schedule::{SystemMeta, UnsafeStore}, 
+    Store
+};
 
 use super::Param;
 
@@ -48,8 +53,8 @@ impl<Q:View> Param for Query<'_, '_, Q>
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
         state: &'s mut Self::State, 
-    ) -> Self::Arg<'w, 's> {
-        Query::new(world, state)
+    ) -> Result<Self::Arg<'w, 's>> {
+        Ok(Query::new(world, state))
     }
 }
 
@@ -73,24 +78,24 @@ mod test {
             }
         });
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&values), "");
 
         app.run_system(|mut c: Commands| { 
             c.spawn(TestA(10));
         });
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&values), "TestA(10)");
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&values), "TestA(10)");
 
         app.run_system(|mut c: Commands| { 
             c.spawn(TestA(20));
         });
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&values), "TestA(10), TestA(20)");
         
     }
@@ -131,7 +136,7 @@ mod test {
             push(&ptr, format!("B]"));
         });
 
-        app.tick();
+        app.tick().unwrap();
 
         assert_eq!(take(&values), "[A, A], [B, B], [C, [C, C], C]");
     }

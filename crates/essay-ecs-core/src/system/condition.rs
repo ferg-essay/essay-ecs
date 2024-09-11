@@ -21,10 +21,10 @@ mod test {
             .run_if(run_false)
         );
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&values), "system-true");
 
-        app.tick();
+        app.tick().unwrap();
         assert_eq!(take(&values), "system-true");
     }
 

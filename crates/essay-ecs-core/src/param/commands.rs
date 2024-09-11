@@ -1,4 +1,9 @@
-use crate::{store::{CommandQueue, Commands}, schedule::{SystemMeta, UnsafeStore}, Store};
+use crate::{
+    error::Result,
+    store::{CommandQueue, Commands}, 
+    schedule::{SystemMeta, UnsafeStore}, 
+    Store
+};
 
 use super::Param;
 
@@ -13,8 +18,8 @@ impl Param for Commands<'_, '_> {
     fn arg<'w,'s>(
         world: &'w UnsafeStore,
         queue: &'s mut Self::State, 
-    ) -> Self::Arg<'w, 's> {
-        unsafe { Commands::new(world.as_mut(), queue) }
+    ) -> Result<Self::Arg<'w, 's>> {
+        unsafe { Ok(Commands::new(world.as_mut(), queue)) }
     }
 
     fn flush(world: &mut Store, queue: &mut Self::State) {
