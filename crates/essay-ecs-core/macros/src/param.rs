@@ -3,9 +3,9 @@
 use proc_macro::{self};
 // use proc_macro2::Span;
 use syn::{
-    parse_macro_input, spanned::Spanned, DataStruct, DeriveInput, Fields, Ident, Type
+    parse_macro_input, spanned::Spanned, DataStruct, DeriveInput, Fields, Generics, Ident, ImplGenerics, Type
 };
-use quote::{quote, __private::TokenStream};
+use quote::{__private::TokenStream, format_ident, quote};
 
 
 pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -51,26 +51,30 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             return syn::Error::new(span, "tuples currently unsupported").into_compile_error().into();
         },
         Fields::Unit => {
-            Vec::new()
-            // return syn::Error::new(span, "unit field unknown").into_compile_error().into();
+            //Vec::new()
+            return syn::Error::new(span, "unit field unknown").into_compile_error().into();
         }
     };
 
-    let ecs = "essay_ecs_core";
     let ident = ast.ident.clone();
     // let generics = ast.generics;
+
+    let ty_impl_w1 = strip_generics(&ast.generics);
+    let ty_gen_w1 = rename_generics(&ast.generics);
 
     let state_types = state_types(&fields);
     let state_init = state_init(&fields);
 
-    let arg_types = arg_types(&fields);
+    // let arg_types = arg_types(&fields);
     let arg_fields = arg_fields(&fields);
+    
+    //return syn::Error::new(span, format!("Test {:#?}", state_init)).into_compile_error().into();
 
     quote! {
         const _: () = {
             struct __State<'w, 's> {
-                #state_types
-                marker: PhantomData<(&'w bool, &'s u8)>,
+                #(#state_types)*
+                marker: PhantomData<(&'w u8, &'s u8)>,
             }
 
             fn __state_init<'w, 's>(
@@ -78,12 +82,12 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 store: &mut essay_ecs_core::store::Store
             ) -> __State<'w, 's> {
                 __State {
-                    #state_init
+                    #(#state_init)*
                     marker: PhantomData::default(),
                 }
             }
 
-            impl #impl_gen essay_ecs_core::param::Param for #ident #ty_gen {
+            impl <#(#ty_impl_w1)*> essay_ecs_core::param::Param for #ident <#(#ty_gen_w1)*> {
                 type State = __State<'static, 'static>;
                 type Arg<'w, 's> = #ident #ty_gen;
 
@@ -97,13 +101,33 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     store: &'w essay_ecs_core::schedule::UnsafeStore,
                     state: &'s mut Self::State, 
                 ) -> essay_ecs_core::error::Result<Self::Arg<'w, 's>> {
-                    Ok(Self {
-                        #arg_fields
+                    Ok(#ident {
+                        #(#arg_fields)*
                     })
                 }
             }
         };
     }.into()
+}
+
+fn rename_generics(gen: &Generics) -> Vec<TokenStream> {
+    gen.params.iter().map(|g| {
+        match g {
+            syn::GenericParam::Lifetime(_) => quote! {'_, },
+            syn::GenericParam::Type(ty) => quote! {#ty, },
+            syn::GenericParam::Const(ty) => quote! { #ty, },
+        }
+    }).collect()
+}
+
+fn strip_generics(gen: &Generics) -> Vec<TokenStream> {
+    gen.params.iter().map(|g| {
+        match g {
+            syn::GenericParam::Lifetime(_) => quote! { },
+            syn::GenericParam::Type(ty) => quote! {#ty, },
+            syn::GenericParam::Const(ty) => quote! { #ty, },
+        }
+    }).collect()
 }
 
 struct ParamField {
@@ -112,26 +136,24 @@ struct ParamField {
     ty: Type,
 }
 
-fn state_types(fields: &Vec<ParamField>) -> TokenStream {
-    let iter = fields.iter().map(|field| {
+fn state_types(fields: &Vec<ParamField>) -> Vec<TokenStream> {
+    fields.iter().map(|field| {
         let ParamField{index, ty, ..} = field;
-        let name = format!("f_{index}");
+        let name = format_ident!("f_{index}");
 
-        quote! { #name: <#ty as Param>::State, }
-    });
+        quote! { #name: <#ty as essay_ecs_core::param::Param>::State, }
+    }).collect()
 
-    quote! { #(#iter)* }
+    // quote! { #(#iter)* }
 }
 
-fn state_init(fields: &Vec<ParamField>) -> TokenStream {
-    let iter = fields.iter().map(|field| {
+fn state_init(fields: &Vec<ParamField>) -> Vec<TokenStream> {
+    fields.iter().map(|field| {
         let ParamField{index, ty, ..} = field;
-        let name = format!("f_{index}");
+        let name = format_ident!("f_{index}");
 
-        quote! { #name: <#ty as Param>::State::init(meta, store), }
-    });
-
-    quote! { #(#iter)* }
+        quote! { #name: <#ty as essay_ecs_core::param::Param>::State::init(meta, store), }
+    }).collect()
 }
 
 fn arg_types(fields: &Vec<ParamField>) -> TokenStream {
@@ -144,14 +166,13 @@ fn arg_types(fields: &Vec<ParamField>) -> TokenStream {
     quote! { #(#iter)* }
 }
 
-fn arg_fields(fields: &Vec<ParamField>) -> TokenStream {
-    let iter = fields.iter().map(|field| {
+fn arg_fields(fields: &Vec<ParamField>) -> Vec<TokenStream> {
+    fields.iter().map(|field| {
         let ParamField { ident, index, ty } = field;
-        let v_state = format!("f_{index}");
+        let var = format_ident!("f_{index}");
         
-        quote! { #ident: <#ty as Param>::Arg<'w, 's>::arg(store, state.#v_state)?, }
-    });
-
-    quote! { #(#iter)* }
+         //quote! { #ident: <#ty as essay_ecs_core::param::Param>::Arg::<'w, 's>::arg(store, &mut state.#var)?, }
+        quote! { #ident: <#ty as essay_ecs_core::param::Param>::Arg::<'w, 's>::arg(store, &mut state.#var)?, }
+    }).collect()
 }
 

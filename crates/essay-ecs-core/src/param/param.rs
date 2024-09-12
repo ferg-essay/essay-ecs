@@ -141,15 +141,26 @@ mod test {
     }
 
     #[test]
-    fn test_derive_param_resource() {
+    fn test_derive_param_resource() -> Result<()> {
         let mut app = CoreApp::new();
 
         assert_eq!(
-            "hello",
+            "resource is unassigned: alloc::string::String\n\tin essay_ecs_core::param::param::test::test_derive_param_resource::{{closure}}",
             app.eval(|param: ResourceParam| {
-                param.message()
-            }).unwrap()
+                param.value()
+            }).unwrap_err().message()
         );
+
+        app.insert_resource("string-resource".to_string());
+
+        assert_eq!(
+            "string-resource",
+            app.eval(|param: ResourceParam| {
+                param.value()
+            })?
+        );
+
+        Ok(())
     }
 
     #[derive(Debug)]
@@ -181,7 +192,7 @@ mod test {
     }
  
     #[derive(Param)]
-    struct NullParam; // {}
+    struct NullParam {}
 
     impl NullParam {
         fn message(&self) -> String {
@@ -189,17 +200,18 @@ mod test {
         }
     }
 
-    // #[derive(Param)]
+    #[derive(Param)]
     struct ResourceParam<'w> {
         string: Res<'w, String>,
     }
 
     impl ResourceParam<'_> {
-        fn message(&self) -> String {
-            "hello".to_string()
+        fn value(&self) -> String {
+            self.string.get().clone()
         }
     }
 
+    /*
     const _: () = {
     struct __PState<'w, 's> {
         v0: <Res::<'w, String> as Param>::State,
@@ -213,7 +225,8 @@ mod test {
         }
     }
 
-    impl<'w1> Param for ResourceParam<'w1> {
+    //impl<'w1> Param for ResourceParam<'w1> {
+    impl Param for ResourceParam<'_> {
         type Arg<'w, 's> = ResourceParam<'w>;
         type State = __PState<'static, 'static>;
 
@@ -222,10 +235,10 @@ mod test {
             state: &'s mut Self::State,
         ) -> Result<Self::Arg<'w, 's>> {
             //let v0: Res<'w, String> = <Res<String> as Param>::Arg::<'w, 's>::arg(store, &mut state.v0)?;
-            let v0: Res<'w, String> = <Res<'w, String> as Param>::Arg::<'w, 's>::arg(store, &mut state.v0)?;
+            //let v0: Res<'w, String> = <Res<'w, String> as Param>::Arg::<'w, 's>::arg(store, &mut state.v0)?;
 
             Ok(ResourceParam {
-                string: v0,
+                string: <Res<'w, String> as Param>::Arg::<'w, 's>::arg(store, &mut state.v0)?,
             })
         }
 
@@ -238,4 +251,6 @@ mod test {
         }
     }
 };
+*/
+
 }

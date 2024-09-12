@@ -1,4 +1,4 @@
-use std::ops::{Deref, DerefMut};
+use std::{any::type_name, ops::{Deref, DerefMut}};
 
 use crate::{
     error::Result,
@@ -27,9 +27,13 @@ impl<T:Send+'static> Param for Res<'_, T> {
         store: &'w UnsafeStore,
         _state: &'s mut Self::State,
     ) -> Result<Res<'w, T>> {
-        Ok(Res {
-            value: store.get_resource::<T>().unwrap(),
-        })
+        if let Some(value) = store.get_resource::<T>() {
+            Ok(Res {
+                value,
+            })
+        } else {
+            Err(format!("resource is unassigned: {}", type_name::<T>()).into())
+        }
     }
 
     fn init(meta: &mut SystemMeta, store: &mut Store) -> Self::State {
