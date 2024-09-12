@@ -191,8 +191,26 @@ impl Store {
             .insert(label, schedule);
     }
 
+    pub fn contains_schedule(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>,
+    ) -> bool {
+        self.resource_mut::<Schedules>()
+            .contains(label)
+    }
+
     pub fn run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<()> {
         self.try_run_schedule(label)
+    }
+
+    pub fn run_schedule_optional(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<()> {
+        let label = label.as_ref();
+
+        if self.contains_schedule(label) {
+            self.try_run_schedule(label)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn try_run_schedule(&mut self, label: impl AsRef<dyn ScheduleLabel>) -> Result<()> {
@@ -212,7 +230,7 @@ impl Store {
             = self.get_resource_mut::<Schedules>()
                 .and_then(|s| s.remove_entry(label))
         else {
-            return Err(format!("{:?} is an unknown label", label).into());
+            return Err(format!("{:?} is an unknown ScheduleLabel", label).into());
         };
 
         let value = fun(self, &mut schedule)?;

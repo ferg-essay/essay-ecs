@@ -54,6 +54,13 @@ impl Schedules {
         self.schedule_map.insert(label.as_ref().box_clone(), schedule)
     }
 
+    pub fn contains(
+        &mut self, 
+        label: impl AsRef<dyn ScheduleLabel>, 
+    ) -> bool {
+        self.schedule_map.contains_key(label.as_ref())
+    }
+
     pub fn remove(
         &mut self, 
         label: &dyn ScheduleLabel
