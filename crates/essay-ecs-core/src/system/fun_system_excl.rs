@@ -31,9 +31,9 @@ pub type ArgExcl<'s, P> = <P as ParamExcl>::Arg<'s>;
 // FunctionSystem - a system implemented by a function
 // 
 
-pub struct WorldFunSystem<F, R, M>
+pub struct FunSystemExcl<F, R, M>
 where
-    F: WorldFun<R, M> + Send + Sync + 'static,
+    F: FunExcl<R, M> + Send + Sync + 'static,
     R: Send + Sync + 'static,
     M: Send + Sync + 'static,
 {
@@ -42,19 +42,19 @@ where
     marker: PhantomData<(R, M)>,
 }
 
-pub trait WorldFun<R, M> : Send + Sync + 'static {
+pub trait FunExcl<R, M> : Send + Sync + 'static {
     type Params: ParamExcl;
 
-    fn run(&mut self, world: &mut Store, arg: ArgExcl<Self::Params>) -> R;
+    fn run(&mut self, world: &mut Store, arg: ArgExcl<Self::Params>) -> Result<R>;
 }
 
 //
 // Implementation
 //
 
-impl<F, R:'static, M> System for WorldFunSystem<F, R, M>
+impl<F, R:'static, M> System for FunSystemExcl<F, R, M>
 where
-    F: WorldFun<R, M> + Send + Sync + 'static,
+    F: FunExcl<R, M> + Send + Sync + 'static,
     R: Send + Sync + 'static,
     M: Send + Sync + 'static,
 {
@@ -72,7 +72,7 @@ where
             self.state.as_mut().unwrap(),
         );
 
-        Ok(self.fun.run(world, arg))
+        self.fun.run(world, arg)
     }
 
     unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Result<Self::Out> {
@@ -86,14 +86,14 @@ where
 
 impl<F:'static, R:'static, M:'static> IntoSystem<R, fn(M,IsWorld)> for F
 where
-    F: WorldFun<R,M> + Send + Sync + 'static,
+    F: FunExcl<R,M> + Send + Sync + 'static,
     R: Send + Sync + 'static,
     M: Send + Sync + 'static
 {
-    type System = WorldFunSystem<F, R, M>;
+    type System = FunSystemExcl<F, R, M>;
 
     fn into_system(this: Self) -> Self::System {
-        WorldFunSystem {
+        FunSystemExcl {
             fun: this,
             state: None,
             marker: Default::default()
@@ -108,14 +108,14 @@ where
 macro_rules! impl_excl_function {
     ($($param:ident),*) => {
         #[allow(non_snake_case)]
-        impl<F, R, $($param: ParamExcl,)*> WorldFun<R, fn(IsWorld,$($param,)*)> for F
-        where F:FnMut(&mut Store, $($param,)*) -> R + Send + Sync + 'static +
-            FnMut(&mut Store, $(ArgExcl<$param>,)*) -> R,
+        impl<F, R, $($param: ParamExcl,)*> FunExcl<R, fn(IsWorld,$($param,)*)> for F
+        where F:FnMut(&mut Store, $($param,)*) -> Result<R> + Send + Sync + 'static +
+            FnMut(&mut Store, $(ArgExcl<$param>,)*) -> Result<R>,
             R: Send + Sync + 'static
         {
             type Params = ($($param,)*);
 
-            fn run(&mut self, world: &mut Store, arg: ArgExcl<($($param,)*)>) -> R {
+            fn run(&mut self, world: &mut Store, arg: ArgExcl<($($param,)*)>) -> Result<R> {
                 let ($($param,)*) = arg;
                 self(world, $($param,)*)
             }
@@ -182,8 +182,7 @@ macro_rules! impl_param_excl_tuple {
     }
 }
 
-impl ParamExcl for ()
-{
+impl ParamExcl for () {
     type Arg<'s> = ();
     type State = ();
 

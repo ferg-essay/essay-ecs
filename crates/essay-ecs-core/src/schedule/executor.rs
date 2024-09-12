@@ -55,6 +55,27 @@ impl Default for Box<dyn ExecutorFactory> {
 }
 struct SingleExecutor(Plan);
 
+impl SingleExecutor {
+    fn run_inner(
+        &mut self,
+        schedule: &mut Schedule,
+        store: &mut UnsafeStore
+    ) -> Result<()> {
+        for id in self.0.order() {
+            let meta = schedule.meta(*id);
+
+            if meta.is_marker() {
+                schedule.flush(store);
+            }
+            else {
+                unsafe { schedule.run_system(*id, store)?; }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl Executor for SingleExecutor {
     fn run(
         &mut self, 
@@ -63,6 +84,8 @@ impl Executor for SingleExecutor {
     ) -> Result<(Schedule, Store)> {
         let mut world = UnsafeStore::new(world);
 
+        self.run_inner(&mut schedule, &mut world)?;
+        /*
         for id in self.0.order() {
             let meta = schedule.meta(*id);
 
@@ -73,6 +96,7 @@ impl Executor for SingleExecutor {
                 unsafe { schedule.run_system(*id, &mut world)?; }
             }
         }
+        */
 
         Ok((schedule, world.take()))
     }

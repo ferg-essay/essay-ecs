@@ -58,8 +58,6 @@ where
     }
 
     unsafe fn run_unsafe(&mut self, store: &UnsafeStore) -> Result<Self::Out> {
-        // Ok(self.fun.run(F::Param::arg(store, self.state.as_mut().unwrap())?))
-
         match F::Param::arg(store, self.state.as_mut().unwrap()) {
             Ok(arg) => {
                 Ok(self.fun.run(arg))

@@ -207,7 +207,7 @@ impl Schedule {
             None => { return Err(format!("missing executor\n\tin {}", module_path!()).into()); }
         };
         
-        let (exec_schedule, exec_world) = executor.run(exec_schedule, exec_world)?;
+        let (exec_schedule, exec_world)= executor.run(exec_schedule, exec_world)?;
 
         self.replace(exec_schedule);
         world.replace(exec_world);

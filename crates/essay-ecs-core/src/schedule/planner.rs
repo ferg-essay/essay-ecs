@@ -663,6 +663,7 @@ mod test {
             ptr.push(format!("[A"));
             thread::sleep(Duration::from_millis(100));
             ptr.push(format!("A]"));
+            Ok(())
         });
         
         let mut ptr = values.clone();
@@ -670,6 +671,7 @@ mod test {
             ptr.push(format!("[B"));
             thread::sleep(Duration::from_millis(100));
             ptr.push(format!("B]"));
+            Ok(())
         });
         
         let mut ptr = values.clone();

@@ -33,6 +33,10 @@ impl Store {
         self.0.as_mut().unwrap()
     }
 
+    fn is_active(&self) -> bool {
+        self.0.is_some()
+    }
+
     //
     // Entities
     //
@@ -224,6 +228,10 @@ impl Store {
         label: impl AsRef<dyn ScheduleLabel>,
         fun: impl FnOnce(&mut Store, &mut Schedule) -> Result<R>
     ) -> Result<R> {
+        if ! self.is_active() {
+            return Err("store is closed, possibly from a previous fatal error".into())
+        }
+
         let label = label.as_ref();
 
         let Some((label, mut schedule))

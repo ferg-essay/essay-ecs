@@ -19,7 +19,7 @@ use super::{plugin::{Plugins, Plugin}, main_schedule::MainSchedulePlugin, Main};
 use essay_ecs_core::entity::{Bundle, EntityId};
 
 pub struct App {
-    world: Store,
+    store: Store,
     plugins: Plugins,
     main_schedule: Box<dyn ScheduleLabel>,
     runner: Box<dyn FnOnce(App) -> Result<()> + Send>,
@@ -39,7 +39,7 @@ impl App {
         world.init_resource::<Schedules>();
 
         App {
-            world: world,
+            store: world,
             plugins: Plugins::default(),
             main_schedule: Box::new(Main),
             runner: Box::new(run_once),
@@ -87,57 +87,57 @@ impl App {
     //
 
     pub fn insert_resource<T: Send + 'static>(&mut self, value: T) {
-        self.world.insert_resource(value);
+        self.store.insert_resource(value);
     }
 
     pub fn init_resource<T: FromStore + Send + 'static>(&mut self) -> &mut Self {
-        self.world.init_resource::<T>();
+        self.store.init_resource::<T>();
 
         self
     }
 
     pub fn contains_resource<T: Send + 'static>(&self) -> bool {
-        self.world.contains_resource::<T>()
+        self.store.contains_resource::<T>()
     }
 
     pub fn get_resource<T:Send + 'static>(&self) -> Option<&T> {
-        self.world.get_resource::<T>()
+        self.store.get_resource::<T>()
     }
 
     pub fn get_mut_resource<T:Send + 'static>(&mut self) -> Option<&mut T> {
-        self.world.get_resource_mut::<T>()
+        self.store.get_resource_mut::<T>()
     }
 
     pub fn resource<T: Send + 'static>(&self) -> &T {
-        match self.world.get_resource::<T>() {
+        match self.store.get_resource::<T>() {
             Some(value) => value,
             None => panic!("unassigned resource {:?}", type_name::<T>()),
         }
     }
 
     pub fn resource_mut<T: Send + 'static>(&mut self) -> &mut T {
-        match self.world.get_resource_mut::<T>() {
+        match self.store.get_resource_mut::<T>() {
             Some(value) => value,
             None => panic!("unassigned resource {:?}", type_name::<T>()),
         }
     }
 
     pub fn remove_resource<T: 'static>(&mut self) -> Option<T> {
-        self.world.remove_resource()
+        self.store.remove_resource()
     }
 
     pub fn insert_resource_non_send<T: 'static>(&mut self, value: T) {
-        self.world.insert_resource_non_send(value);
+        self.store.insert_resource_non_send(value);
     }
 
     pub fn init_resource_non_send<T: FromStore + 'static>(&mut self) -> &mut Self {
-        self.world.init_resource_non_send::<T>();
+        self.store.init_resource_non_send::<T>();
 
         self
     }
 
     pub fn remove_resource_non_send<T: 'static>(&mut self) -> Option<T> {
-        self.world.remove_resource_non_send()
+        self.store.remove_resource_non_send()
     }
 
     //
@@ -145,7 +145,7 @@ impl App {
     //
 
     pub fn event<E: Event>(&mut self) -> &mut Self {
-        if ! self.world.contains_resource::<Events<E>>() {
+        if ! self.store.contains_resource::<Events<E>>() {
             self.init_resource::<Events<E>>()
                 .system(First, Events::<E>::update);
         }
@@ -217,13 +217,13 @@ impl App {
         label: impl AsRef<dyn ScheduleLabel>, 
         schedule: Schedule
     ) -> &mut Self {
-        self.world.add_schedule(label, schedule);
+        self.store.add_schedule(label, schedule);
 
         self
     }
 
     pub fn tick(&mut self) -> Result<()> {
-        self.world.run_schedule(&self.main_schedule)
+        self.store.run_schedule(&self.main_schedule)
     }
 
     pub fn runner(&mut self, runner: impl FnOnce(App) -> Result<()> + 'static + Send) -> &mut Self {
@@ -241,12 +241,12 @@ impl App {
     }
 
     pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> Result<O> {
-        self.world.eval(into_system)
+        self.store.eval(into_system)
     }
 
     #[cfg(test)]
     pub fn spawn<T: Bundle>(&mut self, value: T) -> EntityId {
-        self.world.spawn(value)
+        self.store.spawn(value)
     }
 }
 
@@ -274,7 +274,7 @@ fn run_once(mut app: App) -> Result<()> {
 mod tests {
     use std::sync::{Mutex, Arc};
 
-    use essay_ecs_core::{Commands, Component, Res};
+    use essay_ecs_core::{Commands, Component, Res, Store};
 
     use crate::{app::{app::App, Update, Startup}, event::{Event, OutEvent, InEvent}, PreUpdate};
 
@@ -428,6 +428,19 @@ mod tests {
         app.insert_resource(TestA(11));
 
         assert_eq!(11, app.eval(|test: Res<TestA>| test.0).unwrap());
+    }
+
+    #[test]
+    fn tick_with_error() {
+        let mut app = App::new();
+
+        app.system(Update, |_store: &mut Store| Err("test-error".into()));
+
+        assert!(app.tick().is_err());
+        assert!(app.tick().is_err());
+        assert!(app.tick().is_err());
+        assert_eq!("test-error", app.tick().unwrap_err().message());
+        // assert!(app.tick().is_err());
     }
 
     #[derive(Component)]

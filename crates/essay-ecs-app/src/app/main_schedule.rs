@@ -1,4 +1,8 @@
-use essay_ecs_core::{ScheduleLabel, schedule::{ScheduleLabel, Executors}, Store, Local, Schedule};
+use essay_ecs_core::{ScheduleLabel, 
+    error::Result, 
+    schedule::{ScheduleLabel, Executors}, 
+    Store, Local, Schedule
+};
 
 use super::{plugin::Plugin, App};
 
@@ -9,22 +13,24 @@ use ecs as essay_ecs;
 pub struct Main;
 
 impl Main {
-    fn main_system(world: &mut Store, mut is_init: Local<bool>) {
+    fn main_system(store: &mut Store, mut is_init: Local<bool>) -> Result<()> {
         if ! *is_init {
             *is_init = true;
-            let _ = world.try_run_schedule(PreStartup);
-            let _ = world.try_run_schedule(Startup);
-            let _ = world.try_run_schedule(PostStartup);
+            store.run_schedule_optional(PreStartup)?;
+            store.run_schedule_optional(Startup)?;
+            store.run_schedule_optional(PostStartup)?;
         }
 
-        let labels : Vec<Box<dyn ScheduleLabel>> = world
+        let labels : Vec<Box<dyn ScheduleLabel>> = store
             .resource::<MainSchedule>().schedules
             .iter()
             .map(|x| x.box_clone())
             .collect();
         for label in labels {
-            let _ = world.try_run_schedule(label);
+            store.run_schedule_optional(label)?;
         }
+
+        Ok(())
     }
 }
 
