@@ -1,9 +1,6 @@
-//use proc_macro::TokenStream;
-
 use proc_macro::{self};
-// use proc_macro2::Span;
 use syn::{
-    parse_macro_input, spanned::Spanned, DataStruct, DeriveInput, Fields, Generics, Ident, ImplGenerics, Type
+    parse_macro_input, spanned::Spanned, DataStruct, DeriveInput, Fields, Generics, Ident, Type
 };
 use quote::{__private::TokenStream, format_ident, quote};
 
@@ -11,24 +8,13 @@ use quote::{__private::TokenStream, format_ident, quote};
 pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
-    /*
-    let DeriveInput {
-        ident,
-        data,
-        generics,
-        attrs,
-        vis,
-    } = ast;
-     */
-
-    let (impl_gen, ty_gen, where_gen) = ast.generics.split_for_impl();
+    let (_, ty_gen, _) = ast.generics.split_for_impl();
 
     let span = ast.span();
 
     let DataStruct {
-        struct_token,
         fields,
-        semi_token,
+        ..
     } = match ast.data {
         syn::Data::Struct(data) => data,
         syn::Data::Enum(_) => {
@@ -42,7 +28,7 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             fields.named.iter().enumerate().map(|(index, field)| {
                 ParamField {
                     ident: field.ident.clone(),
-                    index,
+                    var: format_ident!("f_{index}"),
                     ty: field.ty.clone(),
                 }
             }).collect()
@@ -132,46 +118,30 @@ fn strip_generics(gen: &Generics) -> Vec<TokenStream> {
 
 struct ParamField {
     ident: Option<Ident>,
-    index: usize,
+    var: Ident,
     ty: Type,
 }
 
 fn state_types(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
-        let ParamField{index, ty, ..} = field;
-        let name = format_ident!("f_{index}");
+        let ParamField{var, ty, ..} = field;
 
-        quote! { #name: <#ty as essay_ecs_core::param::Param>::State, }
+        quote! { #var: <#ty as essay_ecs_core::param::Param>::State, }
     }).collect()
-
-    // quote! { #(#iter)* }
 }
 
 fn state_init(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
-        let ParamField{index, ty, ..} = field;
-        let name = format_ident!("f_{index}");
+        let ParamField{var, ty, ..} = field;
 
-        quote! { #name: <#ty as essay_ecs_core::param::Param>::State::init(meta, store), }
+        quote! { #var: <#ty as essay_ecs_core::param::Param>::State::init(meta, store), }
     }).collect()
-}
-
-fn arg_types(fields: &Vec<ParamField>) -> TokenStream {
-    let iter = fields.iter().map(|field| {
-        let ParamField { ident, index, ty } = field;
-
-        quote! { <#ty as Param>::Arg<'w, 's>>, }
-    });
-
-    quote! { #(#iter)* }
 }
 
 fn arg_fields(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
-        let ParamField { ident, index, ty } = field;
-        let var = format_ident!("f_{index}");
+        let ParamField { ident, var, ty } = field;
         
-         //quote! { #ident: <#ty as essay_ecs_core::param::Param>::Arg::<'w, 's>::arg(store, &mut state.#var)?, }
         quote! { #ident: <#ty as essay_ecs_core::param::Param>::Arg::<'w, 's>::arg(store, &mut state.#var)?, }
     }).collect()
 }

@@ -2,9 +2,6 @@ use essay_ecs_core::{ScheduleLabel, schedule::{ScheduleLabel, Executors}, Store,
 
 use super::{plugin::Plugin, App};
 
-mod essay_ecs { pub mod core { pub use essay_ecs_core::*; }}
-
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ScheduleLabel)]
 pub struct Main;
 
@@ -91,8 +88,6 @@ mod tests {
 
     use crate::app::{App, Update, Startup, main_schedule::{PostStartup, PreStartup, First, PreUpdate, PostUpdate, Last}};
 
-    mod essay_ecs { pub mod core { pub use essay_ecs_core::*; }}
-    
     #[test]
     fn app_hello() {
         let mut app = App::new();
