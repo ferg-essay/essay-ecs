@@ -8,16 +8,16 @@ use super::Param;
 
 impl Param for &Store {
     type Arg<'w, 's> = &'w Store;
-    type State = ();
+    type Local = ();
 
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
-        _state: &'s mut Self::State,
+        _state: &'s mut Self::Local,
     ) -> Result<Self::Arg<'w, 's>> {
         Ok(world)
     }
 
-    fn init(meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::State> {
+    fn init(meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::Local> {
         meta.set_exclusive();
 
         Ok(())

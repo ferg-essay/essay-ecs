@@ -21,7 +21,7 @@ where
     F: Fun<M>
 {
     fun: F,
-    state: Option<<F::Param as Param>::State>,
+    state: Option<<F::Param as Param>::Local>,
 
     name: String,
     marker: PhantomData<fn() -> M>,
@@ -284,11 +284,11 @@ mod tests {
 
     impl<V> Param for TestArg<V> {
         type Arg<'w, 's> = TestArg<V>;
-        type State = ();
+        type Local = ();
 
         fn arg<'w, 's>(
             _store: &'w UnsafeStore,
-            _state: &'s mut Self::State,
+            _state: &'s mut Self::Local,
         ) -> Result<Self::Arg<'w, 's>> {
             Ok(Self {
                 name: type_name::<V>().to_string(),
@@ -296,7 +296,7 @@ mod tests {
             })
         }
 
-        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::State> {
+        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::Local> {
             Ok(())
         }
     }
@@ -307,16 +307,16 @@ mod tests {
 
     impl Param for BogusArg {
         type Arg<'w, 's> = BogusArg;
-        type State = ();
+        type Local = ();
 
         fn arg<'w, 's>(
             _world: &'w UnsafeStore,
-            _state: &'s mut Self::State,
+            _state: &'s mut Self::Local,
         ) -> Result<Self::Arg<'w, 's>> {
             Err("BogusArg test internal arg error".into())
         }
 
-        fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::State> {
+        fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::Local> {
             Ok(())
         }
     }

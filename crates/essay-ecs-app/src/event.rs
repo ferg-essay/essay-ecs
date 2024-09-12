@@ -140,12 +140,12 @@ pub trait Event : Send + Sync + 'static {}
 impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
     type Arg<'w1, 's1> = InEvent<'w1, 's1, E>;
 
-    type State = (
-        <Res<'w, Events<E>> as Param>::State, 
-        <Local<'s, InEventCursor<E>> as Param>::State
+    type Local = (
+        <Res<'w, Events<E>> as Param>::Local, 
+        <Local<'s, InEventCursor<E>> as Param>::Local
     );
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
         Ok((
             Res::<Events<E>>::init(meta, world)?,
             Local::<InEventCursor<E>>::init(meta, world)?
@@ -154,7 +154,7 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
 
     fn arg<'w1, 's1>(
         world: &'w1 UnsafeStore,
-        state: &'s1 mut Self::State, 
+        state: &'s1 mut Self::Local, 
     ) -> Result<Self::Arg<'w1, 's1>> {
         let (e_st, c_st) = state;
 
@@ -170,15 +170,15 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
 impl<'w, E: Event> Param for OutEvent<'w, E> {
     type Arg<'w1, 's1> = OutEvent<'w1, E>;
 
-    type State = <ResMut<'w, Events<E>> as Param>::State;
+    type Local = <ResMut<'w, Events<E>> as Param>::Local;
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
         ResMut::<Events<E>>::init(meta, world)
     }
 
     fn arg<'w1, 's1>(
         world: &'w1 UnsafeStore,
-        state: &'s1 mut Self::State, 
+        state: &'s1 mut Self::Local, 
     ) -> Result<Self::Arg<'w1, 's1>> {
 
         Ok(OutEvent {

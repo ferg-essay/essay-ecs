@@ -33,10 +33,10 @@ impl<'s, T:FromStore> DerefMut for Local<'s, T> {
 }
 
 impl<'a, T: FromStore + Send + Sync + 'static> Param for Local<'a, T> {
-    type State = T;
+    type Local = T;
     type Arg<'w, 's> = Local<'s, T>;
 
-    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
+    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
         // let exl = std::sync::Exclusive::new(T::default());
         Ok(T::init(world))
     }
@@ -44,12 +44,12 @@ impl<'a, T: FromStore + Send + Sync + 'static> Param for Local<'a, T> {
     #[inline]
     fn arg<'w, 's>(
         _world: &'w UnsafeStore, 
-        state: &'s mut Self::State, 
+        state: &'s mut Self::Local, 
     ) -> Result<Self::Arg<'w, 's>> {
         Ok(Local(state))
     }
 
-    fn flush(_world: &mut Store, _state: &mut Self::State) {
+    fn flush(_world: &mut Store, _state: &mut Self::Local) {
     }
 }
 

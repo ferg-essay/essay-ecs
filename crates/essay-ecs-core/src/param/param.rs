@@ -9,18 +9,18 @@ use crate::{
 //
  
 pub trait Param {
-    type Arg<'w, 's>: Param<State = Self::State>;
-    type State: Send + Sync + 'static;
+    type Arg<'s, 'l>: Param<Local = Self::Local>;
+    type Local: Send + Sync + 'static;
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State>;
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::Local>;
 
-    fn arg<'w, 's>(
-        store: &'w UnsafeStore,
-        state: &'s mut Self::State, 
-    ) -> Result<Self::Arg<'w, 's>>;
+    fn arg<'s, 'l>(
+        store: &'s UnsafeStore,
+        local: &'l mut Self::Local, 
+    ) -> Result<Self::Arg<'s, 'l>>;
 
     #[allow(unused)]
-    fn flush(store: &mut Store, state: &mut Self::State) {
+    fn flush(store: &mut Store, local: &mut Self::Local) {
     }
 }
 
@@ -36,18 +36,18 @@ macro_rules! impl_param_tuple {
         impl<$($param: Param,)*> Param for ($($param,)*)
         {
             type Arg<'w, 's> = ($($param::Arg<'w, 's>,)*);
-            type State = ($(<$param as Param>::State,)*);
+            type Local = ($(<$param as Param>::Local,)*);
 
             fn init(
                 meta: &mut SystemMeta,
                 world: &mut Store, 
-            ) -> Result<Self::State> {
+            ) -> Result<Self::Local> {
                 Ok(($($param::init(meta, world)?,)*))
             }
 
             fn arg<'w, 's>(
                 world: &'w UnsafeStore,
-                state: &'s mut Self::State,
+                state: &'s mut Self::Local,
             ) -> Result<Self::Arg<'w, 's>> {
                 let ($($param,)*) = state;
 
@@ -56,7 +56,7 @@ macro_rules! impl_param_tuple {
 
             fn flush(
                 world: &mut Store, 
-                state: &mut Self::State
+                state: &mut Self::Local
             ) {
                 let ($($param,)*) = state;
 
@@ -71,15 +71,15 @@ macro_rules! impl_param_tuple {
 impl Param for ()
 {
     type Arg<'w, 's> = ();
-    type State = ();
+    type Local = ();
 
-    fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::State> {
+    fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::Local> {
         Ok(())
     }
 
     fn arg<'w, 's>(
-        _world: &'w UnsafeStore, 
-        _state: &'s mut Self::State,
+        _store: &'w UnsafeStore, 
+        _local: &'s mut Self::Local,
     ) -> Result<Self::Arg<'w, 's>> {
         Ok(())
     }
@@ -171,11 +171,11 @@ mod test {
 
     impl<V> Param for TestArg<V> {
         type Arg<'w, 's> = TestArg<V>;
-        type State = ();
+        type Local = ();
 
         fn arg<'w, 's>(
             _store: &'w UnsafeStore,
-            _state: &'s mut Self::State,
+            _state: &'s mut Self::Local,
         ) -> Result<Self::Arg<'w, 's>> {
             Ok(Self {
                 name: type_name::<V>().to_string(),
@@ -183,11 +183,11 @@ mod test {
             })
         }
 
-        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::State> {
+        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::Local> {
             Ok(())
         }
         
-        fn flush(_store: &mut Store, _state: &mut Self::State) {
+        fn flush(_store: &mut Store, _state: &mut Self::Local) {
             
         }
     }

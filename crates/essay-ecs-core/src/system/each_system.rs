@@ -18,7 +18,7 @@ where
     F: EachFun<M>
 {
     fun: F,
-    state: Option<<F::Params as Param>::State>,
+    state: Option<<F::Params as Param>::Local>,
     marker: PhantomData<fn() -> M>,
 }
 

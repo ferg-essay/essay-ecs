@@ -34,9 +34,9 @@ impl<'w, 's, Q:View> Query<'w, 's, Q> {
 impl<Q:View> Param for Query<'_, '_, Q>
 {
     type Arg<'w, 's> = Query<'w, 's, Q>;
-    type State = ViewPlan;
+    type Local = ViewPlan;
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
         let plan = world.view_build::<Q>();
         
         for id in plan.components() {
@@ -52,7 +52,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
 
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
-        state: &'s mut Self::State, 
+        state: &'s mut Self::Local, 
     ) -> Result<Self::Arg<'w, 's>> {
         Ok(Query::new(world, state))
     }
