@@ -111,8 +111,8 @@ mod test {
         Store
     };
 
-    mod ecs { pub use crate::*; }
-    use ecs::{self as essay_ecs_core };
+    mod ecs { pub mod core { pub use crate::*; }}
+    use ecs::{self as essay_ecs};
     
     use crate::core_app::CoreApp;
 
@@ -187,7 +187,7 @@ mod test {
             Ok(())
         }
         
-        fn flush(_store: &mut ecs::Store, _state: &mut Self::State) {
+        fn flush(_store: &mut Store, _state: &mut Self::State) {
             
         }
     }

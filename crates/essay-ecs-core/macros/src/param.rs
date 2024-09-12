@@ -64,30 +64,30 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
 
             fn __state_init<'w, 's>(
-                meta: &mut essay_ecs_core::schedule::SystemMeta,
-                store: &mut essay_ecs_core::store::Store
-            ) -> essay_ecs_core::error::Result<__State<'w, 's>> {
+                meta: &mut essay_ecs::core::schedule::SystemMeta,
+                store: &mut essay_ecs::core::store::Store
+            ) -> essay_ecs::core::error::Result<__State<'w, 's>> {
                 Ok(__State {
                     #(#state_init)*
                     marker: PhantomData::default(),
                 })
             }
 
-            impl <#(#ty_impl_w1)*> essay_ecs_core::param::Param for #ident <#(#ty_gen_w1)*> {
+            impl <#(#ty_impl_w1)*> essay_ecs::core::param::Param for #ident <#(#ty_gen_w1)*> {
                 type State = __State<'static, 'static>;
                 type Arg<'w, 's> = #ident #ty_gen;
 
                 fn init(
-                    meta: &mut essay_ecs_core::schedule::SystemMeta, 
-                    store: &mut essay_ecs_core::store::Store
-                ) -> essay_ecs_core::error::Result<Self::State> {
+                    meta: &mut essay_ecs::core::schedule::SystemMeta, 
+                    store: &mut essay_ecs::core::store::Store
+                ) -> essay_ecs::core::error::Result<Self::State> {
                     __state_init(meta, store)
                 }
 
                 fn arg<'w, 's>(
-                    store: &'w essay_ecs_core::schedule::UnsafeStore,
+                    store: &'w essay_ecs::core::schedule::UnsafeStore,
                     state: &'s mut Self::State, 
-                ) -> essay_ecs_core::error::Result<Self::Arg<'w, 's>> {
+                ) -> essay_ecs::core::error::Result<Self::Arg<'w, 's>> {
                     Ok(#ident {
                         #(#arg_fields)*
                     })
@@ -127,7 +127,7 @@ fn state_types(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
         let ParamField{var, ty, ..} = field;
 
-        quote! { #var: <#ty as essay_ecs_core::param::Param>::State, }
+        quote! { #var: <#ty as essay_ecs::core::param::Param>::State, }
     }).collect()
 }
 
@@ -135,7 +135,7 @@ fn state_init(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
         let ParamField{var, ty, ..} = field;
 
-        quote! { #var: <#ty as essay_ecs_core::param::Param>::State::init(meta, store)?, }
+        quote! { #var: <#ty as essay_ecs::core::param::Param>::State::init(meta, store)?, }
     }).collect()
 }
 
@@ -143,7 +143,7 @@ fn arg_fields(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
         let ParamField { ident, var, ty } = field;
         
-        quote! { #ident: <#ty as essay_ecs_core::param::Param>::Arg::<'w, 's>::arg(store, &mut state.#var)?, }
+        quote! { #ident: <#ty as essay_ecs::core::param::Param>::Arg::<'w, 's>::arg(store, &mut state.#var)?, }
     }).collect()
 }
 
