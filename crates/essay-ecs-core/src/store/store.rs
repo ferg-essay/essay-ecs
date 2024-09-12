@@ -228,7 +228,7 @@ impl Store {
         let mut meta = SystemMeta::empty();
     
         let mut store = UnsafeStore::new(self.take());
-        system.init(&mut meta, &mut store);
+        system.init(&mut meta, &mut store)?;
         let value = system.run(&mut store);
         system.flush(&mut store);
 

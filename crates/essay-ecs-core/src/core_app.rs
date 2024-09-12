@@ -108,19 +108,19 @@ impl CoreApp {
         self.store.resource_mut::<Schedules>().get_mut(label)
     }
 
-    pub fn run_system<M>(&mut self, into_system: impl IntoSystem<(), M>) -> &mut Self {
+    pub fn run_system<M>(&mut self, into_system: impl IntoSystem<(), M>) -> Result<()> {
         let mut system = IntoSystem::into_system(into_system);
         
         let mut meta = SystemMeta::empty();
         
         let mut store = UnsafeStore::new(self.store.take());
-        system.init(&mut meta, &mut store);
+        system.init(&mut meta, &mut store)?;
         system.run(&mut store).unwrap();
         system.flush(&mut store);
 
         self.store.replace(store.take());
 
-        self
+        Ok(())
     }
 
     pub fn eval<O, M>(&mut self, into_system: impl IntoSystem<O, M>) -> Result<O> {

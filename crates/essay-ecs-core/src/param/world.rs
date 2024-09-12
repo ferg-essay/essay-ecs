@@ -17,9 +17,9 @@ impl Param for &Store {
         Ok(world)
     }
 
-    fn init(meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
+    fn init(meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::State> {
         meta.set_exclusive();
 
-        ()
+        Ok(())
     }
 }

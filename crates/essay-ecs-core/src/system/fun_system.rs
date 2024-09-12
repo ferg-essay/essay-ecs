@@ -45,8 +45,16 @@ where
 {
     type Out = F::Out;
 
-    fn init(&mut self, meta: &mut SystemMeta, store: &mut Store) {
-        self.state = Some(F::Param::init(meta, store));
+    fn init(&mut self, meta: &mut SystemMeta, store: &mut Store) -> Result<()> {
+        match F::Param::init(meta, store) {
+            Ok(local) => {
+                self.state = Some(local);
+                Ok(())
+            },
+            Err(err) => {
+                Err(err.rethrow(&format!("\n\tin {}", self.name)))
+            },
+        }
     }
 
     unsafe fn run_unsafe(&mut self, store: &UnsafeStore) -> Result<Self::Out> {
@@ -57,7 +65,7 @@ where
                 Ok(self.fun.run(arg))
             }
             Err(err) => {
-                Err(format!("{}\n\tin {}", err.message(), self.name).into())
+                Err(err.rethrow(&format!("\n\tin {}", self.name)))
             }
         }
     }
@@ -290,7 +298,8 @@ mod tests {
             })
         }
 
-        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Self::State {
+        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::State> {
+            Ok(())
         }
     }
  
@@ -309,7 +318,8 @@ mod tests {
             Err("BogusArg test internal arg error".into())
         }
 
-        fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
+        fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::State> {
+            Ok(())
         }
     }
 }

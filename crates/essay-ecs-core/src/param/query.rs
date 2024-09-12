@@ -36,7 +36,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
     type Arg<'w, 's> = Query<'w, 's, Q>;
     type State = ViewPlan;
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
         let plan = world.view_build::<Q>();
         
         for id in plan.components() {
@@ -47,7 +47,7 @@ impl<Q:View> Param for Query<'_, '_, Q>
             meta.insert_component_mut(ComponentId::from(*id));
         }
 
-        plan
+        Ok(plan)
     }
 
     fn arg<'w, 's>(
@@ -83,7 +83,7 @@ mod test {
 
         app.run_system(|mut c: Commands| { 
             c.spawn(TestA(10));
-        });
+        }).unwrap();
 
         app.tick().unwrap();
         assert_eq!(take(&values), "TestA(10)");
@@ -93,7 +93,7 @@ mod test {
 
         app.run_system(|mut c: Commands| { 
             c.spawn(TestA(20));
-        });
+        }).unwrap();
 
         app.tick().unwrap();
         assert_eq!(take(&values), "TestA(10), TestA(20)");

@@ -36,9 +36,9 @@ impl<'a, T: FromStore + Send + Sync + 'static> Param for Local<'a, T> {
     type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 
-    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Self::State {
+    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
         // let exl = std::sync::Exclusive::new(T::default());
-        T::init(world)
+        Ok(T::init(world))
     }
 
     #[inline]

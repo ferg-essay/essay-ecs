@@ -12,7 +12,7 @@ pub trait Param {
     type Arg<'w, 's>: Param<State = Self::State>;
     type State: Send + Sync + 'static;
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Self::State;
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State>;
 
     fn arg<'w, 's>(
         store: &'w UnsafeStore,
@@ -41,8 +41,8 @@ macro_rules! impl_param_tuple {
             fn init(
                 meta: &mut SystemMeta,
                 world: &mut Store, 
-            ) -> Self::State {
-                ($($param::init(meta, world),)*)
+            ) -> Result<Self::State> {
+                Ok(($($param::init(meta, world)?,)*))
             }
 
             fn arg<'w, 's>(
@@ -73,8 +73,8 @@ impl Param for ()
     type Arg<'w, 's> = ();
     type State = ();
 
-    fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Self::State {
-        ()
+    fn init(_meta: &mut SystemMeta, _world: &mut Store) -> Result<Self::State> {
+        Ok(())
     }
 
     fn arg<'w, 's>(
@@ -183,7 +183,8 @@ mod test {
             })
         }
 
-        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Self::State {
+        fn init(_meta: &mut SystemMeta, _store: &mut Store) -> Result<Self::State> {
+            Ok(())
         }
         
         fn flush(_store: &mut ecs::Store, _state: &mut Self::State) {

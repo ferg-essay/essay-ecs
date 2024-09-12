@@ -299,7 +299,7 @@ mod tests {
             push(&ptr, format!("S]"));
         });
 
-        schedule.init(&mut world);
+        schedule.init(&mut world).unwrap();
 
         let factory = MultithreadedExecutorFactory;
         let mut exec = factory.create(schedule.plan());        
@@ -341,7 +341,7 @@ mod tests {
             push(&ptr, format!("B]"));
         });
 
-        schedule.init(&mut world);
+        schedule.init(&mut world).unwrap();
 
         let mut exec = MultithreadedExecutor::new(schedule.plan());        
 
@@ -382,7 +382,7 @@ mod tests {
             push(&ptr, format!("B]"));
         });
 
-        schedule.init(&mut world);
+        schedule.init(&mut world).unwrap();
 
         let mut exec = MultithreadedExecutor::new(schedule.plan());        
 
@@ -423,7 +423,7 @@ mod tests {
             push(&ptr, format!("B]"));
         });
 
-        schedule.init(&mut world);
+        schedule.init(&mut world).unwrap();
 
         let mut exec = MultithreadedExecutor::new(schedule.plan());        
 
@@ -458,7 +458,7 @@ mod tests {
             push(&ptr, format!("S]"));
         });
 
-        schedule.init(&mut world);
+        schedule.init(&mut world).unwrap();
 
         let factory = MultithreadedExecutorFactory;
         let mut exec = factory.create(schedule.plan());        

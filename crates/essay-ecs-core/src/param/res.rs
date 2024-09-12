@@ -32,12 +32,18 @@ impl<T:Send+'static> Param for Res<'_, T> {
                 value,
             })
         } else {
-            Err(format!("resource is unassigned: {}", type_name::<T>()).into())
+            Err(format!("Res<{}> is not a resource", type_name::<T>()).into())
         }
     }
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Self::State {
-        meta.insert_resource(store.get_resource_id::<T>());
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
+        if store.contains_resource::<T>() {
+            meta.insert_resource(store.get_resource_id::<T>());
+
+            Ok(())
+        } else {
+            Err(format!("Res<{}> is an unknown resource", type_name::<T>()).into())
+        }
     }
 }
 
@@ -66,10 +72,12 @@ impl<T: Send + 'static> Param for Option<Res<'_, T>> {
         Ok(world.get_resource::<T>().map(|r| Res { value: r }))
     }
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
-        if world.contains_resource::<T>() {
-            meta.insert_resource(world.get_resource_id::<T>());
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
+        if store.contains_resource::<T>() {
+            meta.insert_resource(store.get_resource_id::<T>());
         }
+
+        Ok(())
     }
 }
 
@@ -103,12 +111,18 @@ impl<'a, T:'static> DerefMut for ResMut<'_, T> {
     }
 }
 
-impl<T:Send+'static> Param for ResMut<'_, T> {
+impl<T: Send+'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
     type State = ();
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
-        meta.insert_resource_mut(world.get_resource_id::<T>());
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
+        if store.contains_resource::<T>() {
+            meta.insert_resource_mut(store.get_resource_id::<T>());
+
+            Ok(())
+        } else {
+            Err(format!("ResMut<{}> is an unknown resource", type_name::<T>()).into())
+        }
     }
 
     fn arg<'w, 's>(
@@ -134,10 +148,12 @@ impl<T: Send + 'static> Param for Option<ResMut<'_, T>> {
         }
     }
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
-        if world.contains_resource::<T>() {
-            meta.insert_resource_mut(world.get_resource_id::<T>());
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
+        if store.contains_resource::<T>() {
+            meta.insert_resource_mut(store.get_resource_id::<T>());
         }
+
+        Ok(())
     }
 }
 
@@ -152,6 +168,16 @@ mod test {
         app.insert_resource(TestResource(3));
 
         assert_eq!(3, app.eval(|r: Res<TestResource>| r.0).unwrap());
+    }
+
+    #[test]
+    fn res_unset() {
+        let mut app = CoreApp::new();
+
+        assert_eq!(
+            "Res<alloc::string::String> is an unknown resource\n\tin essay_ecs_core::param::res::test::res_unset::{{closure}",
+            app.eval(|res: Res<String>| res.as_ref().to_string()).unwrap_err().to_string(),
+        );
     }
 
     #[test]
@@ -173,6 +199,16 @@ mod test {
                 None => 0, 
             }
         }).unwrap());
+    }
+    
+    #[test]
+    fn res_mut_unset() {
+        let mut app = CoreApp::new();
+
+        assert_eq!(
+            "ResMut<alloc::string::String> is an unknown resource\n\tin essay_ecs_core::param::res::test::res_mut_unset::{{closure}}",
+            app.eval(|_res: ResMut<String>| "error").unwrap_err().to_string(),
+        );
     }
 
     #[test]

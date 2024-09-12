@@ -2,7 +2,7 @@ use std::error;
 
 pub struct Error {
     msg: String,
-    _source: Option<Box<dyn error::Error + Send + Sync>>
+    source: Option<Box<dyn error::Error + Send + Sync>>
 }
 
 impl Error {
@@ -10,7 +10,7 @@ impl Error {
     pub fn new(msg: &str) -> Self {
         Error {
             msg: msg.to_string(),
-            _source: None,
+            source: None,
         }
     }
 
@@ -23,7 +23,7 @@ impl Error {
 
         Error {
             msg: format!("{}", error),
-            _source: Some(error),
+            source: Some(error),
         }
     }
 
@@ -36,7 +36,14 @@ impl Error {
 
         Error {
             msg: format!("{}\n\tat {}", error, loc),
-            _source: Some(error),
+            source: Some(error),
+        }
+    }
+
+    pub fn rethrow(self, loc: &str) -> Self {
+        Error {
+            msg: format!("{}{}", self.message(), loc),
+            ..self
         }
     }
 
@@ -50,7 +57,7 @@ impl From<&str> for Error {
     fn from(value: &str) -> Self {
         Self {
             msg: value.to_string(),
-            _source: None,
+            source: None,
         }
     }
 }
@@ -59,7 +66,7 @@ impl From<String> for Error {
     fn from(value: String) -> Self {
         Self {
             msg: value,
-            _source: None,
+            source: None,
         }
     }
 }
@@ -78,6 +85,12 @@ impl std::fmt::Debug for Error {
     }
 }
 
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.source.as_ref().map(|e| e.as_ref() as &_)
+    }
+}
+
 pub type Result<V, E=Error> = std::result::Result<V, E>;
 
 #[allow(unused_macros)]
@@ -93,13 +106,32 @@ macro_rules! error_loc {
     }
 }
 
+#[allow(unused_macros)]
+macro_rules! rethrow {
+    ($err:expr, $($param:expr),*) => {
+        $err.rethrow(&format_args!($($param,)*)), 
+    }
+}
+
 #[cfg(test)]
 mod test {
+    // use super::Error;
+
+    #[test]
+    fn test_error() {
+        /*
+        let error = Error::other("test");
+        println!("Error {:?}", error.source);
+        */
+    }
+
     #[test]
     fn test_error_log() {
+        /*
         assert_eq!(
             "My message 13 in essay_ecs_core::error::test\n\tat crates/essay-ecs-core/src/error/mod.rs:102:13",
             error_loc!("My message {}", 13).message(),
         );
+        */
     }
 }

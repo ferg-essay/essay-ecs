@@ -60,7 +60,7 @@ where
 {
     type Out = ();
     
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) {
+    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) -> Result<()> {
         let plan = world.view_build::<F::Item<'_>>();
 
         for id in plan.components() {
@@ -72,7 +72,9 @@ where
         }
         
         //F::Item::init(meta);
-        self.state = Some(F::Params::init(meta, world))
+        self.state = Some(F::Params::init(meta, world)?);
+
+        Ok(())
     }
     
     unsafe fn run_unsafe<'w>(&mut self, world: &UnsafeStore) -> Result<()> {
@@ -148,7 +150,7 @@ mod tests {
     fn test_each() {
         let mut app = CoreApp::new();
 
-        app.run_system(|mut cmd: Commands| cmd.spawn(TestA(1)) );
+        app.run_system(|mut cmd: Commands| cmd.spawn(TestA(1))).unwrap();
 
         // let values = TestValues::new();
 

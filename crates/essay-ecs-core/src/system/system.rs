@@ -16,7 +16,7 @@ pub trait System: Send + Sync + 'static {
         type_name::<Self>()
     }
 
-    fn init(&mut self, meta: &mut SystemMeta, store: &mut Store);
+    fn init(&mut self, meta: &mut SystemMeta, store: &mut Store) -> Result<()>;
 
     unsafe fn run_unsafe(&mut self, store: &UnsafeStore) -> Result<Self::Out>;
 

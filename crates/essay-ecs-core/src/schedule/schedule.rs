@@ -180,7 +180,7 @@ impl Schedule {
         let mut is_init = false;
         while self.inner_mut().is_stale {
             self.inner_mut().is_stale = false;
-            self.init(world);
+            self.init(world)?;
             is_init = true;
         }
 
@@ -210,8 +210,8 @@ impl Schedule {
         Ok(())
     }
 
-    pub(crate) fn init(&mut self, world: &mut Store) {
-        self.inner_mut().init(world);
+    pub(crate) fn init(&mut self, world: &mut Store) -> Result<()> {
+        self.inner_mut().init(world)
 
         /*
         self.init_phases();
@@ -401,21 +401,23 @@ impl ScheduleInner {
         self.is_stale = true;
     }
 
-    pub(crate) fn init(&mut self, world: &mut Store) {
+    pub(crate) fn init(&mut self, world: &mut Store) -> Result<()> {
         self.init_phases();
 
         for id in self.uninit_systems.drain(..) {
             let system = &mut self.systems[id.index()];
             let mut meta = self.planner.meta_mut(id);
             
-            system.get_mut().init(&mut meta, world);
+            system.get_mut().init(&mut meta, world)?;
 
             for cond in &mut self.conditions[id.index()] {
-                cond.get_mut().init(&mut meta, world);
+                cond.get_mut().init(&mut meta, world)?;
             }
         }
 
         self.planner.sort();
+
+        Ok(())
     }
 
     fn init_phases(&mut self) {
@@ -478,9 +480,11 @@ struct PhaseSystem(PhaseId);
 impl System for PhaseSystem {
     type Out = ();
 
-    fn init(&mut self, meta: &mut SystemMeta, _world: &mut Store) {
+    fn init(&mut self, meta: &mut SystemMeta, _world: &mut Store) -> Result<()> {
         // meta.set_exclusive();
         meta.set_marker();
+
+        Ok(())
     }
 
     unsafe fn run_unsafe(&mut self, _world: &UnsafeStore) -> Result<Self::Out> {

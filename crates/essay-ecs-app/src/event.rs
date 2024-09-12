@@ -145,11 +145,11 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
         <Local<'s, InEventCursor<E>> as Param>::State
     );
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
-        (
-            Res::<Events<E>>::init(meta, world),
-            Local::<InEventCursor<E>>::init(meta, world)
-        )
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
+        Ok((
+            Res::<Events<E>>::init(meta, world)?,
+            Local::<InEventCursor<E>>::init(meta, world)?
+        ))
     }
 
     fn arg<'w1, 's1>(
@@ -172,7 +172,7 @@ impl<'w, E: Event> Param for OutEvent<'w, E> {
 
     type State = <ResMut<'w, Events<E>> as Param>::State;
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
         ResMut::<Events<E>>::init(meta, world)
     }
 

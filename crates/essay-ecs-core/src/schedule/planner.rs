@@ -874,7 +874,7 @@ mod test {
         let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
-        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+        app.run_system(|mut c: Commands| c.spawn(TestA(100))).unwrap();
 
         let mut values = TestValues::new();
 
@@ -906,7 +906,7 @@ mod test {
         let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
-        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+        app.run_system(|mut c: Commands| c.spawn(TestA(100))).unwrap();
 
         let mut values = TestValues::new();
 
@@ -938,8 +938,8 @@ mod test {
         let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
-        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
-        app.run_system(|mut c: Commands| c.spawn(TestB(200)));
+        app.run_system(|mut c: Commands| c.spawn(TestA(100))).unwrap();
+        app.run_system(|mut c: Commands| c.spawn(TestB(200))).unwrap();
 
         let mut values = TestValues::new();
 
@@ -972,7 +972,7 @@ mod test {
         let mut app = CoreApp::new();
 
         app.set_executor(Executors::Multithreaded);
-        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+        app.run_system(|mut c: Commands| c.spawn(TestA(100))).unwrap();
 
         let mut values = TestValues::new();
 

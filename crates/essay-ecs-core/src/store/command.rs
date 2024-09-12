@@ -175,7 +175,7 @@ mod tests {
         
         app.run_system(|mut c: Commands| c.add(|w: &mut Store| {
             w.spawn(TestA(100)); 
-        }));
+        })).unwrap();
 
         let values: Vec<TestA> = app.query::<&TestA>()
             .map(|t| t.clone())
@@ -184,7 +184,7 @@ mod tests {
 
         app.run_system(|mut c: Commands| c.add(|w: &mut Store| {
             w.spawn(TestA(200)); 
-        }));
+        })).unwrap();
 
         let values: Vec<TestA> = app.query::<&TestA>()
             .map(|t| t.clone())
@@ -196,14 +196,14 @@ mod tests {
     fn spawn() {
         let mut app = CoreApp::new();
 
-        app.run_system(|mut c: Commands| c.spawn(TestA(100)));
+        app.run_system(|mut c: Commands| c.spawn(TestA(100))).unwrap();
 
         let values: Vec<TestA> = app.query::<&TestA>()
             .map(|t| t.clone())
             .collect();
         assert_eq!(values, vec![TestA(100)]);
 
-        app.run_system(|mut c: Commands| c.spawn(TestA(200)));
+        app.run_system(|mut c: Commands| c.spawn(TestA(200))).unwrap();
 
         let values: Vec<TestA> = app.query::<&TestA>()
             .map(|t| t.clone())

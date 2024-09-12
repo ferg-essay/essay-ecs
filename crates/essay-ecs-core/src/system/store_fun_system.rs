@@ -18,7 +18,7 @@ pub trait ParamExcl {
     type Arg<'s>;
     type State: Send + Sync + 'static;
 
-    fn init(world: &mut Store, meta: &mut SystemMeta) -> Self::State;
+    fn init(world: &mut Store, meta: &mut SystemMeta) -> Result<Self::State>;
 
     fn arg<'s>(
         state: &'s mut Self::State, 
@@ -60,9 +60,11 @@ where
 {
     type Out = R;
 
-    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) {
+    fn init(&mut self, meta: &mut SystemMeta, world: &mut Store) -> Result<()> {
         meta.set_exclusive();
-        self.state = Some(F::Params::init(world, meta));
+        self.state = Some(F::Params::init(world, meta)?);
+
+        Ok(())
     }
 
     fn run(&mut self, world: &mut UnsafeStore) -> Result<Self::Out> {
@@ -137,8 +139,8 @@ impl<'a, T: Default + Send + Sync + 'static> ParamExcl for Local<'a, T> {
     type State = T;
     type Arg<'s> = Local<'s, T>;
 
-    fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Self::State {
-        T::default()
+    fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Result<Self::State> {
+        Ok(T::default())
     }
 
     fn arg<'w, 's>(
@@ -163,10 +165,10 @@ macro_rules! impl_param_excl_tuple {
             fn init(
                 world: &mut Store, 
                 meta: &mut SystemMeta
-            ) -> Self::State {
+            ) -> Result<Self::State> {
                 meta.set_exclusive();
 
-                ($($param::init(world, meta),)*)
+                Ok(($($param::init(world, meta)?,)*))
             }
 
             fn arg<'s>(
@@ -185,8 +187,8 @@ impl ParamExcl for ()
     type Arg<'s> = ();
     type State = ();
 
-    fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Self::State {
-        ()
+    fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Result<Self::State> {
+        Ok(())
     }
 
     fn arg<'s>(_state: &'s mut Self::State) -> Self::Arg<'s> {
@@ -209,6 +211,7 @@ mod tests {
     use std::marker::PhantomData;
 
     use crate::{
+        error::Result,
         store::Store, 
         schedule::SystemMeta,
         system::IntoSystem, 
@@ -339,8 +342,8 @@ mod tests {
             }
         }
 
-        fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Self::State {
-            ()
+        fn init(_world: &mut Store, _meta: &mut SystemMeta) -> Result<Self::State> {
+            Ok(())
         }
     }
  }

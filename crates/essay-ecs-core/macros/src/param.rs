@@ -66,11 +66,11 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             fn __state_init<'w, 's>(
                 meta: &mut essay_ecs_core::schedule::SystemMeta,
                 store: &mut essay_ecs_core::store::Store
-            ) -> __State<'w, 's> {
-                __State {
+            ) -> essay_ecs_core::error::Result<__State<'w, 's>> {
+                Ok(__State {
                     #(#state_init)*
                     marker: PhantomData::default(),
-                }
+                })
             }
 
             impl <#(#ty_impl_w1)*> essay_ecs_core::param::Param for #ident <#(#ty_gen_w1)*> {
@@ -79,7 +79,8 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                 fn init(
                     meta: &mut essay_ecs_core::schedule::SystemMeta, 
-                    store: &mut essay_ecs_core::store::Store) -> Self::State {
+                    store: &mut essay_ecs_core::store::Store
+                ) -> essay_ecs_core::error::Result<Self::State> {
                     __state_init(meta, store)
                 }
 
@@ -134,7 +135,7 @@ fn state_init(fields: &Vec<ParamField>) -> Vec<TokenStream> {
     fields.iter().map(|field| {
         let ParamField{var, ty, ..} = field;
 
-        quote! { #var: <#ty as essay_ecs_core::param::Param>::State::init(meta, store), }
+        quote! { #var: <#ty as essay_ecs_core::param::Param>::State::init(meta, store)?, }
     }).collect()
 }
 
