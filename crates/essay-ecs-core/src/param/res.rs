@@ -9,11 +9,11 @@ use crate::{
 use super::Param;
 
 #[derive(Debug)]
-pub struct Res<'a, T> {
-    value: &'a T,
+pub struct Res<'w, T> {
+    value: &'w T,
 }
 
-impl<'a, T:'static> Res<'a, T> {
+impl<'w, T:'static> Res<'w, T> {
     pub fn get(&self) -> &T {
         self.value
     }
@@ -24,16 +24,16 @@ impl<T:Send+'static> Param for Res<'_, T> {
     type State = ();
 
     fn arg<'w, 's>(
-        world: &'w UnsafeStore,
+        store: &'w UnsafeStore,
         _state: &'s mut Self::State,
     ) -> Result<Res<'w, T>> {
         Ok(Res {
-            value: world.get_resource::<T>().unwrap(),
+            value: store.get_resource::<T>().unwrap(),
         })
     }
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Self::State {
-        meta.insert_resource(world.get_resource_id::<T>());
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Self::State {
+        meta.insert_resource(store.get_resource_id::<T>());
     }
 }
 

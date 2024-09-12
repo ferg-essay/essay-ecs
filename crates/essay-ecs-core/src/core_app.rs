@@ -9,8 +9,8 @@ use crate::{
     system::System, store::FromStore, IntoPhaseConfigs,
 };
 
-mod ecs { pub mod core { pub use crate::*; }}
-use ecs as essay_ecs;
+mod ecs { pub use crate::*; }
+use ecs as essay_ecs_core;
 
 ///
 /// ECS application only using the essay_ecs_core crate.

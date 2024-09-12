@@ -1,0 +1,157 @@
+//use proc_macro::TokenStream;
+
+use proc_macro::{self};
+// use proc_macro2::Span;
+use syn::{
+    parse_macro_input, spanned::Spanned, DataStruct, DeriveInput, Fields, Ident, Type
+};
+use quote::{quote, __private::TokenStream};
+
+
+pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+
+    /*
+    let DeriveInput {
+        ident,
+        data,
+        generics,
+        attrs,
+        vis,
+    } = ast;
+     */
+
+    let (impl_gen, ty_gen, where_gen) = ast.generics.split_for_impl();
+
+    let span = ast.span();
+
+    let DataStruct {
+        struct_token,
+        fields,
+        semi_token,
+    } = match ast.data {
+        syn::Data::Struct(data) => data,
+        syn::Data::Enum(_) => {
+            todo!("enum not supported for derive(Param)")
+        },
+        syn::Data::Union(_) => todo!("union not supported for derive(Param)"),
+    };
+
+    let fields: Vec<ParamField> = match fields {
+        Fields::Named(ref fields) => {
+            fields.named.iter().enumerate().map(|(index, field)| {
+                ParamField {
+                    ident: field.ident.clone(),
+                    index,
+                    ty: field.ty.clone(),
+                }
+            }).collect()
+        }
+        Fields::Unnamed(_) => {
+            return syn::Error::new(span, "tuples currently unsupported").into_compile_error().into();
+        },
+        Fields::Unit => {
+            Vec::new()
+            // return syn::Error::new(span, "unit field unknown").into_compile_error().into();
+        }
+    };
+
+    let ecs = "essay_ecs_core";
+    let ident = ast.ident.clone();
+    // let generics = ast.generics;
+
+    let state_types = state_types(&fields);
+    let state_init = state_init(&fields);
+
+    let arg_types = arg_types(&fields);
+    let arg_fields = arg_fields(&fields);
+
+    quote! {
+        const _: () = {
+            struct __State<'w, 's> {
+                #state_types
+                marker: PhantomData<(&'w bool, &'s u8)>,
+            }
+
+            fn __state_init<'w, 's>(
+                meta: &mut essay_ecs_core::schedule::SystemMeta,
+                store: &mut essay_ecs_core::store::Store
+            ) -> __State<'w, 's> {
+                __State {
+                    #state_init
+                    marker: PhantomData::default(),
+                }
+            }
+
+            impl #impl_gen essay_ecs_core::param::Param for #ident #ty_gen {
+                type State = __State<'static, 'static>;
+                type Arg<'w, 's> = #ident #ty_gen;
+
+                fn init(
+                    meta: &mut essay_ecs_core::schedule::SystemMeta, 
+                    store: &mut essay_ecs_core::store::Store) -> Self::State {
+                    __state_init(meta, store)
+                }
+
+                fn arg<'w, 's>(
+                    store: &'w essay_ecs_core::schedule::UnsafeStore,
+                    state: &'s mut Self::State, 
+                ) -> essay_ecs_core::error::Result<Self::Arg<'w, 's>> {
+                    Ok(Self {
+                        #arg_fields
+                    })
+                }
+            }
+        };
+    }.into()
+}
+
+struct ParamField {
+    ident: Option<Ident>,
+    index: usize,
+    ty: Type,
+}
+
+fn state_types(fields: &Vec<ParamField>) -> TokenStream {
+    let iter = fields.iter().map(|field| {
+        let ParamField{index, ty, ..} = field;
+        let name = format!("f_{index}");
+
+        quote! { #name: <#ty as Param>::State, }
+    });
+
+    quote! { #(#iter)* }
+}
+
+fn state_init(fields: &Vec<ParamField>) -> TokenStream {
+    let iter = fields.iter().map(|field| {
+        let ParamField{index, ty, ..} = field;
+        let name = format!("f_{index}");
+
+        quote! { #name: <#ty as Param>::State::init(meta, store), }
+    });
+
+    quote! { #(#iter)* }
+}
+
+fn arg_types(fields: &Vec<ParamField>) -> TokenStream {
+    let iter = fields.iter().map(|field| {
+        let ParamField { ident, index, ty } = field;
+
+        quote! { <#ty as Param>::Arg<'w, 's>>, }
+    });
+
+    quote! { #(#iter)* }
+}
+
+fn arg_fields(fields: &Vec<ParamField>) -> TokenStream {
+    let iter = fields.iter().map(|field| {
+        let ParamField { ident, index, ty } = field;
+        let v_state = format!("f_{index}");
+        
+        quote! { #ident: <#ty as Param>::Arg<'w, 's>::arg(store, state.#v_state)?, }
+    });
+
+    quote! { #(#iter)* }
+}
+

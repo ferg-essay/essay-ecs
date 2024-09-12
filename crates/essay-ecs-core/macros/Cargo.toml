@@ -1,9 +1,10 @@
 [package]
 name = "essay-ecs-core-macros"
-version = "0.1.13"
+version = "0.1.36"
 
 [lib]
 proc-macro = true
+
 
 [dependencies]
 syn = { version = "2.0" }

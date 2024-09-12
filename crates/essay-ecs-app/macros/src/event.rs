@@ -8,7 +8,7 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
     let name = &ast.ident;
 
     TokenStream::from(quote! {
-        impl essay_ecs::app::event::Event for #name {
+        impl essay_ecs_app::event::Event for #name {
 
         }
     })

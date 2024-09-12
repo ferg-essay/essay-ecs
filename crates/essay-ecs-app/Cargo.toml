@@ -9,5 +9,6 @@ env_logger = { version = "0.10.0" }
 essay-ecs-core = { path = "../essay-ecs-core" }
 essay-ecs-app-macros = { path = "macros" }
 
+
 [lib]
 doctest = false

@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "essay-ecs-core-macros"
-version = "0.1.13"
+version = "0.1.36"
 dependencies = [
  "quote",
  "syn",

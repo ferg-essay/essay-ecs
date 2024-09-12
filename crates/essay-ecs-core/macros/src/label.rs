@@ -8,14 +8,14 @@ pub fn derive_schedule_label(input: TokenStream) -> TokenStream {
     let name = &ast.ident;
 
     TokenStream::from(quote! {
-        impl essay_ecs::core::schedule::ScheduleLabel for #name {
-            fn box_clone(&self) -> Box<dyn essay_ecs::core::schedule::ScheduleLabel> {
+        impl essay_ecs_core::schedule::ScheduleLabel for #name {
+            fn box_clone(&self) -> Box<dyn essay_ecs_core::schedule::ScheduleLabel> {
                 Box::new(Clone::clone(self))
             }
         }
 
-        impl AsRef<dyn essay_ecs::core::schedule::ScheduleLabel> for #name {
-            fn as_ref(&self) -> &dyn essay_ecs::core::schedule::ScheduleLabel {
+        impl AsRef<dyn essay_ecs_core::schedule::ScheduleLabel> for #name {
+            fn as_ref(&self) -> &dyn essay_ecs_core::schedule::ScheduleLabel {
                 self
             }
         }
