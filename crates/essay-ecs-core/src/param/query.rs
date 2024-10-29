@@ -16,7 +16,6 @@ pub struct Query<'w, 's, Q:View> {
     marker: PhantomData<Q>,
 }
 
-//impl<'w, 's, Q: View> Query<'w, 's, Q> {
 impl<'w, 's, Q:View> Query<'w, 's, Q> {
     fn new(world: &'w UnsafeStore, plan: &'s ViewPlan) -> Self {
         Self {

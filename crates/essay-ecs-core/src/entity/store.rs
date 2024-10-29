@@ -520,9 +520,13 @@ impl From<ColumnId> for ComponentId {
 
 #[cfg(test)]
 mod tests {
+    use essay_ecs_core_macros::Component;
+
     use crate::entity::{bundle::InsertCursor, Component};
 
     use super::{EntityStore, InsertBuilder, Bundle};
+    mod ecs { pub mod core { pub use crate::*; }}
+    use ecs as essay_ecs;
 
     #[test]
     fn spawn() {
@@ -591,6 +595,19 @@ mod tests {
 
         assert_eq!(store.get::<TestA>(id_0), Some(&TestA(1000)));
         assert_eq!(store.get::<TestB>(id_0), None);
+    }
+
+    #[test]
+    fn entity_get_generic() {
+        let mut store = EntityStore::new();
+        assert_eq!(store.len(), 0);
+
+        let id_0 = store.spawn(TestD::<TypeD1>(TypeD1::A));
+        assert_eq!(store.len(), 1);
+        assert_eq!(id_0.index(), 0);
+
+        assert_eq!(store.get::<TestD::<TypeD1>>(id_0), Some(&TestD::<TypeD1>(TypeD1::A)));
+        assert_eq!(store.get::<TestD::<TypeD2>>(id_0), None);
     }
 
     #[test]
@@ -684,16 +701,28 @@ mod tests {
     #[derive(Debug, PartialEq)]
     struct TestA(u32);
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Component, Debug, PartialEq)]
     struct TestB(u16);
 
     #[derive(Debug, PartialEq)]
     struct TestC(u32);
 
+    #[derive(Component, Debug, PartialEq)]
+    struct TestD<T: Sync + Send + 'static>(T);
+
+    #[derive(Debug, PartialEq)]
+    enum TypeD1 {
+        A, _B,
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum TypeD2 {
+        _A, _B,
+    }
+
     // trait TestComponent:'static {}
     
     impl Component for TestA {}
-    impl Component for TestB {}
     
     impl Bundle for TestC {
         fn build(builder: &mut InsertBuilder) {
