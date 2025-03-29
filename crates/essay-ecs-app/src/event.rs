@@ -1,13 +1,9 @@
 use std::{marker::PhantomData, mem, ops::{DerefMut, Deref}};
 
 use essay_ecs_core::{
-    error::Result,
     Local, 
     ResMut, 
-    Store, 
-    param,
     Param,
-    schedule::{SystemMeta, UnsafeStore}, 
     Res
 };
 
@@ -52,12 +48,8 @@ impl<E: Event> Default for Events<E> {
         }
     }
 }
-#[derive(Param)]
-pub struct InEvent2<'w, 's, E: Event> {
-    events: Res<'w, Events<E>>,
-    cursor: Local<'s, InEventCursor<E>>,
-}
     
+#[derive(Param)]
 pub struct InEvent<'w, 's, E: Event> {
     events: Res<'w, Events<E>>,
     cursor: Local<'s, InEventCursor<E>>,
@@ -131,6 +123,7 @@ impl<E: Event> Default for InEventCursor<E> {
     }
 }
 
+#[derive(Param)]
 pub struct OutEvent<'w, E: Event> {
     events: ResMut<'w, Events<E>>,
 }
@@ -142,58 +135,6 @@ impl<'a, E: Event> OutEvent<'a, E> {
 }
 
 pub trait Event : Send + Sync + 'static {}
-
-
-// TODO: create #[derive(Param)]
-impl<'w, 's, E: Event> param::Param for InEvent<'w, 's, E> {
-    type Arg<'w1, 's1> = InEvent<'w1, 's1, E>;
-
-    type State = (
-        <Res<'w, Events<E>> as param::Param>::State, 
-        <Local<'s, InEventCursor<E>> as param::Param>::State
-    );
-
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
-        Ok((
-            Res::<Events<E>>::init(meta, world)?,
-            Local::<InEventCursor<E>>::init(meta, world)?
-        ))
-    }
-
-    fn arg<'w1, 's1>(
-        world: &'w1 UnsafeStore,
-        state: &'s1 mut Self::State, 
-    ) -> Result<Self::Arg<'w1, 's1>> {
-        let (e_st, c_st) = state;
-
-        Ok(InEvent {
-            events: Res::<Events<E>>::arg(world, e_st)?,
-            cursor: Local::<InEventCursor<E>>::arg(world, c_st)?,
-        })
-    }
-}
-
-// TODO: create #[derive(Param)]
-
-impl<'w, E: Event> param::Param for OutEvent<'w, E> {
-    type Arg<'w1, 's1> = OutEvent<'w1, E>;
-
-    type State = <ResMut<'w, Events<E>> as param::Param>::State;
-
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
-        ResMut::<Events<E>>::init(meta, world)
-    }
-
-    fn arg<'w1, 's1>(
-        world: &'w1 UnsafeStore,
-        state: &'s1 mut Self::State, 
-    ) -> Result<Self::Arg<'w1, 's1>> {
-
-        Ok(OutEvent {
-            events: ResMut::<Events<E>>::arg(world, state)?,
-        })
-    }
-}
 
 #[cfg(test)]
 mod test {

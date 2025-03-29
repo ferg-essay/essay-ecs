@@ -211,8 +211,15 @@ mod test {
 
     #[derive(Param)]
     struct LocalParam<'s> {
-        string: Local<'s, String>,
+        _string: Local<'s, String>,
     }
+
+    #[derive(Param)]
+    struct LocalTrait<'s, T: Trait + Send + Default + 'static> {
+        _value: Local<'s, T>,
+    }
+
+    trait Trait {}
 
     /*
     const _: () = {

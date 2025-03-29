@@ -1,8 +1,9 @@
 use proc_macro::{self};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, spanned::Spanned, token::{Comma, PathSep}, DataStruct, DeriveInput, Fields, Generics, Ident, Index, Type, TypeParam
+    parse_macro_input, punctuated::Punctuated, spanned::Spanned, 
+    token::{Comma, PathSep}, DataStruct, DeriveInput, Fields, Generics, Ident, Index, Type, TypeParam
 };
-use quote::{__private::TokenStream, format_ident, quote};
+use quote::{__private::TokenStream, quote};
 
 
 pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -50,18 +51,11 @@ pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ty_impl_w1 = impl_def_generics(&ast.generics);
     let ty_gen_w1 = impl_use_generics(&ast.generics);
     let ty_arg_w1 = arg_generics(&ast.generics);
-    let ty_strip_arg_w1 = strip_arg_generics(&ast.generics);
 
     let ty_arg = if ty_arg_w1.len() > 0 {
         quote!{ #ident <#(#ty_arg_w1)*>}
     } else {
         quote!{ #ident }
-    };
-
-    let ty_strip_arg = if ty_strip_arg_w1.len() > 0 {
-        quote!{ <#(#ty_strip_arg_w1)*>}
-    } else {
-        quote!{  }
     };
 
     let state_types = state_types(&fields);
@@ -184,16 +178,6 @@ fn arg_generics(gen: &Generics) -> Vec<TokenStream> {
 
                 quote! { #lifetime, }
             }
-            syn::GenericParam::Type(TypeParam { ident: id, .. }) => quote! { #id, },
-            syn::GenericParam::Const(ty) => quote! { #ty, },
-        }
-    }).collect()
-}
-
-fn strip_arg_generics(gen: &Generics) -> Vec<TokenStream> {
-    gen.params.iter().map(|g| {
-        match g {
-            syn::GenericParam::Lifetime(_) => quote! { },
             syn::GenericParam::Type(TypeParam { ident: id, .. }) => quote! { #id, },
             syn::GenericParam::Const(ty) => quote! { #ty, },
         }
