@@ -14,9 +14,9 @@ use crate::{
 
 use super::Param;
 
-pub struct Local<'s, T:FromStore>(pub(crate) &'s mut T);
+pub struct Local<'s, T: FromStore + Send>(pub(crate) &'s mut T);
 
-impl<'s, T:FromStore> Deref for Local<'s, T> {
+impl<'s, T: FromStore + Send> Deref for Local<'s, T> {
     type Target = T;
 
     #[inline]
@@ -25,31 +25,31 @@ impl<'s, T:FromStore> Deref for Local<'s, T> {
     }
 }
 
-impl<'s, T:FromStore> DerefMut for Local<'s, T> {
+impl<'s, T: FromStore + Send> DerefMut for Local<'s, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0
     }
 }
 
-impl<'a, T: FromStore + Send + Sync + 'static> Param for Local<'a, T> {
-    type Local = T;
+impl<'a, T: FromStore + Send + 'static> Param for Local<'a, T> {
+    type State = T;
     type Arg<'w, 's> = Local<'s, T>;
 
-    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
+    fn init(_meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
         // let exl = std::sync::Exclusive::new(T::default());
-        Ok(T::init(world))
+        Ok(T::from_store(world))
     }
 
     #[inline]
     fn arg<'w, 's>(
         _world: &'w UnsafeStore, 
-        state: &'s mut Self::Local, 
+        state: &'s mut Self::State, 
     ) -> Result<Self::Arg<'w, 's>> {
         Ok(Local(state))
     }
 
-    fn flush(_world: &mut Store, _state: &mut Self::Local) {
+    fn flush(_world: &mut Store, _state: &mut Self::State) {
     }
 }
 

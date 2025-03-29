@@ -12,10 +12,6 @@ use super::{entity_ref::EntityMut, EntityRef};
 
 pub struct Store(Option<StoreInner>);
 
-pub trait FromStore {
-    fn init(world: &mut Store) -> Self;
-}
-
 impl Store {
     pub fn new() -> Self {
         Self(Some(StoreInner {
@@ -135,7 +131,7 @@ impl Store {
             return;
         }
 
-        let value = T::init(self);
+        let value = T::from_store(self);
 
         self.insert_resource::<T>(value);
     }
@@ -157,7 +153,7 @@ impl Store {
             return;
         }
 
-        let value = T::init(self);
+        let value = T::from_store(self);
 
         self.insert_resource_non_send::<T>(value);
     }
@@ -280,8 +276,12 @@ pub(crate) struct StoreInner {
     pub(crate) resources_non_send: Resources,
 }
 
-impl<T:Default> FromStore for T {
-    fn init(_world: &mut Store) -> T {
+pub trait FromStore {
+    fn from_store(store: &mut Store) -> Self;
+}
+
+impl<T: Default> FromStore for T {
+    fn from_store(_store: &mut Store) -> T {
         T::default()
     }
 }

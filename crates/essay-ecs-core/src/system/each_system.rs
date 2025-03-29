@@ -18,11 +18,11 @@ where
     F: EachFun<M>
 {
     fun: F,
-    state: Option<<F::Params as Param>::Local>,
+    state: Option<<F::Params as Param>::State>,
     marker: PhantomData<fn() -> M>,
 }
 
-pub trait EachFun<M> : Send + Sync {
+pub trait EachFun<M> : Send {
     type Item<'w>: View;
     type Params: Param;
 
@@ -56,7 +56,7 @@ where
 impl<M, F> System for EachSystem<M, F>
 where
     M: 'static,
-    F: EachFun<M> + Send + Sync + 'static
+    F: EachFun<M> + Send + 'static
 {
     type Out = ();
     

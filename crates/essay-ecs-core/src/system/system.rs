@@ -9,7 +9,7 @@ use crate::{
 #[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub struct SystemId(pub(crate) usize);
 
-pub trait System: Send + Sync + 'static {
+pub trait System: Send + 'static {
     type Out;
 
     fn type_name(&self) -> &'static str {

@@ -1,6 +1,6 @@
 use core::fmt;
 
-use std::{hash::{Hash, Hasher}, collections::HashMap};
+use std::{collections::HashMap, hash::{Hash, Hasher}};
 
 use crate::{
     error::Result,
@@ -159,29 +159,7 @@ impl Schedule {
         let config = into_config.into_config();
 
         self.inner_mut().add_phases(config);
-        //self.init_phases();
-
-        //self.inner_mut().is_stale = true;
     }
-
-    /*
-    fn init_phases(&mut self) {
-        let uninit = self.inner_mut().phases.uninit_phases();
-
-        for phase_id in uninit {
-            let first_id = self.add_system(
-                PhaseSystem(phase_id)
-            );
-
-            let last_id = self.add_system(
-                PhaseSystem(phase_id)
-            );
-
-            self.inner_mut().phases[phase_id].set_systems(first_id, last_id);
-            // self.inner_mut().phases.set_system_id(phase_id, system_id);
-        }
-    }
-    */
 
     pub fn tick(&mut self, world: &mut Store) -> Result<()> {
         let mut is_init = false;
@@ -219,12 +197,6 @@ impl Schedule {
 
     pub(crate) fn init(&mut self, world: &mut Store) -> Result<()> {
         self.inner_mut().init(world)
-
-        /*
-        self.init_phases();
-        let phase_order = self.inner_mut().phases.sort();
-        self.inner_mut().planner.sort(phase_order);
-        */
     }
 
     pub(crate) fn plan(&mut self) -> Plan {
@@ -234,20 +206,34 @@ impl Schedule {
         //self.inner().planner.plan(phase_order)
     }
 
-    pub(crate) fn flush(&mut self, world: &mut Store) {
-        self.inner_mut().flush(world);
+    pub(crate) fn flush(&mut self, store: &mut Store) {
+        self.inner_mut().flush(store);
     }
 
     pub(crate) unsafe fn run_system(
         &self, 
         id: SystemId, 
-        world: &mut UnsafeStore
+        store: &mut UnsafeStore
     ) -> Result<()> {
-        self.inner().systems[id.index()].as_mut().run(world)
+        // let start = Instant::now();
+        
+        self.inner().systems[id.index()].as_mut().run(store)?;
+
+        // let time = start.duration_since(start);
+        // println!("Time {:?}", time.as_nanos());
+
+        Ok(())
     }
 
     pub(crate) unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) -> Result<()> {
-        self.inner().run_unsafe(id, world)
+        // let start = Instant::now();
+
+        self.inner().run_unsafe(id, world)?;
+
+        // let time = start.duration_since(start);
+        // println!("Time {:?}", time.as_nanos());
+
+        Ok(())
     }
 
     fn inner(&self) -> &ScheduleInner {
@@ -335,23 +321,6 @@ impl ScheduleInner {
             .iter()
             .map(|p| self.planner.add_phase(p))
             .collect();
-        /*
-        let phases = match phase {
-            Some(phase) => {
-                if phase == Box::new(DefaultPhase) {
-                // self.inner_mut().phases.get_default_phase()
-                    vec![]
-                } else {
-                    let phase_id = self.add_phase(
-                    PhaseConfig::new(phase)
-                    );
-                    self.init_phases();
-                    vec![phase_id]
-                }
-            }
-            None => vec![],
-        };
-        */
 
         let phase_id = self.planner.phases_mut().add_phase_group(phase_ids);
 
@@ -390,13 +359,6 @@ impl ScheduleInner {
         let config = into_config.into_config();
 
         self.planner.phases_mut().add_phase(config);
-        /*
-        self.init_phases();
-
-        self.inner_mut().is_stale = true;
-
-        self.inner().phases[id].clone()
-        */
     }
 
     fn add_phases(&mut self, into_config: impl IntoPhaseConfigs) {
@@ -462,13 +424,6 @@ impl ScheduleInner {
         self.executor_factory = factory;
         self.is_stale = true;
     }
-    /*
-    fn set_phase(&mut self, phase_id: PhaseId, system_id: SystemId) {
-        self.phases.set_system_id(phase_id, system_id);
-
-        self.planner.meta_mut(system_id).set_phase(system_id);
-    }
-    */
 
     unsafe fn run_unsafe(&self, id: SystemId, world: &UnsafeStore) -> Result<()> {
         if self.conditions[id.index()].iter()

@@ -19,13 +19,13 @@ impl<'w, T:'static> Res<'w, T> {
     }
 }
 
-impl<T:Send+'static> Param for Res<'_, T> {
+impl<T: Send + 'static> Param for Res<'_, T> {
     type Arg<'w, 's> = Res<'w, T>;
-    type Local = ();
+    type State = ();
 
     fn arg<'w, 's>(
         store: &'w UnsafeStore,
-        _state: &'s mut Self::Local,
+        _state: &'s mut Self::State,
     ) -> Result<Res<'w, T>> {
         if let Some(value) = store.get_resource::<T>() {
             Ok(Res {
@@ -36,7 +36,7 @@ impl<T:Send+'static> Param for Res<'_, T> {
         }
     }
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::Local> {
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
         if store.contains_resource::<T>() {
             meta.insert_resource(store.get_resource_id::<T>());
 
@@ -63,16 +63,16 @@ impl<T:'static> AsRef<T> for Res<'_, T> {
 
 impl<T: Send + 'static> Param for Option<Res<'_, T>> {
     type Arg<'w, 's> = Option<Res<'w, T>>;
-    type Local = ();
+    type State = ();
 
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
-        _state: &'s mut Self::Local,
+        _state: &'s mut Self::State,
     ) -> Result<Option<Res<'w, T>>> {
         Ok(world.get_resource::<T>().map(|r| Res { value: r }))
     }
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::Local> {
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
         if store.contains_resource::<T>() {
             meta.insert_resource(store.get_resource_id::<T>());
         }
@@ -113,9 +113,9 @@ impl<'a, T:'static> DerefMut for ResMut<'_, T> {
 
 impl<T: Send+'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
-    type Local = ();
+    type State = ();
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::Local> {
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
         if store.contains_resource::<T>() {
             meta.insert_resource_mut(store.get_resource_id::<T>());
 
@@ -127,7 +127,7 @@ impl<T: Send+'static> Param for ResMut<'_, T> {
 
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
-        _state: &'s mut Self::Local,
+        _state: &'s mut Self::State,
     ) -> Result<ResMut<'w, T>> {
         Ok(ResMut {
             value: unsafe { world.as_mut().get_resource_mut().unwrap() }
@@ -137,18 +137,18 @@ impl<T: Send+'static> Param for ResMut<'_, T> {
 
 impl<T: Send + 'static> Param for Option<ResMut<'_, T>> {
     type Arg<'w, 's> = Option<ResMut<'w, T>>;
-    type Local = ();
+    type State = ();
 
     fn arg<'w, 's>(
         world: &'w UnsafeStore,
-        _state: &'s mut Self::Local,
+        _state: &'s mut Self::State,
     ) -> Result<Option<ResMut<'w, T>>> {
         unsafe {
             Ok(world.as_mut().get_resource_mut::<T>().map(|r| ResMut { value: r }))
         }
     }
 
-    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::Local> {
+    fn init(meta: &mut SystemMeta, store: &mut Store) -> Result<Self::State> {
         if store.contains_resource::<T>() {
             meta.insert_resource_mut(store.get_resource_id::<T>());
         }

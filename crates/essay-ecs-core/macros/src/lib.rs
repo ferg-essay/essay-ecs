@@ -18,17 +18,17 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
     component::derive_component(input)
 }
 
-#[proc_macro_derive(Param)]
+#[proc_macro_derive(Param, attributes(component))]
 pub fn derive_param(input: TokenStream) -> TokenStream {
     param::derive_param(input)
-}
-
-#[proc_macro_derive(ScheduleLabel, attributes(component))]
-pub fn derive_schedule_label(input: TokenStream) -> TokenStream {
-    label::derive_schedule_label(input)
 }
 
 #[proc_macro_derive(Phase, attributes(component))]
 pub fn derive_task_set(input: TokenStream) -> TokenStream {
     phase::derive_phase(input)
+}
+
+#[proc_macro_derive(ScheduleLabel, attributes(component))]
+pub fn derive_schedule_label(input: TokenStream) -> TokenStream {
+    label::derive_schedule_label(input)
 }

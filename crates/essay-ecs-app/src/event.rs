@@ -5,10 +5,14 @@ use essay_ecs_core::{
     Local, 
     ResMut, 
     Store, 
-    prelude::Param, 
+    param,
+    Param,
     schedule::{SystemMeta, UnsafeStore}, 
     Res
 };
+
+pub mod ecs { pub mod core { pub use essay_ecs_core::*; } }
+use ecs as essay_ecs;
 
 // see bevy_ecs/src/event.rs
 //
@@ -48,7 +52,12 @@ impl<E: Event> Default for Events<E> {
         }
     }
 }
-
+#[derive(Param)]
+pub struct InEvent2<'w, 's, E: Event> {
+    events: Res<'w, Events<E>>,
+    cursor: Local<'s, InEventCursor<E>>,
+}
+    
 pub struct InEvent<'w, 's, E: Event> {
     events: Res<'w, Events<E>>,
     cursor: Local<'s, InEventCursor<E>>,
@@ -136,16 +145,15 @@ pub trait Event : Send + Sync + 'static {}
 
 
 // TODO: create #[derive(Param)]
-
-impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
+impl<'w, 's, E: Event> param::Param for InEvent<'w, 's, E> {
     type Arg<'w1, 's1> = InEvent<'w1, 's1, E>;
 
-    type Local = (
-        <Res<'w, Events<E>> as Param>::Local, 
-        <Local<'s, InEventCursor<E>> as Param>::Local
+    type State = (
+        <Res<'w, Events<E>> as param::Param>::State, 
+        <Local<'s, InEventCursor<E>> as param::Param>::State
     );
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
         Ok((
             Res::<Events<E>>::init(meta, world)?,
             Local::<InEventCursor<E>>::init(meta, world)?
@@ -154,7 +162,7 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
 
     fn arg<'w1, 's1>(
         world: &'w1 UnsafeStore,
-        state: &'s1 mut Self::Local, 
+        state: &'s1 mut Self::State, 
     ) -> Result<Self::Arg<'w1, 's1>> {
         let (e_st, c_st) = state;
 
@@ -167,18 +175,18 @@ impl<'w, 's, E: Event> Param for InEvent<'w, 's, E> {
 
 // TODO: create #[derive(Param)]
 
-impl<'w, E: Event> Param for OutEvent<'w, E> {
+impl<'w, E: Event> param::Param for OutEvent<'w, E> {
     type Arg<'w1, 's1> = OutEvent<'w1, E>;
 
-    type Local = <ResMut<'w, Events<E>> as Param>::Local;
+    type State = <ResMut<'w, Events<E>> as param::Param>::State;
 
-    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::Local> {
+    fn init(meta: &mut SystemMeta, world: &mut Store) -> Result<Self::State> {
         ResMut::<Events<E>>::init(meta, world)
     }
 
     fn arg<'w1, 's1>(
         world: &'w1 UnsafeStore,
-        state: &'s1 mut Self::Local, 
+        state: &'s1 mut Self::State, 
     ) -> Result<Self::Arg<'w1, 's1>> {
 
         Ok(OutEvent {

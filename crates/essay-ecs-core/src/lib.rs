@@ -9,7 +9,7 @@ pub mod store;
 pub mod resource;
 
 pub use essay_ecs_core_macros::{
-    Component, ScheduleLabel, Phase
+    Component, ScheduleLabel, Param, Phase
 };
 
 pub use schedule::{
@@ -20,8 +20,7 @@ pub use schedule::{
 pub use system::IntoSystem;
 
 pub use param::{
-    Local,
-    Res, ResMut, Query, 
+    Local, Res, ResMut, Query, 
 };
 
 pub use store::{
@@ -29,10 +28,10 @@ pub use store::{
 };
 
 pub mod prelude {
-    pub use essay_ecs_core_macros::{Component, ScheduleLabel, Phase};
+    pub use essay_ecs_core_macros::{Component, ScheduleLabel, Param, Phase};
 
     pub use crate::{
-        param::{Param, Res, ResMut},
+        param::{Res, ResMut, Local, Query},
 
         schedule::{
             IntoPhaseConfig, IntoPhaseConfigs, IntoSystemConfig,
@@ -40,6 +39,6 @@ pub mod prelude {
 
         system::IntoSystem, 
 
-        store::Commands,
+        store::{Commands, FromStore},
     };
 }
