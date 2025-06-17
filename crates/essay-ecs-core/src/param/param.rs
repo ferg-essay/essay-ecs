@@ -105,7 +105,7 @@ mod test {
     use essay_ecs_core_macros::Param;
 
     use crate::{
-        error::Result, param::{Param, Res}, schedule::{SystemMeta, UnsafeStore}, Local, Store, store::FromStore,
+        error::Result, param::{Param, Res}, schedule::{SystemMeta, UnsafeStore}, Local, Store,
     };
 
     mod ecs { pub mod core { pub use crate::*; }}

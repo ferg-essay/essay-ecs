@@ -9,7 +9,7 @@ use quote::{__private::TokenStream, quote};
 pub fn derive_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
-    let (_, ty_gen, _) = ast.generics.split_for_impl();
+    // let (_, ty_gen, _) = ast.generics.split_for_impl();
 
     let span = ast.span();
 

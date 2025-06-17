@@ -13,7 +13,7 @@ pub struct Res<'w, T> {
     value: &'w T,
 }
 
-impl<'w, T:'static> Res<'w, T> {
+impl<'w, T: 'static> Res<'w, T> {
     pub fn get(&self) -> &T {
         self.value
     }
@@ -47,7 +47,7 @@ impl<T: Send + 'static> Param for Res<'_, T> {
     }
 }
 
-impl<T:'static> Deref for Res<'_, T> {
+impl<T: 'static> Deref for Res<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -55,7 +55,7 @@ impl<T:'static> Deref for Res<'_, T> {
     }
 }
 
-impl<T:'static> AsRef<T> for Res<'_, T> {
+impl<T: 'static> AsRef<T> for Res<'_, T> {
     fn as_ref(&self) -> &T {
         self.value
     }
@@ -85,7 +85,7 @@ pub struct ResMut<'a, T> {
     value: &'a mut T,
 }
 
-impl<T:'static> ResMut<'_, T> {
+impl<T: 'static> ResMut<'_, T> {
     pub fn get(&self) -> &T {
         self.value
     }
@@ -95,7 +95,7 @@ impl<T:'static> ResMut<'_, T> {
     }
 }
 
-impl<T:'static> Deref for ResMut<'_, T> {
+impl<T: 'static> Deref for ResMut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -103,7 +103,7 @@ impl<T:'static> Deref for ResMut<'_, T> {
     }
 }
 
-impl<'a, T:'static> DerefMut for ResMut<'_, T> {
+impl<'a, T: 'static> DerefMut for ResMut<'_, T> {
     // type Target = T;
 
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -111,7 +111,7 @@ impl<'a, T:'static> DerefMut for ResMut<'_, T> {
     }
 }
 
-impl<T: Send+'static> Param for ResMut<'_, T> {
+impl<T: Send + 'static> Param for ResMut<'_, T> {
     type Arg<'w, 's> = ResMut<'w, T>;
     type State = ();
 
